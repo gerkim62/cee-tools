@@ -1,0 +1,29 @@
+{
+  "name": "cee-tools-backend",
+  "version": "1.0.0",
+  "description": "Ask Saka - SakaHub RAG and Sync Backend",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "DATABASE_URL=postgresql://test:test@localhost:5432/test OPENROUTER_API_KEY=sk-test-key QDRANT_URL=http://localhost:6333 QDRANT_API_KEY=test-key tsx --test tests/**/*.test.ts"
+  },
+  "dependencies": {
+    "@langchain/textsplitters": "^0.1.0",
+    "@qdrant/js-client-rest": "^1.13.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.13.4",
+    "@types/pg": "^8.11.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

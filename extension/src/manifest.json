@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Ask Saka - Safaricom Knowledge Assistant",
+  "version": "1.0.0",
+  "description": "Intelligent RAG assistant and real-time synchronizer for Safaricom SakaHub knowledge base.",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://sakahub.safaricom.co.ke/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "background": {
+    "service_worker": "src/background.ts",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Ask Saka"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,189 @@
+import { MarkdownTextSplitter, RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { config } from '../config.js';
+
+export interface ChunkMetadata {
+  articleId: string;
+  articleTitle: string;
+  articleNumber?: string;
+  sectionHeading: string;
+  lastUpdated: string;
+  chunkIndex: number;
+}
+
+export interface ChunkResult {
+  text: string;
+  structuralPrefix: string;
+  metadata: ChunkMetadata;
+  textFragment: string;
+}
+
+/**
+ * Encodes a text fragment component per W3C Text Fragment specification.
+ * Syntactical delimiters dash (-), comma (,), and ampersand (&) inside
+ * text words must be percent-encoded.
+ */
+export function encodeTextFragment(text: string): string {
+  return encodeURIComponent(text)
+    .replace(/-/g, '%2D')
+    .replace(/,/g, '%2C')
+    .replace(/&/g, '%26');
+}
+
+/**
+ * Generates an adaptive Chrome Text Fragment (#:~:text=...)
+ * - If words < 10: uses exact textStart string (#:~:text=phrase)
+ * - If words >= 10: uses official Range format (#:~:text=textStart,textEnd)
+ */
+export function generateTextFragment(quote: string): string {
+  // Strip Markdown syntax carefully without breaking USSD codes like *334#
+  let clean = quote
+    // Strip markdown links [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Strip bold/italic markdown markers: **text** or __text__
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    // Strip inline code `code`
+    .replace(/`([^`]+)`/g, '$1')
+    // Strip heading markers at line start: # Title
+    .replace(/^#+\s+/gm, '')
+    // Normalize spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const words = clean.split(' ').filter(Boolean);
+  if (words.length === 0) return '';
+
+  if (words.length < 10) {
+    return `#:~:text=${encodeTextFragment(words.join(' '))}`;
+  }
+
+  // Range format: first 4 words and last 4 words separated by literal comma
+  const startWords = words.slice(0, 4).join(' ');
+  const endWords = words.slice(-4).join(' ');
+  return `#:~:text=${encodeTextFragment(startWords)},${encodeTextFragment(endWords)}`;
+}
+
+interface SectionBlock {
+  headingPath: string;
+  content: string;
+}
+
+/**
+ * Parses markdown into hierarchical sections based on #, ##, ### headings.
+ */
+export function parseMarkdownSections(markdown: string): SectionBlock[] {
+  const lines = markdown.split('\n');
+  const sections: SectionBlock[] = [];
+
+  let currentH1 = '';
+  let currentH2 = '';
+  let currentH3 = '';
+  let currentBuffer: string[] = [];
+
+  function flushCurrent() {
+    const content = currentBuffer.join('\n').trim();
+    if (content) {
+      const headingPath = [currentH1, currentH2, currentH3].filter(Boolean).join(' > ') || 'General';
+      sections.push({ headingPath, content });
+    }
+    currentBuffer = [];
+  }
+
+  for (const line of lines) {
+    const h1Match = line.match(/^#\s+(.+)$/);
+    const h2Match = line.match(/^##\s+(.+)$/);
+    const h3Match = line.match(/^###\s+(.+)$/);
+
+    if (h1Match) {
+      flushCurrent();
+      currentH1 = h1Match[1].trim();
+      currentH2 = '';
+      currentH3 = '';
+    } else if (h2Match) {
+      flushCurrent();
+      currentH2 = h2Match[1].trim();
+      currentH3 = '';
+    } else if (h3Match) {
+      flushCurrent();
+      currentH3 = h3Match[1].trim();
+    } else {
+      currentBuffer.push(line);
+    }
+  }
+
+  flushCurrent();
+  return sections;
+}
+
+/**
+ * Splits an article into chunks using hierarchical Markdown heading parsing
+ * followed by RecursiveCharacterTextSplitter within each section.
+ */
+export async function splitArticle(article: {
+  id: string;
+  title: string;
+  articleNumber?: string;
+  markdownContent: string;
+  lastUpdated: string;
+}): Promise<ChunkResult[]> {
+  const sections = parseMarkdownSections(article.markdownContent);
+
+  const recursiveSplitter = new RecursiveCharacterTextSplitter({
+    chunkSize: config.CHUNK_SIZE,
+    chunkOverlap: config.CHUNK_OVERLAP,
+    separators: ['\n\n', '\n', '. ', ' ', ''],
+  });
+
+  const results: ChunkResult[] = [];
+  let chunkIndex = 0;
+
+  for (const section of sections) {
+    const subChunks = await recursiveSplitter.splitText(section.content);
+
+    for (const text of subChunks) {
+      const trimmed = text.trim();
+      if (!trimmed) continue;
+
+      const structuralPrefix = `[Article: ${article.title} | Section: ${section.headingPath}]`;
+      const textFragment = generateTextFragment(trimmed);
+
+      results.push({
+        text: trimmed,
+        structuralPrefix,
+        metadata: {
+          articleId: article.id,
+          articleTitle: article.title,
+          articleNumber: article.articleNumber,
+          sectionHeading: section.headingPath,
+          lastUpdated: article.lastUpdated,
+          chunkIndex: chunkIndex++,
+        },
+        textFragment,
+      });
+    }
+  }
+
+  // Fallback if parsing produced no sections
+  if (results.length === 0 && article.markdownContent.trim()) {
+    const fallbackChunks = await recursiveSplitter.splitText(article.markdownContent);
+    for (const text of fallbackChunks) {
+      const trimmed = text.trim();
+      if (!trimmed) continue;
+      results.push({
+        text: trimmed,
+        structuralPrefix: `[Article: ${article.title} | Section: General]`,
+        metadata: {
+          articleId: article.id,
+          articleTitle: article.title,
+          articleNumber: article.articleNumber,
+          sectionHeading: 'General',
+          lastUpdated: article.lastUpdated,
+          chunkIndex: chunkIndex++,
+        },
+        textFragment: generateTextFragment(trimmed),
+      });
+    }
+  }
+
+  return results;
+}
