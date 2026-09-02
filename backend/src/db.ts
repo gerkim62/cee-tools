@@ -1,5 +1,15 @@
+import dns from 'node:dns';
+import net from 'node:net';
 import pg from 'pg';
 import { config } from './config.js';
+
+// Prevent Node Happy Eyeballs from hanging when IPv6 route is unreachable
+if (typeof net.setDefaultAutoSelectFamily === 'function') {
+  net.setDefaultAutoSelectFamily(false);
+}
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 const { Pool } = pg;
 

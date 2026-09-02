@@ -1,3 +1,14 @@
+import dns from 'node:dns';
+import net from 'node:net';
+
+// Prevent Node Happy Eyeballs from hanging when IPv6 route is unreachable
+if (typeof net.setDefaultAutoSelectFamily === 'function') {
+  net.setDefaultAutoSelectFamily(false);
+}
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 import express from 'express';
 import cors from 'cors';
 import { config } from './config.js';
@@ -36,8 +47,10 @@ async function startServer(): Promise<void> {
     await initDb();
     console.log('✔ PostgreSQL connection and schema verified.');
   } catch (dbErr: unknown) {
-    const rawMsg = dbErr instanceof Error ? dbErr.message : String(dbErr);
-    const conciseMsg = rawMsg.split('\n')[0];
+    const rawMsg = dbErr instanceof Error
+      ? (dbErr.message || (dbErr as any)?.code || String(dbErr))
+      : String(dbErr);
+    const conciseMsg = rawMsg.split('\n')[0] || String(dbErr);
     console.error(`\n❌ [Database Error] Failed to connect to PostgreSQL: ${conciseMsg}`);
     console.error(`👉 Please verify that PostgreSQL is running and check DATABASE_URL in backend/.env\n`);
     process.exit(1);
@@ -48,8 +61,10 @@ async function startServer(): Promise<void> {
     const collectionName = await initQdrant();
     console.log(`✔ Qdrant collection verified: ${collectionName}`);
   } catch (qdrantErr: unknown) {
-    const rawMsg = qdrantErr instanceof Error ? qdrantErr.message : String(qdrantErr);
-    const conciseMsg = rawMsg.split('\n')[0];
+    const rawMsg = qdrantErr instanceof Error
+      ? (qdrantErr.message || (qdrantErr as any).code || String(qdrantErr))
+      : String(qdrantErr);
+    const conciseMsg = rawMsg.split('\n')[0] || String(qdrantErr);
     console.error(`\n❌ [Qdrant Error] Failed to initialize Qdrant: ${conciseMsg}`);
     console.error(`👉 Please verify that Qdrant is running and check QDRANT_URL in backend/.env\n`);
     process.exit(1);
@@ -71,7 +86,7 @@ async function startServer(): Promise<void> {
     server.close(async () => {
       try {
         await pool.end();
-      } catch {}
+      } catch { }
       console.log('[Shutdown] Cleanup completed. Exiting.');
       process.exit(0);
     });
