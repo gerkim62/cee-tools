@@ -28,13 +28,22 @@ export interface SakaChunkPayload {
   chunk_index: number;
   last_updated: string;
   chunk_text: string;
+  parent_text?: string | null;
   context_summary: string | null;
   text_fragment: string;
 }
 
+export interface SparseVector {
+  indices: number[];
+  values: number[];
+}
+
 export interface QdrantChunkPoint {
   id: string;
-  vector: number[];
+  vector: {
+    dense: number[];
+    sparse: SparseVector;
+  };
   payload: SakaChunkPayload;
 }
 
@@ -44,37 +53,112 @@ export interface QdrantQueryResult {
   payload?: SakaChunkPayload;
 }
 
+function hashToken(token: string): number {
+  let h = 0;
+  for (let i = 0; i < token.length; i++) {
+    h = (Math.imul(31, h) + token.charCodeAt(i)) >>> 0;
+  }
+  return (h % 100000) + 1; // 1 to 100000 positive indices
+}
+
+/**
+ * Builds a deterministic sparse TF vector for exact keyword/code matching in Qdrant BM25.
+ * Captures alphanumeric terms, USSD codes (*334#), and procedural error codes (LPPP-0014).
+ */
+export function buildSparseVector(text: string): SparseVector {
+  const tokens = (text.toLowerCase().match(/[*#a-z0-9_-]+/g) || [])
+    .map(t => t.trim())
+    .filter(t => t.length >= 1);
+
+  if (tokens.length === 0) {
+    return { indices: [1], values: [0.001] };
+  }
+
+  const tf: Record<number, number> = {};
+  for (const token of tokens) {
+    const id = hashToken(token);
+    tf[id] = (tf[id] || 0) + 1;
+  }
+
+  const total = tokens.length;
+  // Sort indices ascending as required by Qdrant sparse vectors
+  const indices = Object.keys(tf).map(Number).sort((a, b) => a - b);
+  const values = indices.map(i => tf[i]! / total);
+
+  return { indices, values };
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1500): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < retries - 1) {
+        console.warn(`[Qdrant] Network warning (attempt ${i + 1}/${retries}), retrying in ${delayMs * (i + 1)}ms...`);
+        await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export async function initQdrant(): Promise<string> {
   // 1. Probe dimension of currently configured embedding model
-  let vectorSize = 1536;
+  let vectorSize = 3072;
   try {
     vectorSize = await probeEmbeddingDimension();
   } catch (err) {
-    console.warn('[Qdrant] Could not probe dimension from OpenRouter, defaulting to 1536:', err);
+    console.warn('[Qdrant] Could not probe dimension from OpenRouter, defaulting to 3072:', err);
   }
 
-  // 2. Generate model-scoped collection name so switching models never crashes Qdrant
+  // 2. Generate model-scoped collection name
   activeCollectionName = getModelCollectionName(config.QDRANT_COLLECTION_BASE, config.OPENROUTER_EMBED_MODEL);
 
-  try {
-    // 3. Ensure collection exists
+  return withRetry(async () => {
+    // 3. Ensure collection exists with named vectors (dense + sparse)
     const collectionsRes = await qdrantClient.getCollections();
-    const exists = collectionsRes.collections.some(c => c.name === activeCollectionName);
+    const existing = collectionsRes.collections.find(c => c.name === activeCollectionName);
 
-    if (!exists) {
-      console.log(`[Qdrant] Creating collection ${activeCollectionName} with vector size ${vectorSize}...`);
-      await qdrantClient.createCollection(activeCollectionName, {
-        vectors: {
-          size: vectorSize,
-          distance: 'Cosine',
-        },
-      });
-      console.log(`[Qdrant] Collection ${activeCollectionName} created successfully.`);
-    } else {
-      console.log(`[Qdrant] Collection ${activeCollectionName} already exists.`);
+    if (existing) {
+      try {
+        const info = await qdrantClient.getCollection(activeCollectionName);
+        const hasSparse = !!info.config?.params?.sparse_vectors;
+        const hasDenseNamed = !!(info.config?.params?.vectors as any)?.dense;
+
+        if (!hasSparse || !hasDenseNamed) {
+          console.log(`[Qdrant] Upgrading collection ${activeCollectionName} to hybrid (dense + sparse)...`);
+          await qdrantClient.deleteCollection(activeCollectionName);
+        }
+      } catch (err) {
+        console.warn(`[Qdrant] Error checking collection params, recreating:`, err);
+        await qdrantClient.deleteCollection(activeCollectionName).catch(() => {});
+      }
     }
 
-    // 4. Ensure payload index on article_id for instant O(1) filtered deletions
+    const checkAgain = await qdrantClient.getCollections();
+    const stillExists = checkAgain.collections.some(c => c.name === activeCollectionName);
+
+    if (!stillExists) {
+      console.log(`[Qdrant] Creating hybrid collection ${activeCollectionName} (dense: ${vectorSize}, sparse: BM25)...`);
+      await qdrantClient.createCollection(activeCollectionName, {
+        vectors: {
+          dense: {
+            size: vectorSize,
+            distance: 'Cosine',
+          },
+        },
+        sparse_vectors: {
+          sparse: {},
+        },
+      });
+      console.log(`[Qdrant] Hybrid collection ${activeCollectionName} created successfully.`);
+    } else {
+      console.log(`[Qdrant] Hybrid collection ${activeCollectionName} verified ready.`);
+    }
+
+    // 4. Ensure payload index on article_id for instant filtered deletions
     try {
       await qdrantClient.createPayloadIndex(activeCollectionName, {
         field_name: 'article_id',
@@ -89,10 +173,7 @@ export async function initQdrant(): Promise<string> {
     }
 
     return activeCollectionName;
-  } catch (error) {
-    console.error(`[Qdrant Error] Failed to initialize Qdrant collection ${activeCollectionName}:`, error);
-    throw error;
-  }
+  });
 }
 
 export async function deleteArticlePoints(articleId: string): Promise<void> {
@@ -132,19 +213,30 @@ export async function upsertPoints(points: QdrantChunkPoint[]): Promise<void> {
   });
 }
 
+/**
+ * Executes hybrid search using Qdrant native prefetch + RRF (Reciprocal Rank Fusion)
+ */
 export async function queryPoints(
-  vector: number[],
+  denseVector: number[],
+  sparseVector: SparseVector,
   limit: number
 ): Promise<QdrantQueryResult[]> {
-  const result = await qdrantClient.query(activeCollectionName, {
-    query: vector,
-    limit,
-    with_payload: true,
-  });
+  return withRetry(async () => {
+    const result = await qdrantClient.query(activeCollectionName, {
+      prefetch: [
+        { query: denseVector, using: 'dense', limit: limit * 2 },
+        { query: { indices: sparseVector.indices, values: sparseVector.values }, using: 'sparse', limit: limit * 2 },
+      ],
+      query: { fusion: 'rrf' },
+      limit,
+      with_payload: true,
+    });
 
-  return (result.points || []).map((p: any) => ({
-    id: p.id,
-    score: p.score,
-    payload: p.payload as SakaChunkPayload | undefined,
-  }));
+    return (result.points || []).map((p: any) => ({
+      id: p.id,
+      score: p.score,
+      payload: p.payload as SakaChunkPayload | undefined,
+    }));
+  });
 }
+

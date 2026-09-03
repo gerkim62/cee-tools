@@ -10,6 +10,7 @@ import {
   deleteManyArticlesPoints,
   upsertPoints,
   QdrantChunkPoint,
+  buildSparseVector,
 } from '../services/qdrant.js';
 
 export const reindexRouter: Router = Router();
@@ -180,7 +181,10 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
         // E. Build Qdrant points payload
         const points: QdrantChunkPoint[] = chunks.map((chunk, idx) => ({
           id: crypto.randomUUID(),
-          vector: embeddings[idx],
+          vector: {
+            dense: embeddings[idx],
+            sparse: buildSparseVector(enrichedTexts[idx].embeddedText),
+          },
           payload: {
             article_id: article.id,
             article_title: article.title,
@@ -190,6 +194,7 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
             chunk_index: chunk.metadata.chunkIndex,
             last_updated: article.lastUpdated,
             chunk_text: chunk.text,
+            parent_text: chunk.parentText,
             context_summary: enrichedTexts[idx].context,
             text_fragment: chunk.textFragment,
           },

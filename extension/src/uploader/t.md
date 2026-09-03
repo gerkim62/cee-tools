@@ -50,12 +50,14 @@ Method:
    - cancel / stop → unsubscribe, cancel service, or deactivate
 3. Primary Query: Exactly one clear, semantically rich, grammatically complete English sentence. Not a keyword list.
 4. Fallback: Primary query with the agent's original raw phrase appended verbatim.
-5. Ambiguity: If two distinct support flows are plausible (e.g. SIM swap vs SIM line unbarring), output two full English queries. Otherwise "None".
+5. Ambiguity: If two distinct support flows are plausible (e.g. SIM swap vs SIM line unbarring), provide a second full English query. Otherwise null.
 
-Output format (strict — no extra text):
-Primary query: <natural-language English rewrite>
-Fallback: <primary query + agent's raw phrase appended>
-Alt interpretation: <second full query, or None>`;
+Output Format: You MUST return a strictly valid JSON object matching this schema:
+{
+  "primary": "Clear, semantically rich, grammatically complete English sentence",
+  "fallback": "Primary query with agent's raw phrase appended verbatim",
+  "alt": "Second full query if ambiguous, or null"
+}`;
 
 export async function translateQuery(rawQuery: string): Promise<TranslatedQuery> {
   try {
@@ -64,25 +66,34 @@ export async function translateQuery(rawQuery: string): Promise<TranslatedQuery>
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: rawQuery },
       ],
-      { temperature: 0.0, model: config.QUERY_TRANSLATION_MODEL }
+      {
+        temperature: 0.0,
+        model: config.QUERY_TRANSLATION_MODEL,
+        responseFormat: { type: 'json_object' },
+      }
     );
-    return parse(raw, rawQuery);
+    return parseTranslationResponse(raw, rawQuery);
   } catch (err) {
     console.warn('[QueryTranslator] Failed, using raw query:', err);
     return { primary: rawQuery, fallback: rawQuery, alt: null };
   }
 }
 
-function parse(raw: string, original: string): TranslatedQuery {
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const get = (prefix: string) =>
-    lines.find(l => l.toLowerCase().startsWith(prefix))
-      ?.replace(new RegExp(`^${prefix}`, 'i'), '').trim() ?? '';
-
-  const primary = get('primary query:') || original;
-  const fallback = get('fallback:') || `${primary} ${original}`;
-  const altRaw  = get('alt interpretation:');
-  const alt = !altRaw || altRaw.toLowerCase() === 'none' ? null : altRaw;
+function parseTranslationResponse(raw: string, original: string): TranslatedQuery {
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed && typeof parsed === 'object') {
+        const primary = typeof parsed.primary === 'string' && parsed.primary.trim() ? parsed.primary.trim() : original;
+        const fallback = typeof parsed.fallback === 'string' && parsed.fallback.trim() ? parsed.fallback.trim() : `${primary} ${original}`.trim();
+        const alt = typeof parsed.alt === 'string' && parsed.alt.trim() && !/^none\.?$/i.test(parsed.alt.trim()) ? parsed.alt.trim() : null;
+        return { primary, fallback, alt };
+      }
+    }
+  } catch {}
+  return { primary: original, fallback: original, alt: null };
+}
 
   return { primary, fallback, alt };
 }

@@ -234,6 +234,7 @@ export async function rerankChunks(
 export interface ChatCompletionOptions {
   responseFormat?: { type: string };
   temperature?: number;
+  model?: string;
 }
 
 /**
@@ -249,7 +250,7 @@ export async function chatCompletion(
     temperature: number;
     response_format?: { type: string };
   } = {
-    model: config.OPENROUTER_CHAT_MODEL,
+    model: options.model ?? config.OPENROUTER_CHAT_MODEL,
     messages,
     temperature: options.temperature ?? 0.2,
   };

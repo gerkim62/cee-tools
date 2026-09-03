@@ -12,6 +12,7 @@ export interface ChunkMetadata {
 
 export interface ChunkResult {
   text: string;
+  parentText: string;
   structuralPrefix: string;
   metadata: ChunkMetadata;
   textFragment: string;
@@ -173,6 +174,7 @@ export async function splitArticle(article: {
 
       results.push({
         text: trimmed,
+        parentText: section.content.trim(),
         structuralPrefix,
         metadata: {
           articleId: article.id,
@@ -195,6 +197,7 @@ export async function splitArticle(article: {
       if (!trimmed) continue;
       results.push({
         text: trimmed,
+        parentText: article.markdownContent.trim(),
         structuralPrefix: `[Article: ${article.title} | Section: General]`,
         metadata: {
           articleId: article.id,

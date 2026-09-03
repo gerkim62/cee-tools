@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config.js';
 import { embedTexts, rerankChunks, chatCompletion } from '../services/openrouter.js';
-import { queryPoints, QdrantQueryResult } from '../services/qdrant.js';
+import { queryPoints, buildSparseVector, QdrantQueryResult } from '../services/qdrant.js';
 import { generateTextFragment } from '../services/chunker.js';
+import { translateQuery } from '../services/queryTranslator.js';
 
 export const askRouter: Router = Router();
 
@@ -31,11 +32,24 @@ export interface CitedSourceItem {
 
 export interface AskLlmStructuredOutput {
   answer: string;
-  cited_sources?: CitedSourceItem[];
+  cited_sources: CitedSourceItem[];
 }
 
+/**
+ * POST /ask
+ * End-to-end RAG pipeline:
+ * 1. Query Translation (Resolves slang, typos, brand nicknames via low-latency LLM)
+ * 2. Multi-Variant Batch Dense Embeddings
+ * 3. Parallel Hybrid Search in Qdrant (Dense + Sparse BM25 via native RRF)
+ * 4. Candidate Union & Deduplication
+ * 5. Article Flag Boosting (KeyUpdates / Featured guidelines)
+ * 6. Cross-Encoder Reranking (Cohere v3.5 using translated primary query)
+ * 7. Small-to-Big Context Assembly (parent sections with deduplication)
+ * 8. Structured Answer Synthesis with Verified Text Fragment Citations
+ */
 askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Response): Promise<void> => {
   const requestStart = Date.now();
+
   try {
     const { question } = req.body;
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
@@ -46,25 +60,59 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     const trimmedQuestion = question.trim();
     console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}"`);
 
-    // 1. Generate query embedding
+    // 1. Query Translation
+    const transStart = Date.now();
+    const translated = await translateQuery(trimmedQuestion);
+    console.log(`[Ask:1/6] ✔ Query translated in ${Date.now() - transStart}ms:`);
+    console.log(`   Primary  : "${translated.primary}"`);
+    console.log(`   Fallback : "${translated.fallback}"`);
+    if (translated.alt) {
+      console.log(`   Alt      : "${translated.alt}"`);
+    }
+
+    const queryVariants = [translated.primary, translated.fallback];
+    if (translated.alt) {
+      queryVariants.push(translated.alt);
+    }
+
+    // 2. Generate embeddings for all query variants in a single batch
     const embedStart = Date.now();
-    console.log(`[Ask:1/5] Generating query embedding via ${config.OPENROUTER_EMBED_MODEL}...`);
-    const [queryVector] = await embedTexts([trimmedQuestion]);
-    if (!queryVector) {
-      console.error('[Ask:1/5] ❌ Failed to generate embedding for query.');
+    console.log(`[Ask:2/6] Generating embeddings for ${queryVariants.length} query variants via ${config.OPENROUTER_EMBED_MODEL}...`);
+    const queryVectors = await embedTexts(queryVariants);
+    if (!queryVectors || queryVectors.length === 0 || !queryVectors[0]) {
+      console.error('[Ask:2/6] ❌ Failed to generate embeddings for query variants.');
       res.status(500).json({ error: 'Failed to generate embedding for query' });
       return;
     }
-    console.log(`[Ask:1/5] ✔ Embedding ready in ${Date.now() - embedStart}ms (dim: ${queryVector.length})`);
+    console.log(`[Ask:2/6] ✔ Embeddings ready in ${Date.now() - embedStart}ms (dim: ${queryVectors[0].length})`);
 
-    // 2. Vector search in Qdrant for top candidates (e.g. 20)
+    // 3. Parallel Hybrid Search in Qdrant (Dense + Sparse BM25 with RRF)
     const searchStart = Date.now();
-    console.log(`[Ask:2/5] Vector search in Qdrant (candidate limit: ${config.RETRIEVAL_CANDIDATES})...`);
-    const candidates: QdrantQueryResult[] = await queryPoints(queryVector, config.RETRIEVAL_CANDIDATES);
+    console.log(`[Ask:3/6] Hybrid search in Qdrant (candidate limit: ${config.RETRIEVAL_CANDIDATES})...`);
+
+    const candidateSets = await Promise.all(
+      queryVectors.map((denseVec, i) => {
+        const variantText = queryVariants[i] || trimmedQuestion;
+        const sparseVec = buildSparseVector(variantText);
+        return queryPoints(denseVec, sparseVec, config.RETRIEVAL_CANDIDATES);
+      })
+    );
+
+    // Union and deduplicate candidates by chunk ID
+    const seenIds = new Set<string | number>();
+    const candidates: QdrantQueryResult[] = [];
+    for (const set of candidateSets) {
+      for (const c of set) {
+        if (!seenIds.has(c.id)) {
+          seenIds.add(c.id);
+          candidates.push(c);
+        }
+      }
+    }
     const searchMs = Date.now() - searchStart;
 
     if (candidates.length === 0) {
-      console.warn(`[Ask:2/5] ⚠️ No matching vectors found in Qdrant (${searchMs}ms).`);
+      console.warn(`[Ask:3/6] ⚠️ No matching vectors found in Qdrant (${searchMs}ms).`);
       res.json({
         answer: 'No relevant articles or information found in the SakaHub knowledge base for this query.',
         citations: [],
@@ -74,48 +122,91 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
 
     const topScore = candidates[0]?.score ?? 0;
     const lowScore = candidates[candidates.length - 1]?.score ?? 0;
-    console.log(`[Ask:2/5] ✔ Retrieved ${candidates.length} candidates in ${searchMs}ms (scores: ${topScore.toFixed(3)} down to ${lowScore.toFixed(3)})`);
+    console.log(`[Ask:3/6] ✔ Retrieved and deduplicated ${candidates.length} candidates across ${queryVariants.length} variants in ${searchMs}ms (scores: ${topScore.toFixed(3)} down to ${lowScore.toFixed(3)})`);
 
-    // 3. Rerank candidates using OpenRouter native /v1/rerank (with full contextual title & heading)
+    // 4. Apply article flag boost for KeyUpdates and Featured guidelines
+    const boostedCandidates = candidates.map(c => {
+      const flag = c.payload?.article_flag;
+      if (flag === 'KeyUpdates' || flag === 'Featured') {
+        return { ...c, score: c.score * config.ARTICLE_FLAG_BOOST };
+      }
+      return c;
+    });
+    boostedCandidates.sort((a, b) => b.score - a.score);
+
+    // 5. Cross-encoder reranking using translated.primary (clean, semantically explicit)
     const rerankStart = Date.now();
-    const candidateTexts = candidates.map(c => {
+    const candidateTexts = boostedCandidates.map(c => {
       const p = c.payload;
       const numPrefix = p?.article_number ? `[${p.article_number}] ` : '';
       const heading = p?.section_heading ? ` > ${p.section_heading}` : '';
       return `${numPrefix}${p?.article_title || ''}${heading}\n${p?.chunk_text || ''}`;
     });
-    console.log(`[Ask:3/5] Cross-encoder reranking top candidates via ${config.OPENROUTER_RERANK_MODEL || 'native score'} (top ${config.RERANK_TOP_K})...`);
+
+    console.log(`[Ask:4/6] Cross-encoder reranking top candidates via ${config.OPENROUTER_RERANK_MODEL} (top ${config.RERANK_TOP_K})...`);
     const rerankedResults = await rerankChunks(
-      trimmedQuestion,
+      translated.primary,
       candidateTexts,
       config.RERANK_TOP_K
     );
 
     // Pick top-ranked points
     const topChunks: QdrantQueryResult[] = rerankedResults
-      .map(r => candidates[r.index])
+      .map(r => boostedCandidates[r.index])
       .filter((c): c is QdrantQueryResult => Boolean(c));
 
     const rerankMs = Date.now() - rerankStart;
-    console.log(`[Ask:3/5] ✔ Pruned to ${topChunks.length} most relevant sources in ${rerankMs}ms:`);
+    console.log(`[Ask:4/6] ✔ Pruned to ${topChunks.length} most relevant sources in ${rerankMs}ms:`);
     topChunks.forEach((c, idx) => {
       const p = c.payload;
       const score = rerankedResults[idx]?.relevanceScore ?? c.score ?? 0;
       console.log(`   #${idx + 1} [Rel: ${score.toFixed(3)}] [${p?.article_number || 'N/A'}] "${p?.article_title}" > "${p?.section_heading}"`);
     });
 
-    // 4. Construct context for LLM synthesis
-    const contextBlocks = topChunks.map((chunk, idx) => {
+    // 6. Construct context for LLM synthesis (Small-to-Big: parent sections with deduplication)
+    const seenParents = new Set<string>();
+    const contextSources: {
+      index: number;
+      articleId: string;
+      articleTitle: string;
+      articleNumber?: string;
+      articleFlag: string;
+      sectionHeading: string;
+      content: string;
+      chunk: QdrantQueryResult;
+    }[] = [];
+
+    for (const chunk of topChunks) {
       const p = chunk.payload;
-      const numPrefix = p?.article_number ? `[${p.article_number}] ` : '';
-      return `[Source ${idx + 1}]
-Article: ${numPrefix}${p?.article_title || 'Untitled'}
-Article ID: ${p?.article_id || 'Unknown'}
-Article Number: ${p?.article_number || 'N/A'}
-Article Flag: ${p?.article_flag || 'Default'}
-Section: ${p?.section_heading || 'General'}
+      const parentKey = `${p?.article_id || ''}::${p?.section_heading || ''}`;
+      if (seenParents.has(parentKey)) {
+        continue;
+      }
+      seenParents.add(parentKey);
+
+      const content = p?.parent_text || p?.chunk_text || '';
+      contextSources.push({
+        index: contextSources.length + 1,
+        articleId: p?.article_id || 'Unknown',
+        articleTitle: p?.article_title || 'Untitled',
+        articleNumber: p?.article_number || undefined,
+        articleFlag: p?.article_flag || 'Default',
+        sectionHeading: p?.section_heading || 'General',
+        content,
+        chunk,
+      });
+    }
+
+    const contextBlocks = contextSources.map(s => {
+      const numPrefix = s.articleNumber ? `[${s.articleNumber}] ` : '';
+      return `[Source ${s.index}]
+Article: ${numPrefix}${s.articleTitle}
+Article ID: ${s.articleId}
+Article Number: ${s.articleNumber || 'N/A'}
+Article Flag: ${s.articleFlag}
+Section: ${s.sectionHeading}
 Content:
-${p?.chunk_text || ''}
+${s.content}
 `;
     }).join('\n---\n\n');
 
@@ -141,7 +232,7 @@ Ensure the JSON is strictly valid and parseable without markdown backticks.`;
     const userMessage = `Context Sources:\n${contextBlocks}\n\nQuestion: ${trimmedQuestion}`;
 
     const llmStart = Date.now();
-    console.log(`[Ask:4/5] Synthesizing answer via ${config.OPENROUTER_CHAT_MODEL}...`);
+    console.log(`[Ask:5/6] Synthesizing answer via ${config.OPENROUTER_CHAT_MODEL}...`);
     const llmRawResponse = await chatCompletion([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
@@ -150,7 +241,7 @@ Ensure the JSON is strictly valid and parseable without markdown backticks.`;
       temperature: 0.2,
     });
     const llmMs = Date.now() - llmStart;
-    console.log(`[Ask:4/5] ✔ Answer generated in ${llmMs}ms (raw response: ${llmRawResponse.length} chars)`);
+    console.log(`[Ask:5/6] ✔ Answer generated in ${llmMs}ms (raw response: ${llmRawResponse.length} chars)`);
 
     function parseAskOutput(raw: string): AskLlmStructuredOutput {
       let cleaned = raw.trim();
@@ -174,53 +265,52 @@ Ensure the JSON is strictly valid and parseable without markdown backticks.`;
     const answerText = parsedOutput.answer;
     const citedList: CitedSourceItem[] = parsedOutput.cited_sources || [];
 
-    // 5. Build structured citations with adaptive Chrome Text Fragments
+    // 7. Build structured citations with adaptive Chrome Text Fragments
     const citations: Citation[] = [];
     const seenQuotes = new Set<string>();
 
     for (const citationItem of citedList) {
       const sourceIndex = citationItem.source_index - 1;
-      const chunk = topChunks[sourceIndex] || topChunks[0];
-      if (!chunk || !chunk.payload) continue;
+      const source = contextSources[sourceIndex] || contextSources[0];
+      if (!source) continue;
 
-      const p = chunk.payload;
-      const quote = citationItem.exact_quote || p.chunk_text.slice(0, 100);
+      const p = source.chunk.payload;
+      const quote = citationItem.exact_quote || p?.chunk_text.slice(0, 100) || source.content.slice(0, 100);
       if (seenQuotes.has(quote)) continue;
       seenQuotes.add(quote);
 
       const fragment = generateTextFragment(quote);
-      const urlWithTextFragment = `https://sakahub.safaricom.co.ke/app/article/${p.article_id}${fragment}`;
+      const urlWithTextFragment = `https://sakahub.safaricom.co.ke/app/article/${source.articleId}${fragment}`;
 
       citations.push({
-        articleId: p.article_id,
-        articleTitle: p.article_title,
-        articleNumber: p.article_number || undefined,
-        sectionHeading: p.section_heading,
+        articleId: source.articleId,
+        articleTitle: source.articleTitle,
+        articleNumber: source.articleNumber,
+        sectionHeading: source.sectionHeading,
         quote,
         urlWithTextFragment,
       });
     }
 
     // Fallback if model did not return structured cited_sources array
-    if (citations.length === 0 && topChunks.length > 0) {
-      for (const chunk of topChunks.slice(0, 3)) {
-        if (!chunk.payload) continue;
-        const p = chunk.payload;
-        const quote = p.chunk_text.slice(0, 120);
+    if (citations.length === 0 && contextSources.length > 0) {
+      for (const source of contextSources.slice(0, 3)) {
+        const p = source.chunk.payload;
+        const quote = p?.chunk_text.slice(0, 120) || source.content.slice(0, 120);
         const fragment = generateTextFragment(quote);
         citations.push({
-          articleId: p.article_id,
-          articleTitle: p.article_title,
-          articleNumber: p.article_number || undefined,
-          sectionHeading: p.section_heading,
+          articleId: source.articleId,
+          articleTitle: source.articleTitle,
+          articleNumber: source.articleNumber,
+          sectionHeading: source.sectionHeading,
           quote,
-          urlWithTextFragment: `https://sakahub.safaricom.co.ke/app/article/${p.article_id}${fragment}`,
+          urlWithTextFragment: `https://sakahub.safaricom.co.ke/app/article/${source.articleId}${fragment}`,
         });
       }
     }
 
     const totalMs = Date.now() - requestStart;
-    console.log(`[Ask:5/5] ✔ Prepared ${citations.length} verified citations. Total pipeline latency: ${totalMs}ms`);
+    console.log(`[Ask:6/6] ✔ Prepared ${citations.length} verified citations. Total pipeline latency: ${totalMs}ms`);
     citations.forEach((c, idx) => {
       console.log(`   Citation #${idx + 1} [${c.articleNumber || 'N/A'}] "${c.articleTitle}" > "${c.sectionHeading}"`);
       console.log(`   ↳ Highlight: ${c.urlWithTextFragment}`);
