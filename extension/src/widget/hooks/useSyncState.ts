@@ -36,7 +36,11 @@ export function useSyncState() {
     const handleMessage = (msg: ExtensionMessage) => {
       if (msg.type === 'SYNC_PROGRESS') {
         setSyncProgress(msg.progress);
-        setIsSyncing(msg.progress.stage !== 'completed' && msg.progress.stage !== 'error' && msg.progress.stage !== 'idle');
+        const active =
+          msg.progress.stage !== 'completed' &&
+          msg.progress.stage !== 'error' &&
+          msg.progress.stage !== 'idle';
+        setIsSyncing(active);
         if (msg.progress.stage === 'completed') {
           setIsStale(false);
           setLastSyncedAt(new Date().toISOString());
@@ -47,6 +51,11 @@ export function useSyncState() {
         setLastSyncedAt(new Date().toISOString());
       } else if (msg.type === 'SYNC_ERROR') {
         setIsSyncing(false);
+        setSyncProgress({
+          stage: 'error',
+          message: msg.error || 'Synchronization failed',
+          progressPercent: 0,
+        });
       }
     };
 
@@ -58,11 +67,27 @@ export function useSyncState() {
 
   const triggerSync = useCallback((mode: 'smart' | 'deep' = 'smart') => {
     setIsSyncing(true);
+    setSyncProgress({
+      stage: 'locking',
+      message: 'Starting sync...',
+      progressPercent: 5,
+    });
+
     chrome.runtime.sendMessage({ type: 'START_SYNC', mode }, (res) => {
-      if (chrome.runtime.lastError || (res && !res.success)) {
+      const err = chrome.runtime.lastError?.message || (res && !res.success ? res.error : null);
+      if (err) {
         setIsSyncing(false);
+        setSyncProgress({
+          stage: 'error',
+          message: err,
+          progressPercent: 0,
+        });
       }
     });
+  }, []);
+
+  const dismissSyncError = useCallback(() => {
+    setSyncProgress(null);
   }, []);
 
   return {
@@ -73,5 +98,6 @@ export function useSyncState() {
     lastSyncedAt,
     triggerSync,
     refreshStatus,
+    dismissSyncError,
   };
 }

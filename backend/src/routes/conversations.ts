@@ -19,6 +19,7 @@ export interface ConversationMessage {
   role: 'user' | 'assistant';
   content: string;
   citations?: any[];
+  executionSteps?: Array<{ label: string; detail: string }>;
   createdAt: string;
 }
 
@@ -89,14 +90,27 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
       [id]
     );
 
-    const messages: ConversationMessage[] = messagesResult.rows.map((row) => ({
-      id: row.id,
-      conversationId: row.conversation_id,
-      role: row.role,
-      content: row.content,
-      citations: row.citations || undefined,
-      createdAt: new Date(row.created_at).toISOString(),
-    }));
+    const messages: ConversationMessage[] = messagesResult.rows.map((row) => {
+      let citations: any[] | undefined = undefined;
+      let executionSteps: Array<{ label: string; detail: string }> | undefined = undefined;
+
+      if (Array.isArray(row.citations)) {
+        citations = row.citations;
+      } else if (row.citations && typeof row.citations === 'object') {
+        citations = row.citations.citations || undefined;
+        executionSteps = row.citations.executionSteps || undefined;
+      }
+
+      return {
+        id: row.id,
+        conversationId: row.conversation_id,
+        role: row.role,
+        content: row.content,
+        citations,
+        executionSteps,
+        createdAt: new Date(row.created_at).toISOString(),
+      };
+    });
 
     res.json({
       conversation: {

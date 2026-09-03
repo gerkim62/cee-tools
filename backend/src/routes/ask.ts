@@ -20,10 +20,16 @@ export interface Citation {
   urlWithTextFragment: string;
 }
 
+export interface ExecutionStep {
+  label: string;
+  detail: string;
+}
+
 export interface AskResponse {
   answer: string;
   citations: Citation[];
   conversationId?: string;
+  executionSteps?: ExecutionStep[];
 }
 
 export interface AskRequestBody {
@@ -132,6 +138,8 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       }
     }
 
+    const executionSteps: ExecutionStep[] = [];
+
     // 1. Understanding request...
     sendEvent('status', { message: CEE_STATUS_MESSAGES.UNDERSTANDING });
     const transStart = Date.now();
@@ -142,6 +150,17 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     if (translated.alt) {
       console.log(`   Alt      : "${translated.alt}"`);
     }
+
+    executionSteps.push({
+      label: 'Interpreted as',
+      detail: translated.primary,
+    });
+    sendEvent('status', {
+      message: CEE_STATUS_MESSAGES.UNDERSTANDING,
+      step: 'interpreted_query',
+      label: 'Interpreted as',
+      detail: translated.primary,
+    });
 
     const queryVariants = [translated.primary, translated.fallback];
     if (translated.alt) {
@@ -249,6 +268,31 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       selectedCandidates = boostedCandidates.slice(0, config.RERANK_TOP_K);
       console.log(`[Ask:4/6] ⚠️ Reranker returned empty, fallback to top ${selectedCandidates.length} vector candidates.`);
     }
+
+    const uniqueArticleCount = new Set(selectedCandidates.map((c) => c.payload?.article_title)).size;
+    const searchSummary = `Found ${selectedCandidates.length} relevant sections across ${uniqueArticleCount} knowledge articles`;
+    executionSteps.push({
+      label: 'SakaHub Search',
+      detail: searchSummary,
+    });
+    sendEvent('status', {
+      message: CEE_STATUS_MESSAGES.SEARCHING,
+      step: 'search_results',
+      label: 'SakaHub Search',
+      detail: searchSummary,
+    });
+
+    const verifySummary = 'Cross-referencing official turnaround times, conditions & escalation paths';
+    executionSteps.push({
+      label: 'Policy Verification',
+      detail: verifySummary,
+    });
+    sendEvent('status', {
+      message: CEE_STATUS_MESSAGES.REVIEWING,
+      step: 'reviewing_rules',
+      label: 'Policy Verification',
+      detail: verifySummary,
+    });
 
     // Assemble context using full parent sections with section deduplication
     const seenParents = new Set<string>();
@@ -376,7 +420,7 @@ ${s.content}
         await query(
           `INSERT INTO messages (id, conversation_id, role, content, citations, created_at)
            VALUES ($1, $2, $3, $4, $5, NOW())`,
-          [crypto.randomUUID(), activeConversationId, 'assistant', answerText, JSON.stringify(citations)]
+          [crypto.randomUUID(), activeConversationId, 'assistant', answerText, JSON.stringify({ citations, executionSteps })]
         );
         await query(
           `UPDATE conversations SET updated_at = NOW() WHERE id = $1`,
@@ -399,6 +443,7 @@ ${s.content}
       answer: answerText,
       citations,
       conversationId: activeConversationId || undefined,
+      executionSteps,
     };
 
     if (isStream) {

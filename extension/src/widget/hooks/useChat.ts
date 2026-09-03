@@ -36,6 +36,7 @@ export function useChat() {
         role: m.role,
         content: m.content,
         citations: m.citations || undefined,
+        executionSteps: m.executionSteps || undefined,
         createdAt: m.createdAt,
       }));
       setMessages(formattedMessages);
@@ -76,12 +77,19 @@ export function useChat() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
+      let hasReceivedDone = false;
+
       try {
         const clientId = await getClientId();
+        const backendUrl = await getBackendUrl();
 
         // Connect long-lived port to background service worker (Bypasses page CORS/CSP)
         const port = chrome.runtime.connect({ name: 'ASK_STREAM' });
         portRef.current = port;
+
+        const formatFriendlyError = (rawErr: string) => {
+          return `⚠️ **Ask Saka Service Unavailable**\n\nWe were unable to connect to the knowledge service to answer your question right now. Please try again in a few moments.\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${rawErr}</pre></details>`;
+        };
 
         port.onMessage.addListener((msg: AskStreamServerMessage) => {
           if (msg.type === 'status') {
@@ -90,6 +98,20 @@ export function useChat() {
               if (prev[prev.length - 1] === line) return prev;
               return [...prev, line];
             });
+
+            if (msg.label && msg.detail) {
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantMsgId) return m;
+                  const existing = m.executionSteps || [];
+                  const filtered = existing.filter((s) => s.label !== msg.label);
+                  return {
+                    ...m,
+                    executionSteps: [...filtered, { label: msg.label!, detail: msg.detail! }],
+                  };
+                })
+              );
+            }
           } else if (msg.type === 'token') {
             setMessages((prev) =>
               prev.map((m) =>
@@ -103,6 +125,7 @@ export function useChat() {
               )
             );
           } else if (msg.type === 'done') {
+            hasReceivedDone = true;
             if (msg.conversationId) {
               setConversationId(msg.conversationId);
             }
@@ -113,33 +136,56 @@ export function useChat() {
                       ...m,
                       content: msg.answer || m.content,
                       citations: msg.citations || m.citations,
+                      executionSteps: msg.executionSteps || m.executionSteps,
                       isStreaming: false,
                     }
                   : m
               )
             );
             setIsStreaming(false);
-            port.disconnect();
+            try {
+              port.disconnect();
+            } catch {}
             portRef.current = null;
           } else if (msg.type === 'error') {
+            hasReceivedDone = true;
+            const friendly = formatFriendlyError(msg.message);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantMsgId
                   ? {
                       ...m,
-                      content: `❌ **Error querying SakaHub**: ${msg.message}`,
+                      content: friendly,
                       isStreaming: false,
                     }
                   : m
               )
             );
             setIsStreaming(false);
-            port.disconnect();
+            try {
+              port.disconnect();
+            } catch {}
             portRef.current = null;
           }
         });
 
         port.onDisconnect.addListener(() => {
+          if (!hasReceivedDone) {
+            const rawMsg = chrome.runtime.lastError?.message || 'Connection lost';
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      content: m.content
+                        ? `${m.content}\n\n⚠️ *(Response was interrupted due to a temporary connection issue. Please try asking again.)*`
+                        : `⚠️ **Connection Interrupted**\n\nThe connection was closed before completing your response. Please try submitting your question again.\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${rawMsg}</pre></details>`,
+                      isStreaming: false,
+                    }
+                  : m
+              )
+            );
+          }
           setIsStreaming(false);
           portRef.current = null;
         });

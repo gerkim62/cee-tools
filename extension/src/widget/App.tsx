@@ -138,6 +138,7 @@ export const App: React.FC = () => {
             staleReason={syncState.staleReason}
             syncProgress={syncState.syncProgress}
             onSyncNow={() => syncState.triggerSync('smart')}
+            onDismissError={syncState.dismissSyncError}
           />
 
           {currentView === 'chat' && (
@@ -150,7 +151,13 @@ export const App: React.FC = () => {
           )}
 
           {currentView === 'history' && (
-            <HistoryView onSelectConversation={handleSelectHistoryConversation} />
+            <HistoryView
+              onSelectConversation={handleSelectHistoryConversation}
+              onStartNewChat={() => {
+                chat.startNewChat();
+                setCurrentView('chat');
+              }}
+            />
           )}
 
           {currentView === 'sync' && (

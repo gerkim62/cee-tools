@@ -236,7 +236,13 @@ chrome.runtime.onConnect.addListener((port) => {
               try {
                 const data = JSON.parse(dataStr);
                 if (currentEvent === 'status') {
-                  port.postMessage({ type: 'status', message: data.message });
+                  port.postMessage({
+                    type: 'status',
+                    message: data.message,
+                    label: data.label,
+                    detail: data.detail,
+                    step: data.step,
+                  });
                 } else if (currentEvent === 'token') {
                   port.postMessage({ type: 'token', delta: data.delta });
                 } else if (currentEvent === 'citations') {
@@ -247,6 +253,7 @@ chrome.runtime.onConnect.addListener((port) => {
                     answer: data.answer,
                     citations: data.citations,
                     conversationId: data.conversationId,
+                    executionSteps: data.executionSteps,
                   });
                 } else if (currentEvent === 'error') {
                   port.postMessage({ type: 'error', message: data.message });

@@ -1,24 +1,26 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { marked } from 'marked';
-import { Copy, Check, Sparkles } from 'lucide-react';
+import { Copy, Check, Sparkles, Compass, ChevronDown, ChevronUp } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
-import { CitationHoverCard } from './CitationHoverCard.js';
 import { RollingStatus } from './RollingStatus.js';
 
 interface MessageItemProps {
   message: ChatMessage;
   statusLog: string[];
+  onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
+  onLeaveCitation?: () => void;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, statusLog }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({
+  message,
+  statusLog,
+  onHoverCitation,
+  onLeaveCitation,
+}) => {
   const [copied, setCopied] = useState(false);
-  const [activeCitation, setActiveCitation] = useState<{
-    citation: Citation;
-    position: { top: number; left: number };
-  } | null>(null);
+  const [isExecutionExpanded, setIsExecutionExpanded] = useState(true);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const hoverTimeoutRef = useRef<any>(null);
 
   const handleCopy = () => {
     if (!message.content) return;
@@ -57,51 +59,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, statusLog }) 
 
   const handleContainerMouseOver = (e: React.MouseEvent) => {
     const target = (e.target as HTMLElement).closest('.saka-citation-tag') as HTMLElement | null;
-    if (!target || !containerRef.current) return;
-
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
+    if (!target || !onHoverCitation) return;
 
     const citeNum = parseInt(target.getAttribute('data-cite-num') || '0', 10);
     const citation = message.citations?.[citeNum - 1];
     if (!citation) return;
 
-    const containerRect = containerRef.current.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-
-    // Position popover right above the citation tag, clamped inside container
-    let top = targetRect.top - containerRect.top - 10;
-    let left = targetRect.left - containerRect.left - 100;
-
-    if (left < 10) left = 10;
-    if (left + 290 > containerRect.width) left = containerRect.width - 300;
-
-    setActiveCitation({
-      citation,
-      position: { top, left },
-    });
+    onHoverCitation(citation, targetRect);
   };
 
   const handleContainerMouseOut = (e: React.MouseEvent) => {
     const target = (e.target as HTMLElement).closest('.saka-citation-tag');
-    if (!target) return;
-
-    hoverTimeoutRef.current = setTimeout(() => {
-      setActiveCitation(null);
-    }, 250);
-  };
-
-  const handleCardMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-  };
-
-  const handleCardMouseLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
-      setActiveCitation(null);
-    }, 200);
+    if (!target || !onLeaveCitation) return;
+    onLeaveCitation();
   };
 
   if (message.role === 'user') {
@@ -112,11 +83,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, statusLog }) 
     );
   }
 
+  const steps = message.executionSteps || [];
+
   return (
     <div
       ref={containerRef}
       className="saka-message-bubble saka-message-assistant"
-      style={{ position: 'relative' }}
       onClick={handleContainerClick}
       onMouseOver={handleContainerMouseOver}
       onMouseOut={handleContainerMouseOut}
@@ -140,27 +112,44 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, statusLog }) 
         )}
       </div>
 
+      {/* Terminal rolling log while thinking before any tokens arrive */}
       {message.isStreaming && !message.content && (
         <RollingStatus statusLog={statusLog} />
+      )}
+
+      {/* Persistent Execution Steps Disclosure (Shows how query was interpreted & retrieved) */}
+      {steps.length > 0 && (
+        <div className="saka-execution-box">
+          <button
+            type="button"
+            className="saka-execution-toggle"
+            onClick={() => setIsExecutionExpanded(!isExecutionExpanded)}
+            title="Toggle understanding & search details"
+          >
+            <div className="saka-execution-toggle-left">
+              <Compass size={13} className="saka-execution-icon" />
+              <span>Query Analysis & Sources ({steps.length} steps)</span>
+            </div>
+            {isExecutionExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+
+          {isExecutionExpanded && (
+            <div className="saka-execution-content">
+              {steps.map((step, idx) => (
+                <div key={idx} className="saka-execution-step">
+                  <span className="saka-execution-step-label">{step.label}</span>
+                  <span className="saka-execution-step-detail">{step.detail}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {renderedHtml && (
         <div
           className="saka-markdown-body"
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
-        />
-      )}
-
-      {activeCitation && (
-        <CitationHoverCard
-          citation={activeCitation.citation}
-          style={{
-            top: `${activeCitation.position.top}px`,
-            left: `${activeCitation.position.left}px`,
-            transform: 'translateY(-100%)',
-          }}
-          onMouseEnter={handleCardMouseEnter}
-          onMouseLeave={handleCardMouseLeave}
         />
       )}
     </div>

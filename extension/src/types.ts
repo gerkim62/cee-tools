@@ -128,11 +128,17 @@ export interface ConversationSummary {
   messageCount?: number;
 }
 
+export interface ExecutionStep {
+  label: string;
+  detail: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   citations?: Citation[];
+  executionSteps?: ExecutionStep[];
   createdAt: string;
   isStreaming?: boolean;
 }
@@ -156,9 +162,10 @@ export interface AskStreamClientMessage {
 }
 
 export type AskStreamServerMessage =
-  | { type: 'status'; message: string }
+  | { type: 'status'; message: string; label?: string; detail?: string; step?: string }
   | { type: 'token'; delta: string }
   | { type: 'citations'; citations: Citation[] }
-  | { type: 'done'; answer?: string; citations?: Citation[]; conversationId?: string }
+  | { type: 'done'; answer?: string; citations?: Citation[]; conversationId?: string; executionSteps?: ExecutionStep[] }
   | { type: 'error'; message: string };
+
 

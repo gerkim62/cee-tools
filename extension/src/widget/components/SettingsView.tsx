@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Wifi, AlertCircle } from 'lucide-react';
+import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders } from 'lucide-react';
 import { WidgetView } from '../../types.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
 
@@ -9,6 +9,7 @@ export const SettingsView: React.FC = () => {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     try {
@@ -29,12 +30,12 @@ export const SettingsView: React.FC = () => {
       const json = res.data;
       setTestResult({
         success: true,
-        message: `Connected successfully: ${json?.service || 'Backend online'}`,
+        message: `Connected: ${json?.service || 'Knowledge service active'}`,
       });
     } catch (err: any) {
       setTestResult({
         success: false,
-        message: `Connection failed: ${err.message || 'Server unreachable'}`,
+        message: `Connection failed: ${err.message || 'Service unreachable'}`,
       });
     } finally {
       setTesting(false);
@@ -59,24 +60,14 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="saka-view-container">
-      <h3 className="saka-view-title">Extension Settings</h3>
+      <h3 className="saka-view-title">Extension Preferences</h3>
 
+      {/* CEE Experience Settings */}
       <div className="saka-form-group">
-        <label className="saka-label">Backend Server URL</label>
-        <input
-          type="url"
-          className="saka-text-input"
-          value={backendUrl}
-          onChange={(e) => setBackendUrl(e.target.value)}
-          placeholder="http://localhost:3000"
-        />
-        <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-          Ask Saka local or deployed backend server URL.
-        </span>
-      </div>
-
-      <div className="saka-form-group">
-        <label className="saka-label">Default View on Widget Click</label>
+        <label className="saka-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Sliders size={14} color="#10b981" />
+          <span>Default Screen on Click</span>
+        </label>
         <select
           className="saka-select-input"
           value={defaultView}
@@ -84,52 +75,107 @@ export const SettingsView: React.FC = () => {
         >
           <option value="chat">Ask Saka Copilot (Chat)</option>
           <option value="history">Conversation History</option>
-          <option value="sync">Sync & Storage</option>
+          <option value="sync">Knowledge Base Sync</option>
         </select>
         <span style={{ fontSize: '11.5px', color: '#64748b' }}>
-          Controls which tool opens automatically when you click the floating badge.
+          Choose which screen opens when you click the floating dock badge.
         </span>
       </div>
 
-      {testResult && (
-        <div
-          style={{
-            padding: '8px 12px',
-            borderRadius: '8px',
-            fontSize: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: testResult.success ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-            color: testResult.success ? '#34d399' : '#f87171',
-            border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-          }}
-        >
-          {testResult.success ? <Check size={14} /> : <AlertCircle size={14} />}
-          <span>{testResult.message}</span>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+      {/* Collapsible Technical Details for IT/Admins */}
+      <div
+        style={{
+          marginTop: '6px',
+          background: 'rgba(15, 23, 42, 0.5)',
+          border: '1px solid rgba(148, 163, 184, 0.15)',
+          borderRadius: '10px',
+          overflow: 'hidden',
+        }}
+      >
         <button
           type="button"
-          className="saka-btn-secondary"
-          style={{ flex: 1 }}
-          onClick={handleTest}
-          disabled={testing}
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 12px',
+            background: 'transparent',
+            border: 'none',
+            color: '#94a3b8',
+            fontSize: '12px',
+            fontWeight: 500,
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
         >
-          <Wifi size={14} />
-          <span>{testing ? 'Testing...' : 'Test Connection'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Server size={14} color="#64748b" />
+            <span>Technical Server Settings</span>
+          </div>
+          {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
+        {showAdvanced && (
+          <div style={{ padding: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="saka-form-group" style={{ marginBottom: 0 }}>
+              <label className="saka-label" style={{ fontSize: '11px', color: '#94a3b8' }}>Backend Service Endpoint</label>
+              <input
+                type="url"
+                className="saka-text-input"
+                value={backendUrl}
+                onChange={(e) => setBackendUrl(e.target.value)}
+                placeholder="Service endpoint URL"
+                style={{ fontFamily: 'monospace', fontSize: '11.5px' }}
+              />
+              <span style={{ fontSize: '11px', color: '#64748b' }}>
+                Configured endpoint for procedural AI synthesis.
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="saka-btn-secondary"
+              style={{ alignSelf: 'flex-start', padding: '5px 12px', fontSize: '11.5px' }}
+              onClick={handleTest}
+              disabled={testing}
+            >
+              <Wifi size={13} />
+              <span>{testing ? 'Checking connection...' : 'Test Endpoint'}</span>
+            </button>
+
+            {testResult && (
+              <div
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: testResult.success ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  color: testResult.success ? '#34d399' : '#f87171',
+                  border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                }}
+              >
+                {testResult.success ? <Check size={13} /> : <AlertCircle size={13} />}
+                <span>{testResult.message}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: '14px' }}>
         <button
           type="button"
           className="saka-btn-primary"
-          style={{ flex: 1 }}
+          style={{ width: '100%', padding: '10px' }}
           onClick={handleSave}
         >
           {saved ? <Check size={14} /> : null}
-          <span>{saved ? 'Saved!' : 'Save Settings'}</span>
+          <span>{saved ? 'Preferences Saved!' : 'Save Preferences'}</span>
         </button>
       </div>
     </div>
