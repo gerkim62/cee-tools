@@ -5,6 +5,7 @@ import {
   BackendSyncStatus,
   StalenessCheckResult,
   SyncProgressUpdate,
+  UploadProgressUpdate,
   ChangedArticlePayload,
   ReindexBatchRequest,
 } from '../types.js';
@@ -348,3 +349,258 @@ export async function performFullSync(
     throw error;
   }
 }
+
+/**
+ * Ingests a pre-normalized list of articles uploaded by the user via the frontend.
+ * Follows the standard pipeline:
+ * - Acquires backend lock
+ * - Diffs against known versions (/articles/versions)
+ * - Cleans Word HTML to Markdown using Turndown GFM
+ * - Size-capped batching dispatched to /reindex
+ * - Releases lock on completion or error
+ */
+export async function performArticlesUploadSync(
+  articles: SakaNormalizedArticle[],
+  onProgress?: (update: UploadProgressUpdate) => void
+): Promise<{
+  success: boolean;
+  addedCount: number;
+  updatedCount: number;
+  totalProcessed: number;
+  elapsedMs: number;
+  message: string;
+}> {
+  const startTime = Date.now();
+  const backendUrl = await getBackendUrl();
+  const clientId = await getClientId();
+
+  const notify = (update: UploadProgressUpdate) => {
+    if (onProgress) onProgress(update);
+    chrome.storage.local.set({ uploadProgress: update }).catch(() => {});
+  };
+
+  notify({
+    stage: 'locking',
+    message: 'Acquiring backend sync lock...',
+    progressPercent: 2,
+    processedCount: 0,
+    totalCount: articles.length,
+    currentBatch: 0,
+    totalBatches: 1,
+  });
+
+  const lockRes = await fetch(`${backendUrl}/sync/lock`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId }),
+  });
+
+  if (!lockRes.ok) {
+    const errJson: unknown = await lockRes.json();
+    const errMsg =
+      typeof errJson === 'object' && errJson !== null && 'message' in errJson
+        ? String((errJson as Record<string, unknown>).message)
+        : 'Could not acquire sync lock. Another sync is active.';
+    throw new Error(errMsg);
+  }
+
+  try {
+    notify({
+      stage: 'diffing',
+      message: 'Checking existing articles in database...',
+      progressPercent: 5,
+      processedCount: 0,
+      totalCount: articles.length,
+      currentBatch: 0,
+      totalBatches: 1,
+    });
+
+    const versionsRes = await fetch(`${backendUrl}/articles/versions`);
+    if (!versionsRes.ok) {
+      throw new Error(`Failed to fetch article versions: HTTP ${versionsRes.status}`);
+    }
+    const rawVersions: unknown = await versionsRes.json();
+    const backendVersions =
+      typeof rawVersions === 'object' && rawVersions !== null
+        ? (rawVersions as Record<string, string>)
+        : {};
+
+    // Compute diff
+    const added: SakaNormalizedArticle[] = [];
+    const updated: SakaNormalizedArticle[] = [];
+
+    for (const article of articles) {
+      if (!backendVersions[article.id]) {
+        added.push(article);
+      } else {
+        const backendDate = new Date(backendVersions[article.id] || 0).getTime();
+        const sakaDate = article.updatedAtEpochMs;
+        if (Math.abs(sakaDate - backendDate) >= 1000) {
+          updated.push(article);
+        }
+      }
+    }
+
+    const changedArticles = [...added, ...updated];
+    if (changedArticles.length === 0) {
+      const allDoneMsg = 'All uploaded articles are already up to date in the knowledge base.';
+      notify({
+        stage: 'completed',
+        message: allDoneMsg,
+        progressPercent: 100,
+        processedCount: articles.length,
+        totalCount: articles.length,
+        currentBatch: 0,
+        totalBatches: 0,
+      });
+
+      return {
+        success: true,
+        addedCount: 0,
+        updatedCount: 0,
+        totalProcessed: 0,
+        elapsedMs: Date.now() - startTime,
+        message: allDoneMsg,
+      };
+    }
+
+    const totalBatchesEstimated = Math.max(1, Math.ceil(changedArticles.length / MAX_BATCH_ARTICLES));
+    notify({
+      stage: 'cleaning',
+      message: `Preparing ${changedArticles.length} changed articles for indexing...`,
+      progressPercent: 8,
+      processedCount: 0,
+      totalCount: changedArticles.length,
+      currentBatch: 0,
+      totalBatches: totalBatchesEstimated,
+    });
+
+    let currentBatch: ChangedArticlePayload[] = [];
+    let currentBatchChars = 0;
+    let uploadedChanged = 0;
+    let batchIndex = 0;
+
+    async function dispatchBatch() {
+      if (currentBatch.length === 0) return;
+      batchIndex++;
+
+      const batchPayload: ReindexBatchRequest = {
+        changed: currentBatch,
+        deletedIds: [],
+        clientId,
+      };
+
+      const res = await fetch(`${backendUrl}/reindex`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batchPayload),
+      });
+
+      if (!res.ok) {
+        const err: unknown = await res.json();
+        const errDetail =
+          typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as Record<string, unknown>).message)
+            : `Reindex batch failed with status ${res.status}`;
+        throw new Error(errDetail);
+      }
+
+      uploadedChanged += currentBatch.length;
+      currentBatch = [];
+      currentBatchChars = 0;
+
+      const pct = Math.min(99, Math.round(10 + (uploadedChanged / changedArticles.length) * 88));
+      notify({
+        stage: 'uploading',
+        message: `Indexed batch ${batchIndex} of ~${totalBatchesEstimated} (${uploadedChanged}/${changedArticles.length} articles)...`,
+        progressPercent: pct,
+        processedCount: uploadedChanged,
+        totalCount: changedArticles.length,
+        currentBatch: batchIndex,
+        totalBatches: totalBatchesEstimated,
+      });
+    }
+
+    for (let i = 0; i < changedArticles.length; i++) {
+      const art = changedArticles[i];
+      if (!art) continue;
+
+      const cleanMarkdown = cleanWordHtmlToMarkdown(art.contentHtml);
+      currentBatch.push({
+        id: art.id,
+        title: art.title,
+        articleNumber: art.articleNumber,
+        markdownContent: cleanMarkdown,
+        lastUpdated: art.lastUpdated,
+        publishedAt: art.publishedAt,
+        articleFlag: art.articleFlag,
+      });
+      currentBatchChars += cleanMarkdown.length;
+
+      if (currentBatchChars >= MAX_BATCH_TEXT_CHARS || currentBatch.length >= MAX_BATCH_ARTICLES) {
+        await dispatchBatch();
+      }
+    }
+
+    await dispatchBatch();
+
+    // Release sync lock
+    await fetch(`${backendUrl}/sync/unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId }),
+    });
+
+    const elapsedMs = Date.now() - startTime;
+    const finalMsg = `Successfully uploaded & indexed ${uploadedChanged} articles (${added.length} new, ${updated.length} updated) in ${(elapsedMs / 1000).toFixed(1)}s.`;
+
+    notify({
+      stage: 'completed',
+      message: finalMsg,
+      progressPercent: 100,
+      processedCount: uploadedChanged,
+      totalCount: changedArticles.length,
+      currentBatch: batchIndex,
+      totalBatches: batchIndex,
+    });
+
+    await chrome.storage.local.set({
+      lastSyncedAt: new Date().toISOString(),
+      lastSyncSummary: finalMsg,
+    });
+
+    return {
+      success: true,
+      addedCount: added.length,
+      updatedCount: updated.length,
+      totalProcessed: uploadedChanged,
+      elapsedMs,
+      message: finalMsg,
+    };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Upload Sync Error]', error);
+
+    notify({
+      stage: 'error',
+      message: `Upload failed: ${errorMsg}`,
+      progressPercent: 0,
+      processedCount: 0,
+      totalCount: articles.length,
+      currentBatch: 0,
+      totalBatches: 0,
+      failedCount: 1,
+    });
+
+    try {
+      await fetch(`${backendUrl}/sync/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+    } catch {}
+
+    throw error;
+  }
+}
+

@@ -30,13 +30,37 @@ export function encodeTextFragment(text: string): string {
 }
 
 /**
+ * Decodes common HTML entities to their literal character representation.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+/**
+ * Strips markdown emphasis markers from headings (e.g. "**Title**" -> "Title")
+ */
+function cleanHeadingText(text: string): string {
+  return decodeHtmlEntities(text)
+    .replace(/^(\*\*|__|\*|_)/, '')
+    .replace(/(\*\*|__|\*|_)$/, '')
+    .replace(/^#+\s*/, '')
+    .trim();
+}
+
+/**
  * Generates an adaptive Chrome Text Fragment (#:~:text=...)
  * - If words < 10: uses exact textStart string (#:~:text=phrase)
  * - If words >= 10: uses official Range format (#:~:text=textStart,textEnd)
  */
 export function generateTextFragment(quote: string): string {
-  // Strip Markdown syntax carefully without breaking USSD codes like *334#
-  let clean = quote
+  // Decode HTML entities and strip Markdown syntax carefully without breaking USSD codes like *334#
+  let clean = decodeHtmlEntities(quote)
     // Strip markdown links [text](url) -> text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     // Strip bold/italic markdown markers: **text** or __text__
@@ -96,16 +120,16 @@ export function parseMarkdownSections(markdown: string): SectionBlock[] {
 
     if (h1Match) {
       flushCurrent();
-      currentH1 = h1Match[1].trim();
+      currentH1 = cleanHeadingText(h1Match[1]);
       currentH2 = '';
       currentH3 = '';
     } else if (h2Match) {
       flushCurrent();
-      currentH2 = h2Match[1].trim();
+      currentH2 = cleanHeadingText(h2Match[1]);
       currentH3 = '';
     } else if (h3Match) {
       flushCurrent();
-      currentH3 = h3Match[1].trim();
+      currentH3 = cleanHeadingText(h3Match[1]);
     } else {
       currentBuffer.push(line);
     }

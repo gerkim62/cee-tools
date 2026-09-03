@@ -2,8 +2,27 @@ import { Router, Request, Response } from 'express';
 import { query } from '../db.js';
 import { acquireLock, releaseLock, getLockStatus } from '../services/lock.js';
 import { getActiveCollectionName } from '../services/qdrant.js';
+import { clearAllDatabase } from '../services/clear-db.js';
 
 export const syncRouter: Router = Router();
+
+/**
+ * POST /db/clear
+ * Wipes all records from PostgreSQL and resets the Qdrant vector collection.
+ */
+syncRouter.post('/db/clear', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await clearAllDatabase();
+    res.json({
+      success: true,
+      message: 'Knowledge base database completely cleared.',
+      result,
+    });
+  } catch (error: any) {
+    console.error('[Sync Router Error] Failed to clear database:', error);
+    res.status(500).json({ error: 'Failed to clear database', message: error.message });
+  }
+});
 
 /**
  * GET /sync-status
@@ -67,6 +86,7 @@ syncRouter.post('/sync/lock', async (req: Request, res: Response): Promise<void>
 
     const result = await acquireLock(clientId);
     if (!result.acquired) {
+      console.warn(`[Sync:Lock] ⚠️ Lock rejected for client "${clientId}". Current holder: "${result.currentHolder}" (expires: ${result.expiresAt?.toISOString()})`);
       res.status(409).json({
         acquired: false,
         message: 'Sync is currently in progress by another client',
@@ -76,6 +96,7 @@ syncRouter.post('/sync/lock', async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    console.log(`[Sync:Lock] 🔒 Sync lock acquired by client "${clientId}" (expires: ${result.expiresAt?.toISOString()})`);
     res.json({
       acquired: true,
       expiresAt: result.expiresAt ? result.expiresAt.toISOString() : null,
@@ -94,6 +115,7 @@ syncRouter.post('/sync/unlock', async (req: Request, res: Response): Promise<voi
   try {
     const { clientId } = req.body;
     await releaseLock(clientId);
+    console.log(`[Sync:Lock] 🔓 Sync lock released by client "${clientId || 'anon'}".`);
     res.json({ released: true });
   } catch (error: any) {
     console.error('[Sync Router Error] Failed to release lock:', error);

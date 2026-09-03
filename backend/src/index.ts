@@ -1,13 +1,28 @@
 import dns from 'node:dns';
 import net from 'node:net';
 
-// Prevent Node Happy Eyeballs from hanging when IPv6 route is unreachable
+// Enforce IPv4 on systems lacking an active IPv6 internet route
 if (typeof net.setDefaultAutoSelectFamily === 'function') {
   net.setDefaultAutoSelectFamily(false);
 }
 if (typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv4first');
 }
+
+// Force family: 4 on all internal DNS lookups for undici, pg, and fetch
+const origLookup = dns.lookup;
+// @ts-expect-error - overriding internal lookup options
+dns.lookup = function (hostname: string, options: any, callback: any) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = { family: 4 };
+  } else if (typeof options === 'number') {
+    options = { family: 4 };
+  } else if (options && typeof options === 'object') {
+    options.family = 4;
+  }
+  return (origLookup as any).call(dns, hostname, options, callback);
+};
 
 import express from 'express';
 import cors from 'cors';
@@ -24,6 +39,19 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// HTTP Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  const url = req.originalUrl || req.url;
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    const statusSymbol = status >= 500 ? '❌' : status >= 400 ? '⚠️' : '✔';
+    console.log(`[HTTP] ${statusSymbol} ${req.method} ${url} -> ${status} (${duration}ms)`);
+  });
+  next();
+});
 
 // Health check
 app.get('/health', (_req, res) => {

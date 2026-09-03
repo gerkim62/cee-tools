@@ -2,11 +2,13 @@
   "name": "cee-tools-backend",
   "version": "1.0.0",
   "description": "Ask Saka - SakaHub RAG and Sync Backend",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node --dns-result-order=ipv4first dist/index.js",
+    "clear-db": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx src/services/clear-db.ts",
     "test": "DATABASE_URL=postgresql://test:test@localhost:5432/test OPENROUTER_API_KEY=sk-test-key QDRANT_URL=http://localhost:6333 QDRANT_API_KEY=test-key tsx --test tests/**/*.test.ts"
   },
   "dependencies": {

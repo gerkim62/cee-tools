@@ -90,14 +90,20 @@ async function fetchValidatedJson<T>(
   guard: (val: unknown) => val is T,
   errorContext: string
 ): Promise<T> {
+  const start = Date.now();
+  const endpoint = url.replace(OPENROUTER_BASE_URL, '');
   const response = await fetch(url, init);
+  const latency = Date.now() - start;
+
   if (!response.ok) {
     const errorText = await response.text();
+    console.error(`[OpenRouter API] ❌ ${errorContext} ${endpoint} -> HTTP ${response.status} (${latency}ms): ${errorText}`);
     throw new Error(`[${errorContext}] HTTP ${response.status} ${response.statusText}: ${errorText}`);
   }
 
   const data: unknown = await response.json();
   if (!guard(data)) {
+    console.error(`[OpenRouter API] ❌ ${errorContext} ${endpoint} -> Invalid response structure (${latency}ms)`);
     throw new Error(`[${errorContext}] Invalid response structure received`);
   }
 

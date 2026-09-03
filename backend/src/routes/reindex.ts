@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { query } from '../db.js';
+import { config } from '../config.js';
 import { refreshLock } from '../services/lock.js';
 import { splitArticle, ChunkResult } from '../services/chunker.js';
 import { embedTexts, generateChunkContext } from '../services/openrouter.js';
@@ -77,6 +78,8 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
   const deletedIds = payload.deletedIds || [];
   const clientId = payload.clientId;
 
+  console.log(`\n[Reindex] 📦 Batch Received from client "${clientId || 'anon'}": ${changed.length} articles to index, ${deletedIds.length} deletions.`);
+
   // 1. Auto-refresh sync lock timestamp on each arriving batch (+3 minutes)
   await refreshLock(clientId);
 
@@ -87,18 +90,25 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
   try {
     // 2. Handle deleted articles
     if (deletedIds.length > 0) {
-      console.log(`[Reindex] Processing ${deletedIds.length} deleted articles...`);
+      console.log(`[Reindex:Deletions] Processing ${deletedIds.length} deleted articles...`);
       await deleteManyArticlesPoints(deletedIds);
       await query(`DELETE FROM articles WHERE id = ANY($1::varchar[])`, [deletedIds]);
       deletedCount = deletedIds.length;
+      console.log(`[Reindex:Deletions] ✔ Removed ${deletedCount} deleted articles from Qdrant and PostgreSQL.`);
     }
 
     // 3. Process changed/added articles with per-article error isolation
-    for (const article of changed) {
+    for (let i = 0; i < changed.length; i++) {
+      const article = changed[i]!;
+      const artStart = Date.now();
+      const artIndexLabel = `[Reindex:Article ${i + 1}/${changed.length}]`;
+
       try {
         if (!article.id || !article.title || !article.markdownContent) {
           throw new Error('Missing mandatory article fields (id, title, or markdownContent)');
         }
+
+        console.log(`${artIndexLabel} 📄 [${article.articleNumber || 'N/A'}] "${article.title}" (id: ${article.id}, size: ${article.markdownContent.length} chars)`);
 
         // A. Delete existing vectors for this article before inserting updated chunks
         await deleteArticlePoints(article.id);
@@ -113,7 +123,7 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
         });
 
         if (chunks.length === 0) {
-          console.warn(`[Reindex] No chunks produced for article ${article.id}`);
+          console.warn(`${artIndexLabel} ⚠️ No chunks produced for article ${article.id}`);
           await query(
             `INSERT INTO articles (id, article_number, title, last_updated, published_at, article_flag, indexed_at)
              VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -137,7 +147,12 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
           continue;
         }
 
+        const uniqueSections = [...new Set(chunks.map(c => c.metadata.sectionHeading))];
+        console.log(`${artIndexLabel} ✂️ Split into ${chunks.length} chunks across section(s): [${uniqueSections.join(', ')}]`);
+
         // C. Anthropic Contextual Retrieval: Enrich each chunk with full-doc situational context
+        const enrichStart = Date.now();
+        console.log(`${artIndexLabel} 🧠 Enriching ${chunks.length} chunks via ${config.OPENROUTER_CONTEXT_MODEL}...`);
         const enrichedTexts = await mapConcurrent(chunks, 5, async (chunk) => {
           const context = await generateChunkContext(article.markdownContent, chunk.text);
           if (context) {
@@ -151,10 +166,16 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
             context: null,
           };
         });
+        const enrichMs = Date.now() - enrichStart;
+        console.log(`${artIndexLabel} ✔ Contextual enrichment completed in ${enrichMs}ms.`);
 
         // D. Generate vector embeddings in batch for all chunks of this article
+        const embedStart = Date.now();
         const textsToEmbed = enrichedTexts.map(e => e.embeddedText);
+        console.log(`${artIndexLabel} 📐 Generating ${textsToEmbed.length} vector embeddings via ${config.OPENROUTER_EMBED_MODEL}...`);
         const embeddings = await embedTexts(textsToEmbed);
+        const embedMs = Date.now() - embedStart;
+        console.log(`${artIndexLabel} ✔ Embeddings generated in ${embedMs}ms.`);
 
         // E. Build Qdrant points payload
         const points: QdrantChunkPoint[] = chunks.map((chunk, idx) => ({
@@ -198,10 +219,12 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
           ]
         );
 
+        const artTotalMs = Date.now() - artStart;
+        console.log(`${artIndexLabel} ✔ Successfully indexed in Qdrant & PostgreSQL in ${artTotalMs}ms.`);
         processedCount++;
       } catch (articleErr: unknown) {
         const errorMsg = articleErr instanceof Error ? articleErr.message : String(articleErr);
-        console.error(`[Reindex Error] Failed processing article ${article.id}:`, articleErr);
+        console.error(`${artIndexLabel} ❌ Failed processing article ${article.id}:`, articleErr);
         errors.push({
           articleId: article.id,
           error: errorMsg,
@@ -210,6 +233,8 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
     }
 
     const elapsedMs = Date.now() - startTime;
+    console.log(`[Reindex] 🏁 Batch complete: ${processedCount} succeeded, ${errors.length} failed in ${elapsedMs}ms.\n`);
+
     const responseData: ReindexResponse = {
       success: true,
       processedCount,
@@ -221,7 +246,7 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
     res.json(responseData);
   } catch (batchErr: unknown) {
     const errorMsg = batchErr instanceof Error ? batchErr.message : String(batchErr);
-    console.error('[Reindex Error] Batch ingestion failure:', batchErr);
+    console.error('[Reindex Error] ❌ Fatal batch ingestion failure:', batchErr);
     res.status(500).json({
       success: false,
       error: 'Batch ingestion failed',

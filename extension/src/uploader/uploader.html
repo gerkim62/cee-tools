@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ask Saka - Knowledge Base Ingestion Studio</title>
+  <link rel="stylesheet" href="./uploader.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="uploader-layout">
+    <!-- Top Navigation Header -->
+    <header class="uploader-header">
+      <div class="header-left">
+        <div class="brand-badge">
+          <div class="brand-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="brand-title">Ask Saka <span>Ingestion Studio</span></h1>
+            <p class="brand-subtitle">High-Fidelity SakaHub RAG Ingestion & Conversion Pipeline</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div id="backend-status-badge" class="status-pill status-checking" title="Backend Connection">
+          <span class="status-dot"></span>
+          <span id="backend-status-text">Connecting...</span>
+        </div>
+
+        <button id="btn-open-popup" class="btn-ghost" title="Open Ask Saka Assistant">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          Ask Saka Assistant
+        </button>
+
+        <a href="https://sakahub.safaricom.co.ke" target="_blank" rel="noreferrer" class="btn-ghost">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+          SakaHub Portal
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="uploader-main">
+      <!-- Database Management & Quick Stats Bar -->
+      <section class="kb-overview-panel">
+        <div class="overview-metric">
+          <div class="metric-icon metric-icon-articles">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </div>
+          <div>
+            <div class="metric-label">Indexed Articles</div>
+            <div id="metric-db-count" class="metric-value">--</div>
+          </div>
+        </div>
+
+        <div class="overview-metric">
+          <div class="metric-icon metric-icon-qdrant">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+          </div>
+          <div>
+            <div class="metric-label">Qdrant Collection</div>
+            <div id="metric-qdrant-name" class="metric-value-sub">saka_articles...</div>
+          </div>
+        </div>
+
+        <div class="overview-metric">
+          <div class="metric-icon metric-icon-updated">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <div>
+            <div class="metric-label">Last Database Update</div>
+            <div id="metric-last-updated" class="metric-value-sub">Never</div>
+          </div>
+        </div>
+
+        <div class="overview-actions">
+          <button id="btn-refresh-stats" class="btn-action-icon" title="Refresh DB Status">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+          </button>
+          <button id="btn-open-clear-modal" class="btn-danger-outline" title="Clear all articles and vector collection">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+            Clear Database
+          </button>
+        </div>
+      </section>
+
+      <!-- Main Ingestion Card Grid -->
+      <div class="uploader-grid">
+        <!-- Left Column: Upload Dropzone & Controls -->
+        <div class="uploader-column-left">
+          <section class="card dropzone-card">
+            <div class="card-header">
+              <div class="card-header-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <h2>Select Knowledge Base Export</h2>
+              </div>
+              <span class="badge-tag">JSON Mode</span>
+            </div>
+
+            <!-- Drag & Drop Zone -->
+            <div id="dropzone" class="dropzone">
+              <input type="file" id="file-input" accept=".json,application/json" class="file-input-hidden" />
+              <div class="dropzone-glow"></div>
+              <div class="dropzone-icon-wrapper">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                  <path d="M12 12v9"></path>
+                  <path d="m16 16-4-4-4 4"></path>
+                </svg>
+              </div>
+              <h3 class="dropzone-title">Drag & drop your SakaHub <code>.json</code> file here</h3>
+              <p class="dropzone-sub">Supports single files up to 150 MB (e.g. <code>.json</code> export with 992 articles)</p>
+              <button type="button" id="btn-browse" class="btn-primary-action">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Browse Files
+              </button>
+            </div>
+
+            <!-- Active File Info Banner (visible once file selected) -->
+            <div id="file-info-box" class="file-info-box hidden">
+              <div class="file-info-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              </div>
+              <div class="file-info-meta">
+                <strong id="file-info-name">export.json</strong>
+                <span id="file-info-stats">Loading...</span>
+              </div>
+              <button type="button" id="btn-remove-file" class="btn-icon-danger" title="Remove file">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Ingestion Scope Selection -->
+            <div id="ingestion-scope-card" class="ingestion-scope-card hidden">
+              <div class="scope-header">
+                <h3>Ingestion Scope</h3>
+                <span class="scope-hint">Select batch volume</span>
+              </div>
+
+              <div class="scope-options-grid">
+                <label class="scope-option active" id="label-scope-test">
+                  <input type="radio" name="ingestion-scope" value="test" checked />
+                  <div class="scope-option-content">
+                    <div class="scope-option-top">
+                      <strong>Test Batch (First 5 Articles)</strong>
+                      <span class="tag-pill-green">Recommended for Test</span>
+                    </div>
+                    <p>Fast index (~5-10s). Validates HTML conversion, headings, bullet lists, and highlight links without token overhead.</p>
+                  </div>
+                </label>
+
+                <label class="scope-option" id="label-scope-full">
+                  <input type="radio" name="ingestion-scope" value="full" />
+                  <div class="scope-option-content">
+                    <div class="scope-option-top">
+                      <strong id="full-scope-label">Full Knowledge Base (All Articles)</strong>
+                      <span class="tag-pill-blue">Complete Sync</span>
+                    </div>
+                    <p>Converts and indexes all published articles with automatic size-capped batching (~20 articles / batch).</p>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Start Button -->
+              <div class="scope-actions">
+                <button type="button" id="btn-start-ingestion" class="btn-start-large" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                  </svg>
+                  <span id="btn-start-text">Start Ingestion Pipeline</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Live Progress & Stage Terminal -->
+          <section id="progress-card" class="card progress-card hidden">
+            <div class="card-header">
+              <div class="card-header-title">
+                <div id="progress-spinner" class="spinner-small"></div>
+                <h2 id="progress-stage-title">Ingestion in Progress</h2>
+              </div>
+              <span id="progress-pct-badge" class="pct-badge">0%</span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-track">
+              <div id="progress-fill-bar" class="progress-fill-animated" style="width: 0%;"></div>
+            </div>
+
+            <div class="progress-sub-stats">
+              <span id="stat-articles-count">Indexed: 0 / 0</span>
+              <span id="stat-batches-count">Batch: 0 / 0</span>
+              <span id="stat-elapsed-time">Elapsed: 0s</span>
+            </div>
+
+            <!-- Streaming Terminal Log Box -->
+            <div class="terminal-log-wrapper">
+              <div class="terminal-log-header">
+                <div class="terminal-dots">
+                  <span class="dot-red"></span>
+                  <span class="dot-yellow"></span>
+                  <span class="dot-green"></span>
+                </div>
+                <span class="terminal-title">Ingestion Log Stream</span>
+                <button id="btn-clear-logs" class="btn-terminal-action">Clear</button>
+              </div>
+              <div id="terminal-log-body" class="terminal-log-body">
+                <div class="log-line info">[System] Ready to start conversion pipeline.</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Right Column: Live High-Fidelity Markdown Preview -->
+        <div class="uploader-column-right">
+          <section class="card preview-card">
+            <div class="card-header">
+              <div class="card-header-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <h2>DOM-Native Conversion Preview</h2>
+              </div>
+              <span class="badge-tag-success">DOMParser Active</span>
+            </div>
+
+            <p class="preview-description">
+              Verify how SakaHub Word HTML is cleaned into Markdown in real time. Notice structured <code>#</code> headings, clean <code>-</code> bullet points, and decoded <code>&amp;</code> characters.
+            </p>
+
+            <!-- Article Selector Dropdown -->
+            <div class="article-selector-bar">
+              <label for="preview-article-select">Previewing Article:</label>
+              <select id="preview-article-select" class="article-select" disabled>
+                <option value="">Upload a .json file to inspect conversion</option>
+              </select>
+            </div>
+
+            <!-- Preview Tabs: Markdown Render vs Raw Markdown -->
+            <div class="preview-tabs">
+              <button class="preview-tab-btn active" data-tab="rendered">Rendered View</button>
+              <button class="preview-tab-btn" data-tab="raw">Raw Markdown Text</button>
+            </div>
+
+            <!-- Preview Body -->
+            <div class="preview-content-box">
+              <div id="preview-rendered-pane" class="preview-pane active markdown-preview-body">
+                <div class="preview-empty-state">
+                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <p>No article loaded yet.<br>Upload a file on the left to see live Markdown conversion.</p>
+                </div>
+              </div>
+
+              <div id="preview-raw-pane" class="preview-pane hidden">
+                <pre id="preview-raw-code" class="code-viewer"><code>No article loaded.</code></pre>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <!-- Confirmation Modal for Clearing Database -->
+    <div id="clear-db-modal" class="modal-backdrop hidden">
+      <div class="modal-box">
+        <div class="modal-box-header">
+          <div class="modal-warning-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </div>
+          <div>
+            <h3>Reset Entire Knowledge Base?</h3>
+            <p>This action will permanently wipe all PostgreSQL article records and delete the Qdrant vector collection.</p>
+          </div>
+        </div>
+        <div class="modal-box-body">
+          <p class="modal-note">
+            Use this to clear out legacy unformatted chunks before re-indexing. Your source JSON file will remain untouched.
+          </p>
+        </div>
+        <div class="modal-box-footer">
+          <button id="btn-cancel-clear-modal" class="btn-secondary">Cancel</button>
+          <button id="btn-confirm-clear-db" class="btn-danger">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Yes, Wipe Database
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./uploader.ts"></script>
+</body>
+</html>

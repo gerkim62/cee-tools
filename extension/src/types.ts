@@ -111,10 +111,26 @@ export interface AskResponse {
   citations: Citation[];
 }
 
+export interface UploadProgressUpdate {
+  stage: 'locking' | 'diffing' | 'cleaning' | 'uploading' | 'completed' | 'error';
+  message: string;
+  progressPercent: number;
+  processedCount: number;
+  totalCount: number;
+  currentBatch: number;
+  totalBatches: number;
+  failedCount?: number;
+}
+
 export type ExtensionMessage =
   | { type: 'CHECK_STALENESS' }
   | { type: 'START_SYNC' }
   | { type: 'GET_SYNC_STATE' }
   | { type: 'SYNC_PROGRESS'; progress: SyncProgressUpdate }
   | { type: 'SYNC_COMPLETED'; result: unknown }
-  | { type: 'SYNC_ERROR'; error: string };
+  | { type: 'SYNC_ERROR'; error: string }
+  | { type: 'START_UPLOAD'; articles: SakaNormalizedArticle[] }
+  | { type: 'UPLOAD_PROGRESS'; progress: UploadProgressUpdate }
+  | { type: 'UPLOAD_COMPLETED'; result: { addedCount: number; updatedCount: number; totalProcessed: number; elapsedMs: number } }
+  | { type: 'UPLOAD_ERROR'; error: string };
+

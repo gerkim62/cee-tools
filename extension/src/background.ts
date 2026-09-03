@@ -1,4 +1,4 @@
-import { checkStaleness, performFullSync } from './scripts/syncer.js';
+import { checkStaleness, performFullSync, performArticlesUploadSync } from './scripts/syncer.js';
 import { ExtensionMessage, SyncProgressUpdate } from './types.js';
 
 const ALARM_NAME = 'sakahub_staleness_check';
@@ -87,6 +87,44 @@ chrome.runtime.onMessage.addListener(
         });
 
       sendResponse({ success: true, message: 'Sync started' });
+      return true;
+    }
+
+    if (message.type === 'START_UPLOAD') {
+      if (isSyncInProgress) {
+        sendResponse({ success: false, error: 'A sync or upload is already running' });
+        return false;
+      }
+
+      const articles = message.articles;
+      if (!articles || articles.length === 0) {
+        sendResponse({ success: false, error: 'No valid articles to upload' });
+        return false;
+      }
+
+      isSyncInProgress = true;
+      updateBadge('...', '#3b82f6');
+
+      performArticlesUploadSync(articles, (progress) => {
+        chrome.runtime.sendMessage<ExtensionMessage>({ type: 'UPLOAD_PROGRESS', progress }).catch(() => {});
+        if (progress.progressPercent) {
+          updateBadge(`${progress.progressPercent}%`, '#3b82f6');
+        }
+      })
+        .then((result) => {
+          isSyncInProgress = false;
+          updateBadge('OK', '#10b981');
+          setTimeout(() => updateBadge('', '#10b981'), 5000);
+          chrome.runtime.sendMessage<ExtensionMessage>({ type: 'UPLOAD_COMPLETED', result }).catch(() => {});
+        })
+        .catch((err: unknown) => {
+          isSyncInProgress = false;
+          const msg = err instanceof Error ? err.message : String(err);
+          updateBadge('ERR', '#ef4444');
+          chrome.runtime.sendMessage<ExtensionMessage>({ type: 'UPLOAD_ERROR', error: msg }).catch(() => {});
+        });
+
+      sendResponse({ success: true, message: 'Upload started' });
       return true;
     }
 

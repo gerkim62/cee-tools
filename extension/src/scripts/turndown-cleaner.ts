@@ -5,13 +5,17 @@ import TurndownService from 'turndown';
  * into a clean, GitHub-flavored Markdown pipe table.
  * Uses TypeScript type narrowing (instanceof) with zero type assertions ('as').
  */
+/**
+ * Converts any HTML table (including Word-pasted tables lacking <th>/<thead>)
+ * into a clean, GitHub-flavored Markdown pipe table.
+ */
 function convertTableToMarkdown(table: HTMLTableElement): string {
-  const rows = Array.from(table.rows);
+  const rows = Array.from(table.querySelectorAll('tr'));
   if (rows.length === 0) return '';
 
   // Extract cell texts, normalize internal spaces, and escape markdown pipes
   const tableData = rows.map((row) =>
-    Array.from(row.cells).map((cell) =>
+    Array.from(row.querySelectorAll('th, td')).map((cell) =>
       (cell.textContent || '')
         .replace(/[\r\n\t]+/g, ' ')
         .replace(/\|/g, '\\|')
@@ -56,12 +60,12 @@ function createTurndownService(): TurndownService {
   // Remove non-content elements
   service.remove(['style', 'script', 'meta', 'link', 'title']);
 
-  // Table rule using type narrowing (zero 'as' casts)
+  // Table rule using safe nodeName inspection
   service.addRule('table', {
     filter: 'table',
     replacement: (_content, node) => {
-      if (node instanceof HTMLTableElement) {
-        return convertTableToMarkdown(node);
+      if (node && node.nodeName === 'TABLE') {
+        return convertTableToMarkdown(node as HTMLTableElement);
       }
       return _content;
     },
@@ -77,8 +81,9 @@ function createTurndownService(): TurndownService {
   service.addRule('images', {
     filter: 'img',
     replacement: (_content, node) => {
-      if (node instanceof HTMLImageElement) {
-        const alt = node.getAttribute('alt')?.trim();
+      if (node && node.nodeName === 'IMG') {
+        const img = node as HTMLImageElement;
+        const alt = img.getAttribute('alt')?.trim();
         return alt ? ` [Screenshot: ${alt}] ` : ' [Screenshot] ';
       }
       return ' [Screenshot] ';
@@ -87,7 +92,7 @@ function createTurndownService(): TurndownService {
 
   // Clean empty anchors
   service.addRule('cleanAnchors', {
-    filter: (node) => node instanceof HTMLAnchorElement && !node.getAttribute('href'),
+    filter: (node) => node.nodeName === 'A' && !(node as HTMLAnchorElement).getAttribute('href'),
     replacement: (content) => content,
   });
 
@@ -95,6 +100,54 @@ function createTurndownService(): TurndownService {
 }
 
 const turndownInstance = createTurndownService();
+
+export function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+/**
+ * Removes any empty lines between table rows to ensure strict GFM table compliance.
+ */
+export function collapseTableBlankLines(md: string): string {
+  const lines = md.split('\n');
+  const result: string[] = [];
+  let inTable = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trim();
+    const isPipeRow = trimmed.startsWith('|') && trimmed.endsWith('|');
+
+    if (isPipeRow) {
+      inTable = true;
+      result.push(trimmed);
+    } else if (inTable && trimmed === '') {
+      let nextIsPipe = false;
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextTrimmed = lines[j]!.trim();
+        if (nextTrimmed === '') continue;
+        if (nextTrimmed.startsWith('|') && nextTrimmed.endsWith('|')) {
+          nextIsPipe = true;
+        }
+        break;
+      }
+      if (!nextIsPipe) {
+        inTable = false;
+        result.push('');
+      }
+    } else {
+      inTable = false;
+      result.push(line);
+    }
+  }
+  return result.join('\n');
+}
 
 /**
  * Pre-cleans raw Word/TinyMCE HTML by stripping MSO conditional comments, <o:p>, and <xml>,
@@ -115,15 +168,28 @@ export function cleanWordHtmlToMarkdown(html: string): string {
   try {
     markdown = turndownInstance.turndown(preprocessed);
   } catch (err) {
-    console.warn('[Turndown Cleaner] Conversion warning, falling back to basic text:', err);
-    markdown = preprocessed.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    console.warn('[Turndown Cleaner] Conversion warning, falling back to structured tag converter:', err);
+    markdown = preprocessed
+      .replace(/<h1[^>]*>/gi, '\n# ')
+      .replace(/<h2[^>]*>/gi, '\n## ')
+      .replace(/<h3[^>]*>/gi, '\n### ')
+      .replace(/<\/h[1-6]>/gi, '\n\n')
+      .replace(/<li[^>]*>/gi, '\n- ')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<\/(p|div|tr|table)>/gi, '\n\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ');
   }
 
-  // 4. Normalize consecutive newlines and trim whitespace
-  return markdown
+  // 4. Decode HTML entities and normalize consecutive newlines
+  const decoded = decodeHtmlEntities(markdown);
+  const normalized = decoded
     .replace(/\r\n/g, '\n')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s+\n/g, '\n\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+  // 5. Ensure all markdown tables are contiguous without broken blank lines
+  return collapseTableBlankLines(normalized);
 }

@@ -1,4 +1,14 @@
-import { AskResponse, Citation, ExtensionMessage, StalenessCheckResult, SyncProgressUpdate } from '../types.js';
+import {
+  AskResponse,
+  Citation,
+  ExtensionMessage,
+  SakaNormalizedArticle,
+  StalenessCheckResult,
+  SyncProgressUpdate,
+  UploadProgressUpdate,
+} from '../types.js';
+import { extractArticlesFromResponse, normalizeSakaArticle } from '../scripts/sakahub-api.js';
+import { marked } from 'marked';
 
 /**
  * Type-safe element retriever using runtime instanceof narrowing (zero 'as' casts).
@@ -41,16 +51,59 @@ const btnTestConnection = requireElement('btn-test-connection', HTMLButtonElemen
 const btnSaveSettings = requireElement('btn-save-settings', HTMLButtonElement);
 const connectionTestResult = requireElement('connection-test-result', HTMLDivElement);
 
+// Upload Elements
+const btnUploadToggle = requireElement('btn-upload-toggle', HTMLButtonElement);
+const uploadModal = requireElement('upload-modal', HTMLDivElement);
+const btnCloseUpload = requireElement('btn-close-upload', HTMLButtonElement);
+const btnCancelUpload = requireElement('btn-cancel-upload', HTMLButtonElement);
+const uploadDropzone = requireElement('upload-dropzone', HTMLDivElement);
+const uploadFileInput = requireElement('upload-file-input', HTMLInputElement);
+const btnBrowseFile = requireElement('btn-browse-file', HTMLButtonElement);
+const uploadFileCard = requireElement('upload-file-card', HTMLDivElement);
+const uploadFileName = requireElement('upload-file-name', HTMLSpanElement);
+const uploadFileMeta = requireElement('upload-file-meta', HTMLSpanElement);
+const btnRemoveFile = requireElement('btn-remove-file', HTMLButtonElement);
+const uploadParseStatus = requireElement('upload-parse-status', HTMLDivElement);
+const uploadProgressSection = requireElement('upload-progress-section', HTMLDivElement);
+const uploadProgressStatus = requireElement('upload-progress-status', HTMLSpanElement);
+const uploadProgressPct = requireElement('upload-progress-pct', HTMLSpanElement);
+const uploadProgressBar = requireElement('upload-progress-bar', HTMLDivElement);
+const uploadStatCount = requireElement('upload-stat-count', HTMLSpanElement);
+const uploadStatBatches = requireElement('upload-stat-batches', HTMLSpanElement);
+const btnStartUpload = requireElement('btn-start-upload', HTMLButtonElement);
+
+let parsedArticles: SakaNormalizedArticle[] = [];
 let activeBackendUrl = 'http://localhost:3000';
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-  const stored = await chrome.storage.local.get(['backendUrl']);
+  const stored = await chrome.storage.local.get(['backendUrl', 'uploadProgress']);
   if (typeof stored.backendUrl === 'string') {
     activeBackendUrl = stored.backendUrl;
   }
   inputBackendUrl.value = activeBackendUrl;
 
   refreshSyncStatus();
+
+  // If opened with #upload hash or in tab view, activate in-tab mode and show upload modal
+  if (window.location.hash.includes('upload') || window.innerWidth > 500) {
+    document.body.classList.add('in-tab');
+    uploadModal.classList.remove('hidden');
+  }
+
+  // Restore upload progress if one is active
+  if (stored.uploadProgress && typeof stored.uploadProgress === 'object') {
+    const up = stored.uploadProgress as UploadProgressUpdate;
+    if (up.stage === 'uploading' || up.stage === 'cleaning' || up.stage === 'diffing') {
+      uploadModal.classList.remove('hidden');
+      handleUploadProgress(up);
+    }
+  }
 });
 
 // Listen for background worker messages
@@ -67,6 +120,12 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
     syncBannerDesc.textContent = message.error;
     progressBarContainer.classList.add('hidden');
     btnSyncNow.disabled = false;
+  } else if (message.type === 'UPLOAD_PROGRESS') {
+    handleUploadProgress(message.progress);
+  } else if (message.type === 'UPLOAD_COMPLETED') {
+    handleUploadCompleted(message.result);
+  } else if (message.type === 'UPLOAD_ERROR') {
+    handleUploadError(message.error);
   }
 });
 
@@ -339,6 +398,182 @@ btnSaveSettings.addEventListener('click', async () => {
   refreshSyncStatus();
 });
 
+// 5. Upload Knowledge Base Studio
+btnUploadToggle.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/uploader/uploader.html') });
+});
+
+btnCloseUpload.addEventListener('click', () => {
+  uploadModal.classList.add('hidden');
+});
+
+btnCancelUpload.addEventListener('click', () => {
+  uploadModal.classList.add('hidden');
+});
+
+uploadDropzone.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/uploader/uploader.html') });
+});
+
+btnBrowseFile.addEventListener('click', (e: MouseEvent) => {
+  e.stopPropagation();
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/uploader/uploader.html') });
+});
+
+uploadDropzone.addEventListener('dragover', (e: DragEvent) => {
+  e.preventDefault();
+  uploadDropzone.classList.add('dragover');
+});
+
+uploadDropzone.addEventListener('dragleave', () => {
+  uploadDropzone.classList.remove('dragover');
+});
+
+uploadDropzone.addEventListener('drop', (e: DragEvent) => {
+  e.preventDefault();
+  uploadDropzone.classList.remove('dragover');
+  const files = e.dataTransfer?.files;
+  if (files && files.length > 0) {
+    const file = files[0];
+    if (file) handleFile(file);
+  }
+});
+
+uploadFileInput.addEventListener('change', () => {
+  const file = uploadFileInput.files?.[0];
+  if (file) handleFile(file);
+});
+
+btnRemoveFile.addEventListener('click', (e: MouseEvent) => {
+  e.stopPropagation();
+  parsedArticles = [];
+  uploadFileInput.value = '';
+  uploadFileCard.classList.add('hidden');
+  uploadDropzone.classList.remove('hidden');
+  uploadParseStatus.classList.add('hidden');
+  uploadProgressSection.classList.add('hidden');
+  btnStartUpload.disabled = true;
+});
+
+async function handleFile(file: File): Promise<void> {
+  uploadParseStatus.className = 'test-result-box';
+  uploadParseStatus.textContent = `Reading & validating ${file.name} (${formatFileSize(file.size)})...`;
+  uploadParseStatus.classList.remove('hidden');
+  btnStartUpload.disabled = true;
+
+  try {
+    const text = await file.text();
+    const rawJson: unknown = JSON.parse(text);
+    const { rawArticles } = extractArticlesFromResponse(rawJson);
+
+    if (!rawArticles || rawArticles.length === 0) {
+      throw new Error('No articles found in this JSON. Expected an array of SakaHub articles.');
+    }
+
+    const normalized: SakaNormalizedArticle[] = [];
+    for (const raw of rawArticles) {
+      const art = normalizeSakaArticle(raw);
+      if (art) normalized.push(art);
+    }
+
+    if (normalized.length === 0) {
+      throw new Error(`Parsed ${rawArticles.length} items, but none were active published articles.`);
+    }
+
+    // Limit to first 5 articles for testing as requested
+    const limitedArticles = normalized.slice(0, 5);
+    parsedArticles = limitedArticles;
+
+    uploadFileName.textContent = file.name;
+    uploadFileMeta.textContent = `${formatFileSize(file.size)} • First ${limitedArticles.length} articles selected (Testing limit: 5 of ${normalized.length})`;
+
+    uploadFileCard.classList.remove('hidden');
+    uploadDropzone.classList.add('hidden');
+    uploadParseStatus.className = 'test-result-box success';
+    uploadParseStatus.textContent = `✔ Loaded first ${limitedArticles.length} articles (of ${normalized.length} total) for testing. Ready for ingestion.`;
+
+    btnStartUpload.disabled = false;
+  } catch (err: unknown) {
+    parsedArticles = [];
+    btnStartUpload.disabled = true;
+    const msg = err instanceof Error ? err.message : String(err);
+    uploadParseStatus.className = 'test-result-box error';
+    uploadParseStatus.textContent = `File error: ${msg}`;
+    uploadFileCard.classList.add('hidden');
+    uploadDropzone.classList.remove('hidden');
+  }
+}
+
+btnStartUpload.addEventListener('click', () => {
+  if (parsedArticles.length === 0) return;
+
+  btnStartUpload.disabled = true;
+  uploadParseStatus.classList.add('hidden');
+  uploadProgressSection.classList.remove('hidden');
+  uploadProgressBar.style.width = '2%';
+  uploadProgressStatus.textContent = 'Starting background ingestion...';
+  uploadProgressPct.textContent = '2%';
+  uploadStatCount.textContent = `Indexed: 0 / ${parsedArticles.length}`;
+  uploadStatBatches.textContent = `Batch: 0 / ${Math.ceil(parsedArticles.length / 20)}`;
+
+  chrome.runtime.sendMessage<ExtensionMessage, { success: boolean; error?: string }>(
+    { type: 'START_UPLOAD', articles: parsedArticles },
+    (response) => {
+      if (!response || !response.success) {
+        handleUploadError(response?.error || 'Failed to start upload in background service worker');
+      }
+    }
+  );
+});
+
+function handleUploadProgress(progress: UploadProgressUpdate): void {
+  uploadProgressSection.classList.remove('hidden');
+  uploadProgressBar.style.width = `${progress.progressPercent}%`;
+  uploadProgressStatus.textContent = progress.message;
+  uploadProgressPct.textContent = `${progress.progressPercent}%`;
+  uploadStatCount.textContent = `Indexed: ${progress.processedCount} / ${progress.totalCount}`;
+  uploadStatBatches.textContent = `Batch: ${progress.currentBatch} / ${progress.totalBatches}`;
+  setSyncState('syncing', `Uploading (${progress.progressPercent}%)`);
+}
+
+function handleUploadCompleted(result: unknown): void {
+  uploadProgressSection.classList.remove('hidden');
+  uploadProgressBar.style.width = '100%';
+  uploadProgressStatus.textContent = 'Ingestion complete!';
+  uploadProgressPct.textContent = '100%';
+
+  const res = result as { addedCount?: number; updatedCount?: number; totalProcessed?: number; elapsedMs?: number } | undefined;
+  const processed = res?.totalProcessed ?? parsedArticles.length;
+  const added = res?.addedCount ?? 0;
+  const updated = res?.updatedCount ?? 0;
+  const elapsed = res?.elapsedMs ? (res.elapsedMs / 1000).toFixed(1) : '0';
+
+  uploadParseStatus.className = 'test-result-box success';
+  uploadParseStatus.textContent = `✔ Successfully indexed ${processed} articles (${added} new, ${updated} updated) in ${elapsed}s.`;
+  uploadParseStatus.classList.remove('hidden');
+
+  btnStartUpload.disabled = false;
+  btnStartUpload.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="23 4 23 10 17 10"></polyline>
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+    </svg>
+    Ingest Again
+  `;
+
+  setSyncState('synced', 'Up to date');
+  refreshSyncStatus();
+}
+
+function handleUploadError(error: string): void {
+  uploadProgressSection.classList.add('hidden');
+  uploadParseStatus.className = 'test-result-box error';
+  uploadParseStatus.textContent = `Upload failed: ${error}`;
+  uploadParseStatus.classList.remove('hidden');
+  btnStartUpload.disabled = false;
+  setSyncState('behind', 'Upload error');
+}
+
 // Helpers
 function escapeHtml(str: string): string {
   return str
@@ -350,13 +585,6 @@ function escapeHtml(str: string): string {
 
 function renderSimpleMarkdown(md: string): string {
   if (!md) return '';
-  let html = escapeHtml(md);
-
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  html = html.replace(/\[(\d+)\]/g, '<span class="citation-badge">[$1]</span>');
-  html = html.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-
-  return html;
+  const parsed = marked.parse(md, { gfm: true, breaks: true }) as string;
+  return parsed.replace(/\[(\d+)\]/g, '<span class="citation-badge">[$1]</span>');
 }

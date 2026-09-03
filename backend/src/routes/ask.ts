@@ -35,6 +35,7 @@ export interface AskLlmStructuredOutput {
 }
 
 askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Response): Promise<void> => {
+  const requestStart = Date.now();
   try {
     const { question } = req.body;
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
@@ -43,17 +44,27 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     }
 
     const trimmedQuestion = question.trim();
+    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}"`);
 
     // 1. Generate query embedding
+    const embedStart = Date.now();
+    console.log(`[Ask:1/5] Generating query embedding via ${config.OPENROUTER_EMBED_MODEL}...`);
     const [queryVector] = await embedTexts([trimmedQuestion]);
     if (!queryVector) {
+      console.error('[Ask:1/5] ❌ Failed to generate embedding for query.');
       res.status(500).json({ error: 'Failed to generate embedding for query' });
       return;
     }
+    console.log(`[Ask:1/5] ✔ Embedding ready in ${Date.now() - embedStart}ms (dim: ${queryVector.length})`);
 
     // 2. Vector search in Qdrant for top candidates (e.g. 20)
+    const searchStart = Date.now();
+    console.log(`[Ask:2/5] Vector search in Qdrant (candidate limit: ${config.RETRIEVAL_CANDIDATES})...`);
     const candidates: QdrantQueryResult[] = await queryPoints(queryVector, config.RETRIEVAL_CANDIDATES);
+    const searchMs = Date.now() - searchStart;
+
     if (candidates.length === 0) {
+      console.warn(`[Ask:2/5] ⚠️ No matching vectors found in Qdrant (${searchMs}ms).`);
       res.json({
         answer: 'No relevant articles or information found in the SakaHub knowledge base for this query.',
         citations: [],
@@ -61,8 +72,19 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       return;
     }
 
-    // 3. Rerank candidates using OpenRouter native /v1/rerank
-    const candidateTexts = candidates.map(c => c.payload?.chunk_text || '');
+    const topScore = candidates[0]?.score ?? 0;
+    const lowScore = candidates[candidates.length - 1]?.score ?? 0;
+    console.log(`[Ask:2/5] ✔ Retrieved ${candidates.length} candidates in ${searchMs}ms (scores: ${topScore.toFixed(3)} down to ${lowScore.toFixed(3)})`);
+
+    // 3. Rerank candidates using OpenRouter native /v1/rerank (with full contextual title & heading)
+    const rerankStart = Date.now();
+    const candidateTexts = candidates.map(c => {
+      const p = c.payload;
+      const numPrefix = p?.article_number ? `[${p.article_number}] ` : '';
+      const heading = p?.section_heading ? ` > ${p.section_heading}` : '';
+      return `${numPrefix}${p?.article_title || ''}${heading}\n${p?.chunk_text || ''}`;
+    });
+    console.log(`[Ask:3/5] Cross-encoder reranking top candidates via ${config.OPENROUTER_RERANK_MODEL || 'native score'} (top ${config.RERANK_TOP_K})...`);
     const rerankedResults = await rerankChunks(
       trimmedQuestion,
       candidateTexts,
@@ -73,6 +95,14 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     const topChunks: QdrantQueryResult[] = rerankedResults
       .map(r => candidates[r.index])
       .filter((c): c is QdrantQueryResult => Boolean(c));
+
+    const rerankMs = Date.now() - rerankStart;
+    console.log(`[Ask:3/5] ✔ Pruned to ${topChunks.length} most relevant sources in ${rerankMs}ms:`);
+    topChunks.forEach((c, idx) => {
+      const p = c.payload;
+      const score = rerankedResults[idx]?.relevanceScore ?? c.score ?? 0;
+      console.log(`   #${idx + 1} [Rel: ${score.toFixed(3)}] [${p?.article_number || 'N/A'}] "${p?.article_title}" > "${p?.section_heading}"`);
+    });
 
     // 4. Construct context for LLM synthesis
     const contextBlocks = topChunks.map((chunk, idx) => {
@@ -110,6 +140,8 @@ Ensure the JSON is strictly valid and parseable without markdown backticks.`;
 
     const userMessage = `Context Sources:\n${contextBlocks}\n\nQuestion: ${trimmedQuestion}`;
 
+    const llmStart = Date.now();
+    console.log(`[Ask:4/5] Synthesizing answer via ${config.OPENROUTER_CHAT_MODEL}...`);
     const llmRawResponse = await chatCompletion([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage },
@@ -117,25 +149,22 @@ Ensure the JSON is strictly valid and parseable without markdown backticks.`;
       responseFormat: { type: 'json_object' },
       temperature: 0.2,
     });
+    const llmMs = Date.now() - llmStart;
+    console.log(`[Ask:4/5] ✔ Answer generated in ${llmMs}ms (raw response: ${llmRawResponse.length} chars)`);
 
     function parseAskOutput(raw: string): AskLlmStructuredOutput {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        const cleaned = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+      let cleaned = raw.trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
         try {
-          parsed = JSON.parse(cleaned);
-        } catch {
-          return { answer: raw, cited_sources: [] };
-        }
-      }
-
-      if (typeof parsed === 'object' && parsed !== null && 'answer' in parsed) {
-        const record = parsed as { answer?: unknown; cited_sources?: unknown };
-        const answer = typeof record.answer === 'string' ? record.answer : raw;
-        const cited_sources = Array.isArray(record.cited_sources) ? record.cited_sources : [];
-        return { answer, cited_sources };
+          const parsed: unknown = JSON.parse(jsonMatch[0]);
+          if (typeof parsed === 'object' && parsed !== null && 'answer' in parsed) {
+            const record = parsed as { answer?: unknown; cited_sources?: unknown };
+            const answer = typeof record.answer === 'string' ? record.answer : raw;
+            const cited_sources = Array.isArray(record.cited_sources) ? (record.cited_sources as CitedSourceItem[]) : [];
+            return { answer, cited_sources };
+          }
+        } catch {}
       }
 
       return { answer: raw, cited_sources: [] };
@@ -189,6 +218,14 @@ Ensure the JSON is strictly valid and parseable without markdown backticks.`;
         });
       }
     }
+
+    const totalMs = Date.now() - requestStart;
+    console.log(`[Ask:5/5] ✔ Prepared ${citations.length} verified citations. Total pipeline latency: ${totalMs}ms`);
+    citations.forEach((c, idx) => {
+      console.log(`   Citation #${idx + 1} [${c.articleNumber || 'N/A'}] "${c.articleTitle}" > "${c.sectionHeading}"`);
+      console.log(`   ↳ Highlight: ${c.urlWithTextFragment}`);
+    });
+    console.log(`[Ask] 🏁 Pipeline finished successfully.\n`);
 
     const responsePayload: AskResponse = {
       answer: answerText,
