@@ -31,7 +31,7 @@ const configSchema = z.object({
 
   // AI Models (Defaulted with .env overrides)
   OPENROUTER_CHAT_MODEL: z.string().default('google/gemini-2.5-flash'),
-  OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-small'),
+  OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-large'),
   OPENROUTER_CONTEXT_MODEL: z.string().default('google/gemini-2.5-flash'),
   OPENROUTER_RERANK_MODEL: z.string().default('cohere/rerank-v3.5'),
   QUERY_TRANSLATION_MODEL: z.string().default('google/gemini-2.5-flash'),

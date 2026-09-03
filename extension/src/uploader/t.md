@@ -3,10 +3,10 @@
 
 | Layer | Current | Problem |
 |---|---|---|
-| Query | Raw `trimmedQuestion` embedded directly | Slang, typos, Swahili terms never resolved |
+| Query | Raw `trimmedQuestion` embedded directly | Call center shorthand, brand nicknames, and typos never resolved |
 | Retrieval | Dense-only (`text-embedding-3-small`) | Misses `LPPP-0014`, `*334#`, `Fuliza Biashara` exact terms |
 | Contextual chunking | Isolated sub-chunks | Narrow context sent to LLM without parent section |
-| Embedding model | `text-embedding-3-small` | Voyage-3.5-lite beats it by 6.34% at lower cost |
+| Embedding model | `text-embedding-3-small` | `text-embedding-3-large` offers 3072 dimensions and higher semantic precision |
 | Rerank top-K | 5 | Too aggressive — cuts good chunks before LLM sees them |
 | Flag boost | None | KeyUpdates/Featured articles not prioritised |
 
@@ -30,26 +30,30 @@ export interface TranslatedQuery {
   alt: string | null; // second full query if two flows plausible (e.g. SIM barred vs SIM lost)
 }
 
-const SYSTEM_PROMPT = `You are a query translation assistant for Saka Hub, Safaricom's internal knowledge base used by agents during live calls. Input is fast and informal: typos, slang, product nicknames, incomplete phrasing.
+const SYSTEM_PROMPT = `You are a query translation assistant for Saka Hub, Safaricom's internal knowledge base used by agents during live calls. Input is in English, typed quickly and informally: typos, call center abbreviations, product nicknames, and fragmented phrasing.
 
-Task: Rewrite the raw query into retrieval input for a hybrid dense+sparse RAG pipeline. Never answer the question — only resolve terms and expand intent, no invented policy details.
+Task: Rewrite the raw English query into optimized retrieval input for a hybrid dense+sparse RAG pipeline. Never answer the question — only resolve terms, fix typos, and expand intent into official procedural terminology without inventing policies.
 
 Method:
-1. Normalize — resolve slang to official terms:
-   mbao → KSh 20 | bonga → Bonga Points | okoa → Okoa Jahazi emergency airtime credit
-   fuliza → Fuliza M-PESA overdraft | hewa → airtime | simu → handset/device
-   tunukiwa → Tunukiwa personalized bundle offers | lipa → Lipa na M-PESA payment
-   pochi → Pochi la Biashara merchant wallet | kadogo → small denomination transaction
-   kufungua → activate/register | kufunga → deactivate/bar/close
-2. Expand intent — vague verbs → concrete actions:
-   stuck → transaction stuck/pending/failed | block → bar/restrict/suspend
-   reversible → cancel/reverse/refund/unsubscribe | haiwork → not loading/not activating/error
-3. Primary query — one natural-language sentence, semantically rich. Not a keyword fragment.
-4. Fallback — primary query + agent's raw phrase appended verbatim. No keyword lists.
-5. Ambiguity — if two distinct support flows are plausible, output two full natural-language queries.
+1. Normalize Brand Terms & Acronyms:
+   - Resolve product nicknames to official services:
+     fuliza → Fuliza M-PESA overdraft | okoa → Okoa Jahazi emergency airtime credit
+     bonga → Bonga Points rewards | pochi → Pochi la Biashara merchant business wallet
+     tunukiwa → Tunukiwa personalized offers | paybill → Lipa na M-PESA Paybill
+     till → Lipa na M-PESA Buy Goods Till | fibre → Safaricom Home Fibre internet
+   - Expand call center shorthand:
+     rev → reversal | txn / trans → transaction | bal → balance | acc → account | sub → subscription | cust → customer
+2. Expand Vague Verbs into Concrete Procedural Actions:
+   - stuck / hang / pending → transaction pending, failed, or system timeout
+   - block / locked / bar → line barred, SIM PIN/PUK locked, or account restricted
+   - reverse / wrong number → transaction reversal request, incorrect recipient dispute
+   - cancel / stop → unsubscribe, cancel service, or deactivate
+3. Primary Query: Exactly one clear, semantically rich, grammatically complete English sentence. Not a keyword list.
+4. Fallback: Primary query with the agent's original raw phrase appended verbatim.
+5. Ambiguity: If two distinct support flows are plausible (e.g. SIM swap vs SIM line unbarring), output two full English queries. Otherwise "None".
 
 Output format (strict — no extra text):
-Primary query: <natural-language rewrite>
+Primary query: <natural-language English rewrite>
 Fallback: <primary query + agent's raw phrase appended>
 Alt interpretation: <second full query, or None>`;
 
@@ -262,12 +266,12 @@ const topChunks = rerankedResults.map(r => boosted[r.index]).filter(Boolean);
 
 ---
 
-### 1.4 · Swap embedding model → `voyage-3.5-lite`
+### 1.4 · Swap embedding model → `openai/text-embedding-3-large`
 
-Voyage-3.5-lite outperforms `text-embedding-3-large` by 6.34% across 100 retrieval datasets at one-sixth the cost. One env var change. Requires full reindex — the existing model-scoped collection name handles it automatically.
+Upgrades the dense representation to OpenAI's flagship 3072-dimension model for sharper semantic distinction across technical procedures. One env var change. Requires full reindex — the existing model-scoped collection name handles it automatically.
 
 ```ini
-OPENROUTER_EMBED_MODEL=voyage/voyage-3.5-lite
+OPENROUTER_EMBED_MODEL=openai/text-embedding-3-large
 ```
 
 ---
@@ -320,7 +324,7 @@ OPENROUTER_API_KEY=sk-or-v1-your-key
 
 # Models
 OPENROUTER_CHAT_MODEL=anthropic/claude-sonnet-4-5
-OPENROUTER_EMBED_MODEL=voyage/voyage-3.5-lite       # upgraded
+OPENROUTER_EMBED_MODEL=openai/text-embedding-3-large       # upgraded (3072 dims)
 OPENROUTER_CONTEXT_MODEL=google/gemini-2.5-flash
 OPENROUTER_RERANK_MODEL=cohere/rerank-v3.5
 QUERY_TRANSLATION_MODEL=google/gemini-2.5-flash     # fast + cheap, deterministic
@@ -342,7 +346,7 @@ ARTICLE_FLAG_BOOST=1.15
 | 1 | Wire query translation | new `queryTranslator.ts`, `ask.ts`, `openrouter.ts` | 2h | slang/typo resolution |
 | 2 | `RERANK_TOP_K=15` + flag boost | `ask.ts`, `.env` | 30min | fewer missed answers |
 | 3 | Hybrid BM25 sparse + RRF | `qdrant.ts`, `reindex.ts`, `ask.ts` | 1 day | +26–31% exact-match recall |
-| 4 | Swap to `voyage-3.5-lite` + reindex | `.env` + reindex | 2h | +6% semantic accuracy |
+| 4 | Swap to `text-embedding-3-large` + reindex | `.env` + reindex | 2h | higher dimensional accuracy |
 | 5 | Small-to-big chunking | `chunker.ts`, `qdrant.ts`, `ask.ts` | 1 day | broader LLM context |
 
 **Week 1:** Items 1–2 (no reindex needed, immediate wins)  
