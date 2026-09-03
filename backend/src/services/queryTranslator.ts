@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { chatCompletion } from './openrouter.js';
 import { QUERY_TRANSLATION_SYSTEM_PROMPT } from '../prompts.js';
+import { RAG_CONSTANTS } from '../constants.js';
 
 export interface TranslatedQuery {
   primary: string;    // Clean, canonical search query for dense retrieval & cross-encoder
@@ -74,7 +75,7 @@ export async function translateQuery(rawQuery: string): Promise<TranslatedQuery>
         { role: 'user', content: trimmed },
       ],
       {
-        temperature: 0.0,
+        temperature: RAG_CONSTANTS.QUERY_TRANSLATION_TEMPERATURE,
         model: config.QUERY_TRANSLATION_MODEL,
         responseFormat: { type: 'json_object' },
       }

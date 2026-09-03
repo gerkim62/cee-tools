@@ -1,7 +1,8 @@
 import { config } from '../config.js';
 import { buildContextualChunkPrompt } from '../prompts.js';
+import { OPENROUTER_CONSTANTS } from '../constants.js';
 
-const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const getBaseUrl = () => config.OPENROUTER_BASE_URL;
 
 export interface RerankResult {
   index: number;
@@ -92,7 +93,7 @@ async function fetchValidatedJson<T>(
   errorContext: string
 ): Promise<T> {
   const start = Date.now();
-  const endpoint = url.replace(OPENROUTER_BASE_URL, '');
+  const endpoint = url.replace(getBaseUrl(), '');
   const response = await fetch(url, init);
   const latency = Date.now() - start;
 
@@ -118,7 +119,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
   const json = await fetchValidatedJson<OpenRouterEmbeddingResponse>(
-    `${OPENROUTER_BASE_URL}/embeddings`,
+    `${getBaseUrl()}/embeddings`,
     {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -138,7 +139,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
  * Probes the dimension of the configured embedding model by embedding a small token.
  */
 export async function probeEmbeddingDimension(): Promise<number> {
-  const embeddings = await embedTexts(['dimension_probe']);
+  const embeddings = await embedTexts([OPENROUTER_CONSTANTS.DIMENSION_PROBE_TOKEN]);
   const firstVector = embeddings[0];
   if (!firstVector || firstVector.length === 0) {
     throw new Error('[OpenRouter] Failed to probe embedding dimension: empty response vector');
@@ -157,18 +158,18 @@ export async function generateChunkContext(fullDocument: string, chunk: string):
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_CONSTANTS.CONTEXTUAL_ENRICHMENT.TIMEOUT_MS);
 
     const json = await fetchValidatedJson<OpenRouterChatResponse>(
-      `${OPENROUTER_BASE_URL}/chat/completions`,
+      `${getBaseUrl()}/chat/completions`,
       {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           model: config.OPENROUTER_CONTEXT_MODEL,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 150,
-          temperature: 0.1,
+          max_tokens: OPENROUTER_CONSTANTS.CONTEXTUAL_ENRICHMENT.MAX_TOKENS,
+          temperature: OPENROUTER_CONSTANTS.CONTEXTUAL_ENRICHMENT.TEMPERATURE,
         }),
         signal: controller.signal,
       },
@@ -203,7 +204,7 @@ export async function rerankChunks(
 
   try {
     const json = await fetchValidatedJson<OpenRouterRerankResponse>(
-      `${OPENROUTER_BASE_URL}/rerank`,
+      `${getBaseUrl()}/rerank`,
       {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -253,7 +254,7 @@ export async function chatCompletion(
   } = {
     model: options.model ?? config.OPENROUTER_CHAT_MODEL,
     messages,
-    temperature: options.temperature ?? 0.2,
+    temperature: options.temperature ?? OPENROUTER_CONSTANTS.DEFAULT_CHAT_TEMPERATURE,
   };
 
   if (options.responseFormat) {
@@ -261,7 +262,7 @@ export async function chatCompletion(
   }
 
   const json = await fetchValidatedJson<OpenRouterChatResponse>(
-    `${OPENROUTER_BASE_URL}/chat/completions`,
+    `${getBaseUrl()}/chat/completions`,
     {
       method: 'POST',
       headers: getAuthHeaders(),

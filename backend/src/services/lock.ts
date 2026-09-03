@@ -1,7 +1,8 @@
 import { query } from '../db.js';
 import { config } from '../config.js';
+import { SAKAHUB_CONSTANTS } from '../constants.js';
 
-const LOCK_KEY = 'sakahub_sync';
+const LOCK_KEY = SAKAHUB_CONSTANTS.SYNC_LOCK_KEY;
 
 export interface LockStatus {
   isLocked: boolean;

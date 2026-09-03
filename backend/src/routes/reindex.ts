@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { query } from '../db.js';
 import { config } from '../config.js';
 import { refreshLock } from '../services/lock.js';
+import { SAKAHUB_CONSTANTS, OPENROUTER_CONSTANTS } from '../constants.js';
 import { splitArticle, ChunkResult } from '../services/chunker.js';
 import { embedTexts, generateChunkContext } from '../services/openrouter.js';
 import {
@@ -141,7 +142,7 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
               article.title,
               article.lastUpdated,
               article.publishedAt || null,
-              article.articleFlag || 'Default',
+              article.articleFlag || SAKAHUB_CONSTANTS.DEFAULT_ARTICLE_FLAG,
             ]
           );
           processedCount++;
@@ -154,7 +155,7 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
         // C. Anthropic Contextual Retrieval: Enrich each chunk with full-doc situational context
         const enrichStart = Date.now();
         console.log(`${artIndexLabel} 🧠 Enriching ${chunks.length} chunks via ${config.OPENROUTER_CONTEXT_MODEL}...`);
-        const enrichedTexts = await mapConcurrent(chunks, 5, async (chunk) => {
+        const enrichedTexts = await mapConcurrent(chunks, OPENROUTER_CONSTANTS.CONTEXTUAL_ENRICHMENT.CONCURRENCY, async (chunk) => {
           const context = await generateChunkContext(article.markdownContent, chunk.text);
           if (context) {
             return {
@@ -220,7 +221,7 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
             article.title,
             article.lastUpdated,
             article.publishedAt || null,
-            article.articleFlag || 'Default',
+            article.articleFlag || SAKAHUB_CONSTANTS.DEFAULT_ARTICLE_FLAG,
           ]
         );
 

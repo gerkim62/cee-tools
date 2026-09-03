@@ -1,5 +1,6 @@
 import { MarkdownTextSplitter, RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { config } from '../config.js';
+import { RAG_CONSTANTS } from '../constants.js';
 
 export interface ChunkMetadata {
   articleId: string;
@@ -78,13 +79,13 @@ export function generateTextFragment(quote: string): string {
   const words = clean.split(' ').filter(Boolean);
   if (words.length === 0) return '';
 
-  if (words.length < 10) {
+  if (words.length < RAG_CONSTANTS.TEXT_FRAGMENT.RANGE_THRESHOLD_WORDS) {
     return `#:~:text=${encodeTextFragment(words.join(' '))}`;
   }
 
-  // Range format: first 4 words and last 4 words separated by literal comma
-  const startWords = words.slice(0, 4).join(' ');
-  const endWords = words.slice(-4).join(' ');
+  // Range format: first N words and last N words separated by literal comma
+  const startWords = words.slice(0, RAG_CONSTANTS.TEXT_FRAGMENT.SLICE_WORDS_COUNT).join(' ');
+  const endWords = words.slice(-RAG_CONSTANTS.TEXT_FRAGMENT.SLICE_WORDS_COUNT).join(' ');
   return `#:~:text=${encodeTextFragment(startWords)},${encodeTextFragment(endWords)}`;
 }
 
@@ -156,7 +157,7 @@ export async function splitArticle(article: {
   const recursiveSplitter = new RecursiveCharacterTextSplitter({
     chunkSize: config.CHUNK_SIZE,
     chunkOverlap: config.CHUNK_OVERLAP,
-    separators: ['\n\n', '\n', '. ', ' ', ''],
+    separators: [...RAG_CONSTANTS.SPLITTER_SEPARATORS],
   });
 
   const results: ChunkResult[] = [];

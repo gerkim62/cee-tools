@@ -5,6 +5,7 @@ import { queryPoints, buildSparseVector, QdrantQueryResult } from '../services/q
 import { generateTextFragment } from '../services/chunker.js';
 import { translateQuery } from '../services/queryTranslator.js';
 import { ASK_SAKA_SYSTEM_PROMPT } from '../prompts.js';
+import { SAKAHUB_CONSTANTS, RAG_CONSTANTS } from '../constants.js';
 
 export const askRouter: Router = Router();
 
@@ -128,7 +129,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     // 4. Apply article flag boost for KeyUpdates and Featured guidelines
     const boostedCandidates = candidates.map(c => {
       const flag = c.payload?.article_flag;
-      if (flag === 'KeyUpdates' || flag === 'Featured') {
+      if (flag && SAKAHUB_CONSTANTS.BOOSTED_FLAGS.includes(flag as any)) {
         return { ...c, score: c.score * config.ARTICLE_FLAG_BOOST };
       }
       return c;
@@ -191,7 +192,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         articleId: p?.article_id || 'Unknown',
         articleTitle: p?.article_title || 'Untitled',
         articleNumber: p?.article_number || undefined,
-        articleFlag: p?.article_flag || 'Default',
+        articleFlag: p?.article_flag || SAKAHUB_CONSTANTS.DEFAULT_ARTICLE_FLAG,
         sectionHeading: p?.section_heading || 'General',
         content,
         chunk,
@@ -257,12 +258,12 @@ ${s.content}
       if (!source) continue;
 
       const p = source.chunk.payload;
-      const quote = citationItem.exact_quote || p?.chunk_text.slice(0, 100) || source.content.slice(0, 100);
+      const quote = citationItem.exact_quote || p?.chunk_text.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH) || source.content.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH);
       if (seenQuotes.has(quote)) continue;
       seenQuotes.add(quote);
 
       const fragment = generateTextFragment(quote);
-      const urlWithTextFragment = `https://sakahub.safaricom.co.ke/app/article/${source.articleId}${fragment}`;
+      const urlWithTextFragment = `${config.SAKAHUB_BASE_URL}/app/article/${source.articleId}${fragment}`;
 
       citations.push({
         articleId: source.articleId,
@@ -276,9 +277,9 @@ ${s.content}
 
     // Fallback if model did not return structured cited_sources array
     if (citations.length === 0 && contextSources.length > 0) {
-      for (const source of contextSources.slice(0, 3)) {
+      for (const source of contextSources.slice(0, RAG_CONSTANTS.CITATIONS.FALLBACK_COUNT)) {
         const p = source.chunk.payload;
-        const quote = p?.chunk_text.slice(0, 120) || source.content.slice(0, 120);
+        const quote = p?.chunk_text.slice(0, RAG_CONSTANTS.CITATIONS.MAX_FALLBACK_QUOTE_LENGTH) || source.content.slice(0, RAG_CONSTANTS.CITATIONS.MAX_FALLBACK_QUOTE_LENGTH);
         const fragment = generateTextFragment(quote);
         citations.push({
           articleId: source.articleId,
@@ -286,7 +287,7 @@ ${s.content}
           articleNumber: source.articleNumber,
           sectionHeading: source.sectionHeading,
           quote,
-          urlWithTextFragment: `https://sakahub.safaricom.co.ke/app/article/${source.articleId}${fragment}`,
+          urlWithTextFragment: `${config.SAKAHUB_BASE_URL}/app/article/${source.articleId}${fragment}`,
         });
       }
     }

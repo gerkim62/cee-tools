@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 import path from 'path';
+import { OPENROUTER_CONSTANTS, SAKAHUB_CONSTANTS } from './constants.js';
 
 // Load environment variables from backend/.env or cwd .env
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
@@ -28,6 +29,10 @@ const configSchema = z.object({
   // Server Networking
   PORT: z.coerce.number().default(3000),
   HOST: z.string().default('0.0.0.0'),
+
+  // External Endpoints
+  OPENROUTER_BASE_URL: z.string().default(OPENROUTER_CONSTANTS.DEFAULT_BASE_URL),
+  SAKAHUB_BASE_URL: z.string().default(SAKAHUB_CONSTANTS.DEFAULT_BASE_URL),
 
   // AI Models (Defaulted with .env overrides)
   OPENROUTER_CHAT_MODEL: z.string().default('google/gemini-2.5-flash'),

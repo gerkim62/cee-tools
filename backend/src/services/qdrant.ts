@@ -1,6 +1,7 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { config } from '../config.js';
 import { probeEmbeddingDimension } from './openrouter.js';
+import { RAG_CONSTANTS } from '../constants.js';
 
 export const qdrantClient = new QdrantClient({
   url: config.QDRANT_URL,
@@ -58,7 +59,7 @@ function hashToken(token: string): number {
   for (let i = 0; i < token.length; i++) {
     h = (Math.imul(31, h) + token.charCodeAt(i)) >>> 0;
   }
-  return (h % 100000) + 1; // 1 to 100000 positive indices
+  return (h % RAG_CONSTANTS.SPARSE_VOCABULARY_SIZE) + 1;
 }
 
 /**
@@ -88,7 +89,11 @@ export function buildSparseVector(text: string): SparseVector {
   return { indices, values };
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1500): Promise<T> {
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = RAG_CONSTANTS.NETWORK_RETRY.MAX_RETRIES,
+  delayMs = RAG_CONSTANTS.NETWORK_RETRY.INITIAL_DELAY_MS
+): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < retries; i++) {
     try {
@@ -106,11 +111,11 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1500): 
 
 export async function initQdrant(): Promise<string> {
   // 1. Probe dimension of currently configured embedding model
-  let vectorSize = 3072;
+  let vectorSize: number = RAG_CONSTANTS.FALLBACK_EMBEDDING_DIMENSION;
   try {
     vectorSize = await probeEmbeddingDimension();
   } catch (err) {
-    console.warn('[Qdrant] Could not probe dimension from OpenRouter, defaulting to 3072:', err);
+    console.warn(`[Qdrant] Could not probe dimension from OpenRouter, defaulting to ${RAG_CONSTANTS.FALLBACK_EMBEDDING_DIMENSION}:`, err);
   }
 
   // 2. Generate model-scoped collection name
@@ -222,10 +227,11 @@ export async function queryPoints(
   limit: number
 ): Promise<QdrantQueryResult[]> {
   return withRetry(async () => {
+    const prefetchLimit = limit * RAG_CONSTANTS.PREFETCH_CANDIDATE_MULTIPLIER;
     const result = await qdrantClient.query(activeCollectionName, {
       prefetch: [
-        { query: denseVector, using: 'dense', limit: limit * 2 },
-        { query: { indices: sparseVector.indices, values: sparseVector.values }, using: 'sparse', limit: limit * 2 },
+        { query: denseVector, using: 'dense', limit: prefetchLimit },
+        { query: { indices: sparseVector.indices, values: sparseVector.values }, using: 'sparse', limit: prefetchLimit },
       ],
       query: { fusion: 'rrf' },
       limit,
