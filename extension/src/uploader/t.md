@@ -5,7 +5,7 @@
 |---|---|---|
 | Query | Raw `trimmedQuestion` embedded directly | Slang, typos, Swahili terms never resolved |
 | Retrieval | Dense-only (`text-embedding-3-small`) | Misses `LPPP-0014`, `*334#`, `Fuliza Biashara` exact terms |
-| Index enrichment | Contextual prefix only | No hypothetical question embeddings |
+| Contextual chunking | Isolated sub-chunks | Narrow context sent to LLM without parent section |
 | Embedding model | `text-embedding-3-small` | Voyage-3.5-lite beats it by 6.34% at lower cost |
 | Rerank top-K | 5 | Too aggressive — cuts good chunks before LLM sees them |
 | Flag boost | None | KeyUpdates/Featured articles not prioritised |
@@ -240,108 +240,7 @@ const points: QdrantChunkPoint[] = chunks.map((chunk, idx) => ({
 
 ---
 
-### 1.3 · HyPE: hypothetical prompt embeddings (index time)
-
-Generates 3–5 questions per chunk at index time. Transforms retrieval from question→document into question→question matching — eliminating the style gap between how agents ask and how SakaHub articles are written. Average +16pp recall, +20pp precision over naive RAG (IEEE Access, July 2025). Zero query-time latency cost.
-
-**`backend/src/services/openrouter.ts`** — extend `generateChunkContext` into `enrichChunk`:
-
-```typescript
-export interface ChunkEnrichment {
-  contextSummary: string;
-  hypotheticalQuestions: string[];
-}
-
-export async function enrichChunk(fullDocument: string, chunk: string): Promise<ChunkEnrichment> {
-  const prompt = `<document>\n${fullDocument}\n</document>\n\nChunk:\n<chunk>\n${chunk}\n</chunk>\n\nDo two things:\n1. Write 2-3 sentences situating this chunk within the document for search retrieval.\n2. Write 4 short questions (under 15 words each) that this chunk directly answers.\n\nRespond only with valid JSON (no markdown):\n{"context": "...", "questions": ["...", "...", "...", "..."]}`;
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const json = await fetchValidatedJson<OpenRouterChatResponse>(
-      `${OPENROUTER_BASE_URL}/chat/completions`,
-      {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          model: config.OPENROUTER_CONTEXT_MODEL,
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 350,
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-        }),
-        signal: controller.signal,
-      },
-      isOpenRouterChatResponse,
-      'Chunk Enrichment'
-    );
-
-    clearTimeout(timeoutId);
-    const parsed = JSON.parse(json.choices[0]?.message.content.trim() || '{}');
-    return {
-      contextSummary: parsed.context || '',
-      hypotheticalQuestions: Array.isArray(parsed.questions) ? parsed.questions : [],
-    };
-  } catch {
-    return { contextSummary: '', hypotheticalQuestions: [] };
-  }
-}
-```
-
-**`backend/src/routes/reindex.ts`** — use `enrichChunk`, embed questions as extra Qdrant points:
-
-```typescript
-// Replace generateChunkContext calls with enrichChunk:
-const enrichments = await mapConcurrent(chunks, 8, (chunk) =>
-  enrichChunk(article.markdownContent, chunk.text)
-);
-
-// Main chunk points (contextualized text):
-const textsToEmbed = enrichments.map((e, i) =>
-  `${e.contextSummary || chunks[i].structuralPrefix}\n\n${chunks[i].text}`
-);
-const embeddings = await embedTexts(textsToEmbed);
-
-// Store questions in payload for BM25 coverage:
-const points: QdrantChunkPoint[] = chunks.map((chunk, i) => ({
-  id: crypto.randomUUID(),
-  vector: {
-    dense: embeddings[i],
-    sparse: buildSparseVector(textsToEmbed[i]),
-  },
-  payload: {
-    ...chunkPayload,
-    context_summary: enrichments[i].contextSummary,
-    hypothetical_questions: enrichments[i].hypotheticalQuestions.join(' | '),
-  },
-}));
-
-// HyPE: also upsert each question as its own point referencing the parent chunk
-for (const [i, enrichment] of enrichments.entries()) {
-  if (!enrichment.hypotheticalQuestions.length) continue;
-  const qEmbeddings = await embedTexts(enrichment.hypotheticalQuestions);
-  const qPoints = enrichment.hypotheticalQuestions.map((q, qi) => ({
-    id: crypto.randomUUID(),
-    vector: {
-      dense: qEmbeddings[qi],
-      sparse: buildSparseVector(q),
-    },
-    payload: {
-      ...chunks[i].metadata,
-      chunk_text: chunks[i].text,
-      section_heading: chunks[i].metadata.sectionHeading,
-      is_question_proxy: true,
-      source_question: q,
-    },
-  }));
-  await upsertPoints(qPoints);
-}
-```
-
----
-
-### 1.4 · Increase RERANK_TOP_K + article_flag boost
+### 1.3 · Increase RERANK_TOP_K + article_flag boost
 
 **`backend/src/routes/ask.ts`** — add flag boost before reranking:
 
@@ -364,7 +263,7 @@ const topChunks = rerankedResults.map(r => boosted[r.index]).filter(Boolean);
 
 ---
 
-### 1.5 · Swap embedding model → `voyage-3.5-lite`
+### 1.4 · Swap embedding model → `voyage-3.5-lite`
 
 Voyage-3.5-lite outperforms `text-embedding-3-large` by 6.34% across 100 retrieval datasets at one-sixth the cost. One env var change. Requires full reindex — the existing model-scoped collection name handles it automatically.
 
@@ -517,13 +416,12 @@ CACHE_TTL_HOURS=24
 | 2 | `RERANK_TOP_K=15` + flag boost | `ask.ts`, `.env` | 30min | fewer missed answers |
 | 3 | Hybrid BM25 sparse + RRF | `qdrant.ts`, `reindex.ts`, `ask.ts` | 1 day | +26–31% exact-match recall |
 | 4 | Swap to `voyage-3.5-lite` + reindex | `.env` + reindex | 2h | +6% semantic accuracy |
-| 5 | HyPE question embeddings | `openrouter.ts`, `reindex.ts` | 1 day | +16pp recall avg |
-| 6 | Semantic cache | new `cache.ts`, `ask.ts`, `index.ts` | 1 day | 80% cost + speed on repeats |
-| 7 | Small-to-big chunking | `chunker.ts`, `qdrant.ts`, `ask.ts` | 1 day | broader LLM context |
+| 5 | Semantic cache | new `cache.ts`, `ask.ts`, `index.ts` | 1 day | 80% cost + speed on repeats |
+| 6 | Small-to-big chunking | `chunker.ts`, `qdrant.ts`, `ask.ts` | 1 day | broader LLM context |
 
 **Week 1:** Items 1–2 (no reindex needed, immediate wins)  
-**Week 2:** Items 3–5 (all require reindex — batch them into one)  
-**Week 3:** Items 6–7 (operational improvements)
+**Week 2:** Items 3–4 (both require reindex — batch them into one)  
+**Week 3:** Items 5–6 (operational improvements)
 
 ---
 
