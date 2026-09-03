@@ -59,6 +59,31 @@ export async function initDb(): Promise<void> {
       );
     `);
 
+    // Create conversations table for multi-turn chat history
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id UUID PRIMARY KEY,
+        client_id VARCHAR(128) NOT NULL,
+        title TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_conversations_client ON conversations(client_id, updated_at DESC);
+    `);
+
+    // Create messages table for message turns with citations
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id UUID PRIMARY KEY,
+        conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        role VARCHAR(16) NOT NULL,
+        content TEXT NOT NULL,
+        citations JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at ASC);
+    `);
+
     await client.query('COMMIT');
     console.log('[Database] PostgreSQL tables and indexes verified successfully.');
   } catch (error) {

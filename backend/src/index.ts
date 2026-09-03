@@ -32,6 +32,7 @@ import { initQdrant } from './services/qdrant.js';
 import { syncRouter } from './routes/sync.js';
 import { reindexRouter } from './routes/reindex.js';
 import { askRouter } from './routes/ask.js';
+import { conversationsRouter } from './routes/conversations.js';
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.get('/health', (_req, res) => {
 app.use(syncRouter);
 app.use(reindexRouter);
 app.use(askRouter);
+app.use(conversationsRouter);
 
 async function startServer(): Promise<void> {
   console.log('\n[Startup] Initializing Ask Saka backend services...');

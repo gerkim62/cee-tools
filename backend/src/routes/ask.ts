@@ -1,5 +1,7 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { config } from '../config.js';
+import { query } from '../db.js';
 import { embedTexts, rerankChunks, chatCompletionStream } from '../services/openrouter.js';
 import { queryPoints, buildSparseVector, QdrantQueryResult } from '../services/qdrant.js';
 import { generateTextFragment } from '../services/chunker.js';
@@ -21,10 +23,13 @@ export interface Citation {
 export interface AskResponse {
   answer: string;
   citations: Citation[];
+  conversationId?: string;
 }
 
 export interface AskRequestBody {
   question: string;
+  conversationId?: string;
+  clientId?: string;
   stream?: boolean;
 }
 
@@ -60,7 +65,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
   };
 
   try {
-    const { question } = req.body;
+    const { question, conversationId, clientId } = req.body;
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       if (isStream) {
         sendEvent('error', { message: 'Question is required' });
@@ -72,7 +77,60 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     }
 
     const trimmedQuestion = question.trim();
-    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}" (streaming: ${isStream})`);
+    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}" (streaming: ${isStream}, convId: ${conversationId || 'none'})`);
+
+    // Manage conversation thread and history
+    let activeConversationId: string | null = conversationId || null;
+    let previousTurnsContext = '';
+
+    if (clientId || conversationId) {
+      try {
+        if (activeConversationId) {
+          const convCheck = await query(`SELECT id FROM conversations WHERE id = $1`, [activeConversationId]);
+          if (convCheck.rows.length === 0 && clientId) {
+            await query(
+              `INSERT INTO conversations (id, client_id, title, created_at, updated_at)
+               VALUES ($1, $2, $3, NOW(), NOW())`,
+              [activeConversationId, clientId, trimmedQuestion.slice(0, 60)]
+            );
+          }
+        } else if (clientId) {
+          activeConversationId = crypto.randomUUID();
+          await query(
+            `INSERT INTO conversations (id, client_id, title, created_at, updated_at)
+             VALUES ($1, $2, $3, NOW(), NOW())`,
+            [activeConversationId, clientId, trimmedQuestion.slice(0, 60)]
+          );
+        }
+
+        if (activeConversationId) {
+          // Record incoming user message
+          await query(
+            `INSERT INTO messages (id, conversation_id, role, content, created_at)
+             VALUES ($1, $2, $3, $4, NOW())`,
+            [crypto.randomUUID(), activeConversationId, 'user', trimmedQuestion]
+          );
+
+          // Fetch recent previous turns for context continuity (excluding the turn just inserted)
+          const pastMessagesRes = await query(
+            `SELECT role, content FROM messages
+             WHERE conversation_id = $1 AND role IN ('user', 'assistant')
+             ORDER BY created_at DESC
+             OFFSET 1 LIMIT 4`,
+            [activeConversationId]
+          );
+
+          if (pastMessagesRes.rows.length > 0) {
+            const chronological = pastMessagesRes.rows.reverse();
+            previousTurnsContext = chronological
+              .map((m) => `${m.role === 'user' ? 'CEE Agent' : 'Ask Saka'}: ${m.content.slice(0, 400)}`)
+              .join('\n');
+          }
+        }
+      } catch (convErr) {
+        console.warn('[Ask] Failed managing conversation state in DB:', convErr);
+      }
+    }
 
     // 1. Understanding request...
     sendEvent('status', { message: CEE_STATUS_MESSAGES.UNDERSTANDING });
@@ -240,7 +298,10 @@ ${s.content}
 `;
     }).join('\n---\n\n');
 
-    const userMessage = `Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}\n\nProvide the immediate action checklist for the CEE agent:`;
+    const historyBlock = previousTurnsContext
+      ? `Previous Conversation Context (for continuity):\n${previousTurnsContext}\n\n`
+      : '';
+    const userMessage = `${historyBlock}Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}\n\nProvide the immediate action checklist for the CEE agent:`;
 
     // 4. Drafting answer... (Real streaming token-by-token from OpenRouter)
     sendEvent('status', { message: CEE_STATUS_MESSAGES.DRAFTING });
@@ -309,6 +370,23 @@ ${s.content}
       }
     }
 
+    // Save assistant message to conversation history in DB
+    if (activeConversationId) {
+      try {
+        await query(
+          `INSERT INTO messages (id, conversation_id, role, content, citations, created_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())`,
+          [crypto.randomUUID(), activeConversationId, 'assistant', answerText, JSON.stringify(citations)]
+        );
+        await query(
+          `UPDATE conversations SET updated_at = NOW() WHERE id = $1`,
+          [activeConversationId]
+        );
+      } catch (saveErr) {
+        console.warn('[Ask] Failed saving assistant turn to DB:', saveErr);
+      }
+    }
+
     const totalMs = Date.now() - requestStart;
     console.log(`[Ask:6/6] ✔ Prepared ${citations.length} verified citations. Total pipeline latency: ${totalMs}ms`);
     citations.forEach((c, idx) => {
@@ -320,6 +398,7 @@ ${s.content}
     const responsePayload: AskResponse = {
       answer: answerText,
       citations,
+      conversationId: activeConversationId || undefined,
     };
 
     if (isStream) {
