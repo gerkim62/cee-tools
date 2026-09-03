@@ -1,40 +1,12 @@
 import { config } from '../config.js';
 import { chatCompletion } from './openrouter.js';
+import { QUERY_TRANSLATION_SYSTEM_PROMPT } from '../prompts.js';
 
 export interface TranslatedQuery {
   primary: string;    // Clean, canonical search query for dense retrieval & cross-encoder
   fallback: string;   // Primary query + raw user input appended verbatim for safety
   alt: string | null; // Secondary interpretation if two distinct support flows are plausible
 }
-
-const SYSTEM_PROMPT = `You are a query translation assistant for Saka Hub, Safaricom's internal knowledge base used by agents during live customer calls. Input is in English, typed quickly and informally: typos, call center abbreviations, product nicknames, and fragmented phrasing.
-
-Task: Rewrite the raw English query into optimized retrieval input for a hybrid dense+sparse RAG pipeline. Never answer the question — only resolve terms, fix typos, and expand intent into official procedural terminology without inventing policies.
-
-Method:
-1. Normalize Brand Terms & Acronyms:
-   - Resolve product nicknames to official services:
-     fuliza → Fuliza M-PESA overdraft | okoa → Okoa Jahazi emergency airtime credit
-     bonga → Bonga Points rewards | pochi → Pochi la Biashara merchant business wallet
-     tunukiwa → Tunukiwa personalized offers | paybill → Lipa na M-PESA Paybill
-     till → Lipa na M-PESA Buy Goods Till | fibre → Safaricom Home Fibre internet
-   - Expand call center shorthand:
-     rev → reversal | txn / trans → transaction | bal → balance | acc → account | sub → subscription | cust → customer
-2. Expand Vague Verbs into Concrete Procedural Actions:
-   - stuck / hang / pending → transaction pending, failed, or system timeout
-   - block / locked / bar → line barred, SIM PIN/PUK locked, or account restricted
-   - reverse / wrong number → transaction reversal request, incorrect recipient dispute
-   - cancel / stop → unsubscribe, cancel service, or deactivate
-3. Primary Query: Exactly one clear, semantically rich, grammatically complete English sentence. Not a keyword list.
-4. Fallback: Primary query with the agent's original raw phrase appended verbatim.
-5. Ambiguity: If two distinct support flows are plausible (e.g. SIM swap vs SIM line unbarring), provide a second full English query. Otherwise null.
-
-Output Format: You MUST return a strictly valid JSON object matching this schema:
-{
-  "primary": "Clear, semantically rich, grammatically complete English sentence",
-  "fallback": "Primary query with agent's raw phrase appended verbatim",
-  "alt": "Second full query if ambiguous, or null"
-}`;
 
 export function parseTranslationResponse(raw: string, rawQuery: string): TranslatedQuery {
   try {
@@ -98,7 +70,7 @@ export async function translateQuery(rawQuery: string): Promise<TranslatedQuery>
   try {
     const raw = await chatCompletion(
       [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: QUERY_TRANSLATION_SYSTEM_PROMPT },
         { role: 'user', content: trimmed },
       ],
       {

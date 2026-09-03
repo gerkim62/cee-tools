@@ -4,6 +4,7 @@ import { embedTexts, rerankChunks, chatCompletion } from '../services/openrouter
 import { queryPoints, buildSparseVector, QdrantQueryResult } from '../services/qdrant.js';
 import { generateTextFragment } from '../services/chunker.js';
 import { translateQuery } from '../services/queryTranslator.js';
+import { ASK_SAKA_SYSTEM_PROMPT } from '../prompts.js';
 
 export const askRouter: Router = Router();
 
@@ -210,31 +211,12 @@ ${s.content}
 `;
     }).join('\n---\n\n');
 
-    const systemPrompt = `You are "Ask Saka", an expert AI assistant for Safaricom's SakaHub knowledge base.
-Your job is to answer user queries accurately and professionally based strictly on the provided context sources.
-
-Guidelines:
-1. Ground your answer completely in the provided sources. Do not speculate or invent policies.
-2. If the context does not contain sufficient details to answer, state clearly what is missing.
-3. In your answer, reference sources using [1], [2], etc.
-4. Output your response as valid JSON matching this exact schema:
-{
-  "answer": "Detailed answer in Markdown with inline [1], [2] citations...",
-  "cited_sources": [
-    {
-      "source_index": 1,
-      "exact_quote": "Exact sentence or clause from Source 1 supporting this point"
-    }
-  ]
-}
-Ensure the JSON is strictly valid and parseable without markdown backticks.`;
-
     const userMessage = `Context Sources:\n${contextBlocks}\n\nQuestion: ${trimmedQuestion}`;
 
     const llmStart = Date.now();
     console.log(`[Ask:5/6] Synthesizing answer via ${config.OPENROUTER_CHAT_MODEL}...`);
     const llmRawResponse = await chatCompletion([
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: ASK_SAKA_SYSTEM_PROMPT },
       { role: 'user', content: userMessage },
     ], {
       responseFormat: { type: 'json_object' },

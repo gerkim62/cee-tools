@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { buildContextualChunkPrompt } from '../prompts.js';
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 
@@ -152,7 +153,7 @@ export async function probeEmbeddingDimension(): Promise<number> {
  * If the call fails or times out, gracefully returns an empty string so fallback is used.
  */
 export async function generateChunkContext(fullDocument: string, chunk: string): Promise<string> {
-  const prompt = `<document>\n${fullDocument}\n</document>\n\nHere is the chunk we want to situate within the whole document:\n<chunk>\n${chunk}\n</chunk>\n\nPlease give a short succinct context of 2-3 sentences to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else.`;
+  const prompt = buildContextualChunkPrompt(fullDocument, chunk);
 
   try {
     const controller = new AbortController();
