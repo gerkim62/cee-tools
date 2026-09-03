@@ -65,9 +65,16 @@ export interface BackendSyncStatus {
 }
 
 export interface SyncProgressUpdate {
-  stage: 'probing' | 'locking' | 'scraping' | 'cleaning' | 'uploading' | 'completed' | 'error';
+  stage: 'idle' | 'probing' | 'locking' | 'scraping' | 'cleaning' | 'uploading' | 'completed' | 'error';
   message: string;
   progressPercent: number;
+  processedCount?: number;
+  totalCount?: number;
+  currentBatch?: number;
+  totalBatches?: number;
+  addedCount?: number;
+  updatedCount?: number;
+  deletedCount?: number;
   details?: Record<string, unknown>;
 }
 
@@ -109,28 +116,49 @@ export interface Citation {
 export interface AskResponse {
   answer: string;
   citations: Citation[];
+  conversationId?: string;
 }
 
-export interface UploadProgressUpdate {
-  stage: 'locking' | 'diffing' | 'cleaning' | 'uploading' | 'completed' | 'error';
-  message: string;
-  progressPercent: number;
-  processedCount: number;
-  totalCount: number;
-  currentBatch: number;
-  totalBatches: number;
-  failedCount?: number;
+export interface ConversationSummary {
+  id: string;
+  clientId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount?: number;
 }
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  citations?: Citation[];
+  createdAt: string;
+  isStreaming?: boolean;
+}
+
+export type WidgetView = 'chat' | 'history' | 'sync' | 'settings';
 
 export type ExtensionMessage =
   | { type: 'CHECK_STALENESS' }
-  | { type: 'START_SYNC' }
+  | { type: 'START_SYNC'; mode?: 'smart' | 'deep' }
   | { type: 'GET_SYNC_STATE' }
   | { type: 'SYNC_PROGRESS'; progress: SyncProgressUpdate }
   | { type: 'SYNC_COMPLETED'; result: unknown }
   | { type: 'SYNC_ERROR'; error: string }
-  | { type: 'START_UPLOAD'; articles: SakaNormalizedArticle[] }
-  | { type: 'UPLOAD_PROGRESS'; progress: UploadProgressUpdate }
-  | { type: 'UPLOAD_COMPLETED'; result: { addedCount: number; updatedCount: number; totalProcessed: number; elapsedMs: number } }
-  | { type: 'UPLOAD_ERROR'; error: string };
+  | { type: 'BG_FETCH'; url: string; options?: any };
+
+export interface AskStreamClientMessage {
+  type: 'START_ASK';
+  question: string;
+  conversationId?: string;
+  clientId: string;
+}
+
+export type AskStreamServerMessage =
+  | { type: 'status'; message: string }
+  | { type: 'token'; delta: string }
+  | { type: 'citations'; citations: Citation[] }
+  | { type: 'done'; answer?: string; citations?: Citation[]; conversationId?: string }
+  | { type: 'error'; message: string };
 

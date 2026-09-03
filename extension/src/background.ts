@@ -1,5 +1,9 @@
-import { checkStaleness, performFullSync, performArticlesUploadSync } from './scripts/syncer.js';
-import { ExtensionMessage, SyncProgressUpdate } from './types.js';
+import { checkStaleness, performSmartSync, getBackendUrl } from './scripts/syncer.js';
+import {
+  ExtensionMessage,
+  SyncProgressUpdate,
+  AskStreamClientMessage,
+} from './types.js';
 
 const ALARM_NAME = 'sakahub_staleness_check';
 let isSyncInProgress = false;
@@ -8,7 +12,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(ALARM_NAME, {
     periodInMinutes: 60,
   });
-  console.log('[Background] Installed. Registered periodic staleness alarm.');
+  console.log('[Background] Ask Saka installed. Registered periodic staleness alarm.');
   runStalenessCheck();
 });
 
@@ -16,6 +20,16 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
     console.log('[Background] Running scheduled staleness check...');
     runStalenessCheck();
+  }
+});
+
+chrome.action.onClicked.addListener(async (tab) => {
+  if (tab.id) {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_WIDGET' });
+    } catch {
+      // Content script might not be injected on restricted pages (e.g. chrome://)
+    }
   }
 });
 
@@ -28,6 +42,20 @@ async function updateBadge(text: string, color: string): Promise<void> {
   }
 }
 
+async function broadcastMessage(msg: ExtensionMessage): Promise<void> {
+  // Broadcast to tabs (where content script widgets live)
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+      }
+    }
+  } catch {}
+  // Also runtime message
+  chrome.runtime.sendMessage(msg).catch(() => {});
+}
+
 async function runStalenessCheck(): Promise<void> {
   if (isSyncInProgress) return;
   try {
@@ -37,20 +65,58 @@ async function runStalenessCheck(): Promise<void> {
     } else {
       await updateBadge('', '#10b981');
     }
+    await broadcastMessage({
+      type: 'SYNC_PROGRESS',
+      progress: {
+        stage: status.isBehind ? 'probing' : 'idle',
+        message: status.isBehind ? 'New articles detected on SakaHub' : 'Knowledge base is up to date',
+        progressPercent: status.isBehind ? 0 : 100,
+        details: { isBehind: status.isBehind, reason: status.reason },
+      },
+    });
   } catch (err) {
     console.warn('[Background Check Error]', err);
   }
 }
 
+// ----------------------------------------------------
+// Message Bus for One-off Requests & Proxy Fetch (Zero CORS)
+// ----------------------------------------------------
 chrome.runtime.onMessage.addListener(
   (
     message: ExtensionMessage,
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response?: any) => void
   ) => {
+    if (message.type === 'BG_FETCH') {
+      const { url, options } = message;
+      fetch(url, options)
+        .then(async (res) => {
+          const ok = res.ok;
+          const status = res.status;
+          let data: any = null;
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            try {
+              data = await res.json();
+            } catch {
+              data = null;
+            }
+          } else {
+            data = await res.text();
+          }
+          sendResponse({ success: true, ok, status, data });
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          sendResponse({ success: false, error: msg });
+        });
+      return true;
+    }
+
     if (message.type === 'CHECK_STALENESS') {
       checkStaleness()
-        .then(res => sendResponse({ success: true, data: res }))
+        .then((res) => sendResponse({ success: true, data: res }))
         .catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
           sendResponse({ success: false, error: msg });
@@ -60,15 +126,16 @@ chrome.runtime.onMessage.addListener(
 
     if (message.type === 'START_SYNC') {
       if (isSyncInProgress) {
-        sendResponse({ success: false, error: 'Sync already running' });
+        sendResponse({ success: false, error: 'A synchronization is already actively running.' });
         return false;
       }
 
       isSyncInProgress = true;
+      const mode = message.mode || 'smart';
       updateBadge('...', '#3b82f6');
 
-      performFullSync((progress: SyncProgressUpdate) => {
-        chrome.runtime.sendMessage<ExtensionMessage>({ type: 'SYNC_PROGRESS', progress }).catch(() => {});
+      performSmartSync(mode, (progress: SyncProgressUpdate) => {
+        broadcastMessage({ type: 'SYNC_PROGRESS', progress });
         if (progress.progressPercent) {
           updateBadge(`${progress.progressPercent}%`, '#3b82f6');
         }
@@ -77,54 +144,16 @@ chrome.runtime.onMessage.addListener(
           isSyncInProgress = false;
           updateBadge('OK', '#10b981');
           setTimeout(() => updateBadge('', '#10b981'), 5000);
-          chrome.runtime.sendMessage<ExtensionMessage>({ type: 'SYNC_COMPLETED', result }).catch(() => {});
+          broadcastMessage({ type: 'SYNC_COMPLETED', result });
         })
         .catch((err: unknown) => {
           isSyncInProgress = false;
           const msg = err instanceof Error ? err.message : String(err);
           updateBadge('ERR', '#ef4444');
-          chrome.runtime.sendMessage<ExtensionMessage>({ type: 'SYNC_ERROR', error: msg }).catch(() => {});
+          broadcastMessage({ type: 'SYNC_ERROR', error: msg });
         });
 
-      sendResponse({ success: true, message: 'Sync started' });
-      return true;
-    }
-
-    if (message.type === 'START_UPLOAD') {
-      if (isSyncInProgress) {
-        sendResponse({ success: false, error: 'A sync or upload is already running' });
-        return false;
-      }
-
-      const articles = message.articles;
-      if (!articles || articles.length === 0) {
-        sendResponse({ success: false, error: 'No valid articles to upload' });
-        return false;
-      }
-
-      isSyncInProgress = true;
-      updateBadge('...', '#3b82f6');
-
-      performArticlesUploadSync(articles, (progress) => {
-        chrome.runtime.sendMessage<ExtensionMessage>({ type: 'UPLOAD_PROGRESS', progress }).catch(() => {});
-        if (progress.progressPercent) {
-          updateBadge(`${progress.progressPercent}%`, '#3b82f6');
-        }
-      })
-        .then((result) => {
-          isSyncInProgress = false;
-          updateBadge('OK', '#10b981');
-          setTimeout(() => updateBadge('', '#10b981'), 5000);
-          chrome.runtime.sendMessage<ExtensionMessage>({ type: 'UPLOAD_COMPLETED', result }).catch(() => {});
-        })
-        .catch((err: unknown) => {
-          isSyncInProgress = false;
-          const msg = err instanceof Error ? err.message : String(err);
-          updateBadge('ERR', '#ef4444');
-          chrome.runtime.sendMessage<ExtensionMessage>({ type: 'UPLOAD_ERROR', error: msg }).catch(() => {});
-        });
-
-      sendResponse({ success: true, message: 'Upload started' });
+      sendResponse({ success: true, message: `Sync started in ${mode} mode` });
       return true;
     }
 
@@ -134,3 +163,103 @@ chrome.runtime.onMessage.addListener(
     }
   }
 );
+
+// ----------------------------------------------------
+// Long-lived Port for /ask SSE Streaming (Zero CORS)
+// ----------------------------------------------------
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'ASK_STREAM') return;
+
+  let abortController: AbortController | null = null;
+
+  port.onDisconnect.addListener(() => {
+    if (abortController) {
+      abortController.abort();
+    }
+  });
+
+  port.onMessage.addListener(async (clientMsg: AskStreamClientMessage) => {
+    if (clientMsg.type === 'START_ASK') {
+      abortController = new AbortController();
+      try {
+        const backendUrl = await getBackendUrl();
+        const res = await fetch(`${backendUrl}/ask`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'text/event-stream',
+          },
+          body: JSON.stringify({
+            question: clientMsg.question,
+            conversationId: clientMsg.conversationId,
+            clientId: clientMsg.clientId,
+            stream: true,
+          }),
+          signal: abortController.signal,
+        });
+
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          port.postMessage({
+            type: 'error',
+            message: errJson.message || `Server error (HTTP ${res.status})`,
+          });
+          return;
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) {
+          port.postMessage({ type: 'error', message: 'No readable stream available' });
+          return;
+        }
+
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let currentEvent = 'message';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith('event:')) {
+              currentEvent = trimmed.slice(6).trim();
+            } else if (trimmed.startsWith('data:')) {
+              const dataStr = trimmed.slice(5).trim();
+              try {
+                const data = JSON.parse(dataStr);
+                if (currentEvent === 'status') {
+                  port.postMessage({ type: 'status', message: data.message });
+                } else if (currentEvent === 'token') {
+                  port.postMessage({ type: 'token', delta: data.delta });
+                } else if (currentEvent === 'citations') {
+                  port.postMessage({ type: 'citations', citations: data.citations });
+                } else if (currentEvent === 'done') {
+                  port.postMessage({
+                    type: 'done',
+                    answer: data.answer,
+                    citations: data.citations,
+                    conversationId: data.conversationId,
+                  });
+                } else if (currentEvent === 'error') {
+                  port.postMessage({ type: 'error', message: data.message });
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch (err: unknown) {
+        if ((err as any)?.name === 'AbortError') return;
+        const msg = err instanceof Error ? err.message : String(err);
+        port.postMessage({ type: 'error', message: msg });
+      }
+    }
+  });
+});

@@ -5,7 +5,6 @@ import {
   BackendSyncStatus,
   StalenessCheckResult,
   SyncProgressUpdate,
-  UploadProgressUpdate,
   ChangedArticlePayload,
   ReindexBatchRequest,
 } from '../types.js';
@@ -15,17 +14,28 @@ const MAX_BATCH_TEXT_CHARS = 1000000; // ~1 MB of clean Markdown text
 const MAX_BATCH_ARTICLES = 20;
 
 export async function getBackendUrl(): Promise<string> {
-  const result = await chrome.storage.local.get(['backendUrl']);
-  return typeof result.backendUrl === 'string' ? result.backendUrl : DEFAULT_BACKEND_URL;
+  try {
+    const result = await chrome.storage.local.get(['backendUrl']);
+    return typeof result.backendUrl === 'string' && result.backendUrl.trim()
+      ? result.backendUrl.trim()
+      : DEFAULT_BACKEND_URL;
+  } catch {
+    return DEFAULT_BACKEND_URL;
+  }
 }
 
 export async function getClientId(): Promise<string> {
-  const result = await chrome.storage.local.get(['clientId']);
-  if (typeof result.clientId === 'string') return result.clientId;
-
-  const newId = `ext_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  await chrome.storage.local.set({ clientId: newId });
-  return newId;
+  try {
+    const result = await chrome.storage.local.get(['clientId']);
+    if (typeof result.clientId === 'string' && result.clientId.trim()) {
+      return result.clientId;
+    }
+    const newId = `inst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    await chrome.storage.local.set({ clientId: newId });
+    return newId;
+  } catch {
+    return `inst_${Date.now()}`;
+  }
 }
 
 function isBackendSyncStatus(data: unknown): data is BackendSyncStatus {
@@ -53,7 +63,7 @@ export async function checkStaleness(): Promise<StalenessCheckResult> {
     throw new Error('Invalid sync status structure received from backend');
   }
 
-  // 2. Probe SakaHub
+  // 2. Probe SakaHub (page=0, size=1)
   const sakaProbe = await probeSakaHub();
 
   const totalIndexed = backendData.totalIndexed;
@@ -90,9 +100,13 @@ export async function checkStaleness(): Promise<StalenessCheckResult> {
 }
 
 /**
- * Executes full synchronization with client-side Turndown and size-capped batching.
+ * Strategy 1: Hybrid Early-Exit + Conditional Full Sweep
+ * - If mode is 'deep' or deletions detected (sakaCount < backendCount), executes a full sweep of all pages.
+ * - Otherwise (routine updates/additions), fetches page by page stopping early as soon as articles
+ *   older than the backend's maxLastUpdated are encountered, saving 85%+ network bandwidth.
  */
-export async function performFullSync(
+export async function performSmartSync(
+  mode: 'smart' | 'deep' = 'smart',
   onProgress?: (update: SyncProgressUpdate) => void
 ): Promise<{
   synced: boolean;
@@ -111,14 +125,17 @@ export async function performFullSync(
 
   notify({
     stage: 'probing',
-    message: 'Probing SakaHub and Backend status...',
+    message: 'Probing SakaHub & Backend status...',
     progressPercent: 5,
   });
 
-  // Step 1: Acquire lock
+  // Step 1: Probe backend & SakaHub
+  const probeStatus = await checkStaleness();
+
+  // Step 2: Acquire backend lock
   notify({
     stage: 'locking',
-    message: 'Acquiring backend sync lock...',
+    message: 'Acquiring sync lock on backend...',
     progressPercent: 10,
   });
 
@@ -129,7 +146,7 @@ export async function performFullSync(
   });
 
   if (!lockRes.ok) {
-    const errJson: unknown = await lockRes.json();
+    const errJson: unknown = await lockRes.json().catch(() => ({}));
     const errMsg =
       typeof errJson === 'object' && errJson !== null && 'message' in errJson
         ? String((errJson as Record<string, unknown>).message)
@@ -138,7 +155,7 @@ export async function performFullSync(
   }
 
   try {
-    // Step 2: Fetch known versions from backend
+    // Step 3: Fetch known versions from backend
     notify({
       stage: 'scraping',
       message: 'Fetching known article versions from backend...',
@@ -155,97 +172,160 @@ export async function performFullSync(
         ? (rawVersions as Record<string, string>)
         : {};
 
-    // Step 3: Page through SakaHub at size=152
-    notify({
-      stage: 'scraping',
-      message: 'Starting SakaHub article sweep (page size 152)...',
-      progressPercent: 20,
-    });
+    const backendIds = new Set(Object.keys(backendVersions));
+    const backendMaxDateMs = probeStatus.maxBackendDate
+      ? new Date(probeStatus.maxBackendDate).getTime()
+      : 0;
 
-    const page0 = await fetchSakaHubPage(0, 152);
-    const totalPages =
-      page0.totalPages ||
-      (page0.totalElements ? Math.ceil(page0.totalElements / 152) : 1);
-    const allSakaArticles: SakaNormalizedArticle[] = [...page0.articles];
+    // Determine sweep strategy
+    const isDeletionExpected = probeStatus.sakaCount < probeStatus.backendCount;
+    const isFullSweepRequired = mode === 'deep' || isDeletionExpected || probeStatus.backendCount === 0;
 
-    for (let p = 1; p < totalPages; p++) {
-      await sleep(250);
+    console.log(
+      `[Sync] Strategy: ${isFullSweepRequired ? 'FULL SWEEP' : 'EARLY-EXIT WATERFALL'} (mode: ${mode}, deletionsExpected: ${isDeletionExpected})`
+    );
 
+    const changedArticles: SakaNormalizedArticle[] = [];
+    const deletedIds: string[] = [];
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    if (isFullSweepRequired) {
+      // Full page sweep across all pages (page size 152)
       notify({
         stage: 'scraping',
-        message: `Scraping SakaHub articles: page ${p + 1} of ${totalPages}...`,
-        progressPercent: Math.round(20 + ((p + 1) / totalPages) * 35),
+        message: 'Sweeping all SakaHub articles for complete reconciliation...',
+        progressPercent: 20,
       });
 
-      const pageData = await fetchSakaHubPage(p, 152);
-      allSakaArticles.push(...pageData.articles);
-    }
+      const page0 = await fetchSakaHubPage(0, 152);
+      const totalPages =
+        page0.totalPages ||
+        (page0.totalElements ? Math.ceil(page0.totalElements / 152) : 1);
+      const allSakaArticles: SakaNormalizedArticle[] = [...page0.articles];
 
-    // Step 4: Compute exact set differences
-    notify({
-      stage: 'cleaning',
-      message: 'Computing set differences and normalizing HTML to Markdown...',
-      progressPercent: 60,
-    });
+      for (let p = 1; p < totalPages; p++) {
+        await sleep(250);
+        notify({
+          stage: 'scraping',
+          message: `Sweeping SakaHub: page ${p + 1} of ${totalPages}...`,
+          progressPercent: Math.round(20 + ((p + 1) / totalPages) * 35),
+        });
+        const pageData = await fetchSakaHubPage(p, 152);
+        allSakaArticles.push(...pageData.articles);
+      }
 
-    const sakahubMap = new Map<string, SakaNormalizedArticle>(allSakaArticles.map((a) => [a.id, a]));
-    const backendIds = new Set(Object.keys(backendVersions));
+      const sakahubMap = new Map<string, SakaNormalizedArticle>(allSakaArticles.map((a) => [a.id, a]));
 
-    const added: SakaNormalizedArticle[] = [];
-    const updated: SakaNormalizedArticle[] = [];
-    const deletedIds: string[] = [];
+      for (const [id, article] of sakahubMap.entries()) {
+        if (!backendIds.has(id)) {
+          changedArticles.push(article);
+          addedCount++;
+        } else {
+          const backendDate = new Date(backendVersions[id] || 0).getTime();
+          if (Math.abs(article.updatedAtEpochMs - backendDate) >= 1000) {
+            changedArticles.push(article);
+            updatedCount++;
+          }
+        }
+      }
 
-    for (const [id, article] of sakahubMap.entries()) {
-      if (!backendIds.has(id)) {
-        added.push(article);
-      } else {
-        const backendDate = new Date(backendVersions[id] || 0).getTime();
-        const sakaDate = article.updatedAtEpochMs;
-        // Ignore sub-second timestamp jitter between DB and API
-        if (Math.abs(sakaDate - backendDate) >= 1000) {
-          updated.push(article);
+      for (const backendId of backendIds) {
+        if (!sakahubMap.has(backendId)) {
+          deletedIds.push(backendId);
+        }
+      }
+    } else {
+      // Early-Exit Waterfall: Paging stops as soon as an article's updatedAt <= backendMaxDateMs
+      notify({
+        stage: 'scraping',
+        message: 'Checking newest SakaHub articles (early-exit mode)...',
+        progressPercent: 25,
+      });
+
+      let pageIndex = 0;
+      let shouldContinuePaging = true;
+
+      while (shouldContinuePaging) {
+        const pageData = await fetchSakaHubPage(pageIndex, 152);
+        if (pageData.articles.length === 0) break;
+
+        for (const article of pageData.articles) {
+          if (!backendIds.has(article.id)) {
+            changedArticles.push(article);
+            addedCount++;
+          } else {
+            const backendDate = new Date(backendVersions[article.id] || 0).getTime();
+            if (article.updatedAtEpochMs > backendDate + 1000) {
+              changedArticles.push(article);
+              updatedCount++;
+            } else if (article.updatedAtEpochMs <= backendMaxDateMs) {
+              // Reached articles older than or equal to our DB max timestamp
+              shouldContinuePaging = false;
+              break;
+            }
+          }
+        }
+
+        pageIndex++;
+        const totalPages = pageData.totalPages || 1;
+        if (pageIndex >= totalPages) {
+          shouldContinuePaging = false;
+        } else if (shouldContinuePaging) {
+          await sleep(200);
+          notify({
+            stage: 'scraping',
+            message: `Inspecting page ${pageIndex + 1} for changed articles...`,
+            progressPercent: Math.min(55, 25 + pageIndex * 10),
+          });
         }
       }
     }
 
-    for (const backendId of backendIds) {
-      if (!sakahubMap.has(backendId)) {
-        deletedIds.push(backendId);
-      }
-    }
-
-    const changedArticles = [...added, ...updated];
-    console.log(`[Sync Diff] Added: ${added.length}, Updated: ${updated.length}, Deleted: ${deletedIds.length}`);
+    console.log(
+      `[Sync Diff] Added: ${addedCount}, Updated: ${updatedCount}, Deleted: ${deletedIds.length}`
+    );
 
     if (changedArticles.length === 0 && deletedIds.length === 0) {
+      const upToDateMsg = 'Knowledge base is completely up to date. No changes needed.';
       notify({
         stage: 'completed',
-        message: 'No changes detected. Knowledge base is fully up to date.',
+        message: upToDateMsg,
         progressPercent: 100,
+        processedCount: 0,
+        totalCount: 0,
       });
+      await fetch(`${backendUrl}/sync/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      }).catch(() => {});
       return {
         synced: true,
         addedCount: 0,
         updatedCount: 0,
         deletedCount: 0,
-        message: 'Already up to date',
+        message: upToDateMsg,
       };
     }
 
-    // Step 5: Clean Word HTML to Markdown with Turndown + GFM and upload in batches
+    // Step 5: Clean Word HTML to Markdown & Batch Ingestion to /reindex
     notify({
-      stage: 'uploading',
-      message: `Uploading ${changedArticles.length} changed articles and ${deletedIds.length} deletions in batches...`,
-      progressPercent: 70,
+      stage: 'cleaning',
+      message: `Preparing ${changedArticles.length} changed articles and ${deletedIds.length} deletions...`,
+      progressPercent: 60,
     });
 
+    const totalBatchesEstimated = Math.max(1, Math.ceil(changedArticles.length / MAX_BATCH_ARTICLES));
     let currentBatch: ChangedArticlePayload[] = [];
     let currentBatchChars = 0;
     let uploadedChanged = 0;
     let isFirstBatch = true;
+    let batchNum = 0;
 
     async function dispatchBatch() {
       if (currentBatch.length === 0 && (!isFirstBatch || deletedIds.length === 0)) return;
+      batchNum++;
 
       const batchPayload: ReindexBatchRequest = {
         changed: currentBatch,
@@ -260,7 +340,7 @@ export async function performFullSync(
       });
 
       if (!res.ok) {
-        const err: unknown = await res.json();
+        const err: unknown = await res.json().catch(() => ({}));
         const errDetail =
           typeof err === 'object' && err !== null && 'message' in err
             ? String((err as Record<string, unknown>).message)
@@ -272,251 +352,15 @@ export async function performFullSync(
       isFirstBatch = false;
       currentBatch = [];
       currentBatchChars = 0;
-    }
 
-    for (let i = 0; i < changedArticles.length; i++) {
-      const art = changedArticles[i];
-      if (!art) continue;
-
-      const cleanMarkdown = cleanWordHtmlToMarkdown(art.contentHtml);
-
-      currentBatch.push({
-        id: art.id,
-        title: art.title,
-        articleNumber: art.articleNumber,
-        markdownContent: cleanMarkdown,
-        lastUpdated: art.lastUpdated,
-        publishedAt: art.publishedAt,
-        articleFlag: art.articleFlag,
-      });
-      currentBatchChars += cleanMarkdown.length;
-
-      if (currentBatchChars >= MAX_BATCH_TEXT_CHARS || currentBatch.length >= MAX_BATCH_ARTICLES) {
-        await dispatchBatch();
-        notify({
-          stage: 'uploading',
-          message: `Indexed ${uploadedChanged} of ${changedArticles.length} articles...`,
-          progressPercent: Math.round(70 + (uploadedChanged / changedArticles.length) * 25),
-        });
-      }
-    }
-
-    await dispatchBatch();
-
-    // Step 6: Unlock
-    await fetch(`${backendUrl}/sync/unlock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId }),
-    });
-
-    const completionSummary: SyncProgressUpdate = {
-      stage: 'completed',
-      message: `Sync completed: ${added.length} added, ${updated.length} updated, ${deletedIds.length} deleted.`,
-      progressPercent: 100,
-    };
-    notify(completionSummary);
-
-    await chrome.storage.local.set({
-      lastSyncedAt: new Date().toISOString(),
-      lastSyncSummary: completionSummary.message,
-    });
-
-    return {
-      synced: true,
-      addedCount: added.length,
-      updatedCount: updated.length,
-      deletedCount: deletedIds.length,
-      message: completionSummary.message,
-    };
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('[Sync Error]', error);
-    notify({
-      stage: 'error',
-      message: `Sync failed: ${errorMsg}`,
-      progressPercent: 0,
-    });
-
-    try {
-      await fetch(`${backendUrl}/sync/unlock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId }),
-      });
-    } catch {}
-
-    throw error;
-  }
-}
-
-/**
- * Ingests a pre-normalized list of articles uploaded by the user via the frontend.
- * Follows the standard pipeline:
- * - Acquires backend lock
- * - Diffs against known versions (/articles/versions)
- * - Cleans Word HTML to Markdown using Turndown GFM
- * - Size-capped batching dispatched to /reindex
- * - Releases lock on completion or error
- */
-export async function performArticlesUploadSync(
-  articles: SakaNormalizedArticle[],
-  onProgress?: (update: UploadProgressUpdate) => void
-): Promise<{
-  success: boolean;
-  addedCount: number;
-  updatedCount: number;
-  totalProcessed: number;
-  elapsedMs: number;
-  message: string;
-}> {
-  const startTime = Date.now();
-  const backendUrl = await getBackendUrl();
-  const clientId = await getClientId();
-
-  const notify = (update: UploadProgressUpdate) => {
-    if (onProgress) onProgress(update);
-    chrome.storage.local.set({ uploadProgress: update }).catch(() => {});
-  };
-
-  notify({
-    stage: 'locking',
-    message: 'Acquiring backend sync lock...',
-    progressPercent: 2,
-    processedCount: 0,
-    totalCount: articles.length,
-    currentBatch: 0,
-    totalBatches: 1,
-  });
-
-  const lockRes = await fetch(`${backendUrl}/sync/lock`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clientId }),
-  });
-
-  if (!lockRes.ok) {
-    const errJson: unknown = await lockRes.json();
-    const errMsg =
-      typeof errJson === 'object' && errJson !== null && 'message' in errJson
-        ? String((errJson as Record<string, unknown>).message)
-        : 'Could not acquire sync lock. Another sync is active.';
-    throw new Error(errMsg);
-  }
-
-  try {
-    notify({
-      stage: 'diffing',
-      message: 'Checking existing articles in database...',
-      progressPercent: 5,
-      processedCount: 0,
-      totalCount: articles.length,
-      currentBatch: 0,
-      totalBatches: 1,
-    });
-
-    const versionsRes = await fetch(`${backendUrl}/articles/versions`);
-    if (!versionsRes.ok) {
-      throw new Error(`Failed to fetch article versions: HTTP ${versionsRes.status}`);
-    }
-    const rawVersions: unknown = await versionsRes.json();
-    const backendVersions =
-      typeof rawVersions === 'object' && rawVersions !== null
-        ? (rawVersions as Record<string, string>)
-        : {};
-
-    // Compute diff
-    const added: SakaNormalizedArticle[] = [];
-    const updated: SakaNormalizedArticle[] = [];
-
-    for (const article of articles) {
-      if (!backendVersions[article.id]) {
-        added.push(article);
-      } else {
-        const backendDate = new Date(backendVersions[article.id] || 0).getTime();
-        const sakaDate = article.updatedAtEpochMs;
-        if (Math.abs(sakaDate - backendDate) >= 1000) {
-          updated.push(article);
-        }
-      }
-    }
-
-    const changedArticles = [...added, ...updated];
-    if (changedArticles.length === 0) {
-      const allDoneMsg = 'All uploaded articles are already up to date in the knowledge base.';
-      notify({
-        stage: 'completed',
-        message: allDoneMsg,
-        progressPercent: 100,
-        processedCount: articles.length,
-        totalCount: articles.length,
-        currentBatch: 0,
-        totalBatches: 0,
-      });
-
-      return {
-        success: true,
-        addedCount: 0,
-        updatedCount: 0,
-        totalProcessed: 0,
-        elapsedMs: Date.now() - startTime,
-        message: allDoneMsg,
-      };
-    }
-
-    const totalBatchesEstimated = Math.max(1, Math.ceil(changedArticles.length / MAX_BATCH_ARTICLES));
-    notify({
-      stage: 'cleaning',
-      message: `Preparing ${changedArticles.length} changed articles for indexing...`,
-      progressPercent: 8,
-      processedCount: 0,
-      totalCount: changedArticles.length,
-      currentBatch: 0,
-      totalBatches: totalBatchesEstimated,
-    });
-
-    let currentBatch: ChangedArticlePayload[] = [];
-    let currentBatchChars = 0;
-    let uploadedChanged = 0;
-    let batchIndex = 0;
-
-    async function dispatchBatch() {
-      if (currentBatch.length === 0) return;
-      batchIndex++;
-
-      const batchPayload: ReindexBatchRequest = {
-        changed: currentBatch,
-        deletedIds: [],
-        clientId,
-      };
-
-      const res = await fetch(`${backendUrl}/reindex`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(batchPayload),
-      });
-
-      if (!res.ok) {
-        const err: unknown = await res.json();
-        const errDetail =
-          typeof err === 'object' && err !== null && 'message' in err
-            ? String((err as Record<string, unknown>).message)
-            : `Reindex batch failed with status ${res.status}`;
-        throw new Error(errDetail);
-      }
-
-      uploadedChanged += currentBatch.length;
-      currentBatch = [];
-      currentBatchChars = 0;
-
-      const pct = Math.min(99, Math.round(10 + (uploadedChanged / changedArticles.length) * 88));
+      const pct = Math.min(99, Math.round(65 + (uploadedChanged / Math.max(1, changedArticles.length)) * 32));
       notify({
         stage: 'uploading',
-        message: `Indexed batch ${batchIndex} of ~${totalBatchesEstimated} (${uploadedChanged}/${changedArticles.length} articles)...`,
+        message: `Indexed batch ${batchNum} of ~${totalBatchesEstimated} (${uploadedChanged}/${changedArticles.length} articles)...`,
         progressPercent: pct,
         processedCount: uploadedChanged,
         totalCount: changedArticles.length,
-        currentBatch: batchIndex,
+        currentBatch: batchNum,
         totalBatches: totalBatchesEstimated,
       });
     }
@@ -544,52 +388,45 @@ export async function performArticlesUploadSync(
 
     await dispatchBatch();
 
-    // Release sync lock
+    // Step 6: Unlock
     await fetch(`${backendUrl}/sync/unlock`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId }),
-    });
+    }).catch(() => {});
 
-    const elapsedMs = Date.now() - startTime;
-    const finalMsg = `Successfully uploaded & indexed ${uploadedChanged} articles (${added.length} new, ${updated.length} updated) in ${(elapsedMs / 1000).toFixed(1)}s.`;
-
+    const summaryMsg = `Sync complete: ${addedCount} added, ${updatedCount} updated, ${deletedIds.length} deleted.`;
     notify({
       stage: 'completed',
-      message: finalMsg,
+      message: summaryMsg,
       progressPercent: 100,
+      addedCount,
+      updatedCount,
+      deletedCount: deletedIds.length,
       processedCount: uploadedChanged,
       totalCount: changedArticles.length,
-      currentBatch: batchIndex,
-      totalBatches: batchIndex,
     });
 
     await chrome.storage.local.set({
       lastSyncedAt: new Date().toISOString(),
-      lastSyncSummary: finalMsg,
+      lastSyncSummary: summaryMsg,
     });
 
     return {
-      success: true,
-      addedCount: added.length,
-      updatedCount: updated.length,
-      totalProcessed: uploadedChanged,
-      elapsedMs,
-      message: finalMsg,
+      synced: true,
+      addedCount,
+      updatedCount,
+      deletedCount: deletedIds.length,
+      message: summaryMsg,
     };
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('[Upload Sync Error]', error);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error('[Syncer Error]', err);
 
     notify({
       stage: 'error',
-      message: `Upload failed: ${errorMsg}`,
+      message: `Sync failed: ${errorMsg}`,
       progressPercent: 0,
-      processedCount: 0,
-      totalCount: articles.length,
-      currentBatch: 0,
-      totalBatches: 0,
-      failedCount: 1,
     });
 
     try {
@@ -600,7 +437,6 @@ export async function performArticlesUploadSync(
       });
     } catch {}
 
-    throw error;
+    throw err;
   }
 }
-

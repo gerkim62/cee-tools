@@ -56,7 +56,7 @@ conversationsRouter.get('/conversations', async (req: Request, res: Response): P
     }));
 
     res.json({ conversations });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Conversations Router] Failed to list conversations:', error);
     res.status(500).json({ error: 'Failed to retrieve conversations', message: error.message });
   }
