@@ -9,7 +9,6 @@
 | Embedding model | `text-embedding-3-small` | Voyage-3.5-lite beats it by 6.34% at lower cost |
 | Rerank top-K | 5 | Too aggressive — cuts good chunks before LLM sees them |
 | Flag boost | None | KeyUpdates/Featured articles not prioritised |
-| Query cache | None | Same queries hit full pipeline every time |
 
 ---
 
@@ -273,76 +272,9 @@ OPENROUTER_EMBED_MODEL=voyage/voyage-3.5-lite
 
 ---
 
-## Tier 2 — Speed + Cost (do after Tier 1 is stable)
+## Tier 2 — Context & Chunking (do after Tier 1 is stable)
 
-### 2.1 · Semantic query cache (Redis exact + Qdrant ANN)
-
-Care-center agents ask the same ~200 queries repeatedly. Threshold must be ≥0.92 for factual workloads — below 0.90 you get wrong-answer cache hits. TTL 24h. Version-tag cache keys with embedding model hash so a model swap doesn't poison the cache.
-
-**New file: `backend/src/services/cache.ts`**
-
-```typescript
-import { createClient } from 'redis';
-import { embedTexts } from './openrouter.js';
-import { QdrantClient } from '@qdrant/js-client-rest';
-import { config } from '../config.js';
-
-const redis  = createClient({ url: config.REDIS_URL });
-const qdrant = new QdrantClient({ url: config.QDRANT_URL, apiKey: config.QDRANT_API_KEY });
-const CACHE_COLLECTION = `ask_saka_cache_${config.OPENROUTER_EMBED_MODEL.replace(/\W/g, '_')}`;
-const TTL = config.CACHE_TTL_HOURS * 3600;
-
-export async function initCache(): Promise<void> {
-  await redis.connect();
-  const cols = await qdrant.getCollections();
-  if (!cols.collections.find(c => c.name === CACHE_COLLECTION)) {
-    await qdrant.createCollection(CACHE_COLLECTION, {
-      vectors: { size: 1024, distance: 'Cosine' },
-    });
-  }
-}
-
-export async function getCached(question: string): Promise<string | null> {
-  // 1. Exact match via Redis
-  const key = `ask:${Buffer.from(question).toString('base64').slice(0, 64)}`;
-  const exact = await redis.get(key);
-  if (exact) return exact;
-
-  // 2. Semantic match via Qdrant
-  const [vec] = await embedTexts([question]);
-  const res = await qdrant.query(CACHE_COLLECTION, { query: vec, limit: 1, with_payload: true });
-  const top = res.points?.[0];
-  if (top && top.score >= config.CACHE_SEMANTIC_THRESHOLD && top.payload?.answer) {
-    return top.payload.answer as string;
-  }
-  return null;
-}
-
-export async function setCache(question: string, answer: string): Promise<void> {
-  const [vec] = await embedTexts([question]);
-  const key = `ask:${Buffer.from(question).toString('base64').slice(0, 64)}`;
-  await redis.setEx(key, TTL, answer);
-  await qdrant.upsert(CACHE_COLLECTION, {
-    wait: false,
-    points: [{ id: crypto.randomUUID(), vector: vec, payload: { question, answer } }],
-  });
-}
-```
-
-**`backend/src/routes/ask.ts`** — wrap route:
-
-```typescript
-import { getCached, setCache } from '../services/cache.js';
-
-// Before embedding:
-const cached = await getCached(trimmedQuestion);
-if (cached) { res.json({ answer: cached, citations: [], cached: true }); return; }
-
-// After synthesis:
-await setCache(trimmedQuestion, answerText).catch(console.warn);
-```
-
-### 2.2 · Parent-document (small-to-big) retrieval
+### 2.1 · Parent-document (small-to-big) retrieval
 
 Embed small 128-token child chunks for precise retrieval; return full parent section to LLM. 65% win rate over baseline chunking (SemEval H-RAG 2026). Only +0.2s latency.
 
@@ -382,7 +314,6 @@ const content = p?.parent_text || p?.chunk_text || '';
 # Core
 PORT=3000
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sakahub_rag
-REDIS_URL=redis://localhost:6379
 QDRANT_URL=https://xyz.qdrant.tech:6333
 QDRANT_API_KEY=your-key
 OPENROUTER_API_KEY=sk-or-v1-your-key
@@ -400,10 +331,6 @@ CHUNK_OVERLAP=20
 RETRIEVAL_CANDIDATES=30         # up from 20
 RERANK_TOP_K=15                 # up from 5
 ARTICLE_FLAG_BOOST=1.15
-
-# Cache
-CACHE_SEMANTIC_THRESHOLD=0.92   # do not lower below 0.90
-CACHE_TTL_HOURS=24
 ```
 
 ---
@@ -416,35 +343,8 @@ CACHE_TTL_HOURS=24
 | 2 | `RERANK_TOP_K=15` + flag boost | `ask.ts`, `.env` | 30min | fewer missed answers |
 | 3 | Hybrid BM25 sparse + RRF | `qdrant.ts`, `reindex.ts`, `ask.ts` | 1 day | +26–31% exact-match recall |
 | 4 | Swap to `voyage-3.5-lite` + reindex | `.env` + reindex | 2h | +6% semantic accuracy |
-| 5 | Semantic cache | new `cache.ts`, `ask.ts`, `index.ts` | 1 day | 80% cost + speed on repeats |
-| 6 | Small-to-big chunking | `chunker.ts`, `qdrant.ts`, `ask.ts` | 1 day | broader LLM context |
+| 5 | Small-to-big chunking | `chunker.ts`, `qdrant.ts`, `ask.ts` | 1 day | broader LLM context |
 
 **Week 1:** Items 1–2 (no reindex needed, immediate wins)  
 **Week 2:** Items 3–4 (both require reindex — batch them into one)  
-**Week 3:** Items 5–6 (operational improvements)
-
----
-
-## Eval harness — build before Week 2
-
-```typescript
-// backend/tests/retrieval-eval.ts
-const EVAL_SET = [
-  // Exact-match critical (BM25 wins)
-  { q: 'LPPP-0014',                     expect: 'Paybill Troubleshooting' },
-  { q: '*334#',                          expect: 'M-PESA USSD Codes' },
-  { q: 'fuliza biashara stuck',          expect: 'Fuliza Biashara' },
-
-  // Slang resolution (query translation wins)
-  { q: 'mbao ya okoa haiwork',           expect: 'Okoa Jahazi' },
-  { q: 'tunukiwa haionyesha',            expect: 'Tunukiwa Bundles' },
-
-  // Semantic (dense wins)
-  { q: 'customer cannot reach partner',  expect: 'Paybill Troubleshooting' },
-  { q: 'how do i swap sim for customer', expect: 'SIM Swap Procedure' },
-];
-
-// Metrics per run:
-// - Hit rate: correct article in top-15?
-// - Faithfulness: LLM answer uses only retrieved context? (Claude-as-judge)
-// - Latency p50 / p95
+**Week 3:** Item 5 (context refinement)

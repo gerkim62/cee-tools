@@ -34,6 +34,7 @@ const configSchema = z.object({
   OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-small'),
   OPENROUTER_CONTEXT_MODEL: z.string().default('google/gemini-2.5-flash'),
   OPENROUTER_RERANK_MODEL: z.string().default('cohere/rerank-v3.5'),
+  QUERY_TRANSLATION_MODEL: z.string().default('google/gemini-2.5-flash'),
 
   // Vector Collection Base
   QDRANT_COLLECTION_BASE: z.string().default('saka_articles'),
@@ -42,8 +43,9 @@ const configSchema = z.object({
   SYNC_LOCK_TTL_MINUTES: z.coerce.number().default(3),
   CHUNK_SIZE: z.coerce.number().default(512),
   CHUNK_OVERLAP: z.coerce.number().default(75),
-  RETRIEVAL_CANDIDATES: z.coerce.number().default(20),
-  RERANK_TOP_K: z.coerce.number().default(5),
+  RETRIEVAL_CANDIDATES: z.coerce.number().default(30),
+  RERANK_TOP_K: z.coerce.number().default(15),
+  ARTICLE_FLAG_BOOST: z.coerce.number().default(1.15),
 });
 
 export type Config = z.infer<typeof configSchema>;
