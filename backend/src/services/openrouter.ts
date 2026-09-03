@@ -274,3 +274,68 @@ export async function chatCompletion(
 
   return json.choices[0]?.message.content || '';
 }
+
+/**
+ * Streams chat completion tokens from OpenRouter as an async generator.
+ */
+export async function* chatCompletionStream(
+  messages: OpenRouterChatMessage[],
+  options: ChatCompletionOptions = {}
+): AsyncGenerator<string, void, unknown> {
+  const body = {
+    model: options.model ?? config.OPENROUTER_CHAT_MODEL,
+    messages,
+    temperature: options.temperature ?? OPENROUTER_CONSTANTS.DEFAULT_CHAT_TEMPERATURE,
+    stream: true,
+  };
+
+  const response = await fetch(`${getBaseUrl()}/chat/completions`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`OpenRouter streaming failed with status ${response.status}: ${errorText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('No response body received from OpenRouter for streaming');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith(':')) continue; // Ignore SSE comments/keepalives
+        if (trimmed === 'data: [DONE]') return;
+
+        if (trimmed.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(trimmed.slice(6));
+            const delta = data.choices?.[0]?.delta?.content;
+            if (delta) {
+              yield delta;
+            }
+          } catch {
+            // Ignore partial/unparseable chunks
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

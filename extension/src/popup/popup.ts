@@ -40,6 +40,7 @@ const citationsSection = requireElement('citations-section', HTMLDivElement);
 const citationsList = requireElement('citations-list', HTMLDivElement);
 const citationsCount = requireElement('citations-count', HTMLSpanElement);
 const loadingState = requireElement('loading-state', HTMLDivElement);
+const loadingText = requireElement('loading-text', HTMLParagraphElement);
 const btnCopy = requireElement('btn-copy-answer', HTMLButtonElement);
 
 // Settings Elements
@@ -225,16 +226,22 @@ async function submitQuestion(question: string): Promise<void> {
   suggestionsContainer.classList.add('hidden');
   resultsArea.classList.add('hidden');
   loadingState.classList.remove('hidden');
+  loadingText.textContent = 'Understanding request...';
+  answerBody.innerHTML = '';
+  citationsSection.classList.add('hidden');
 
   try {
     const response = await fetch(`${activeBackendUrl}/ask`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
+      body: JSON.stringify({ question, stream: true }),
     });
 
     if (!response.ok) {
-      const errJson: unknown = await response.json();
+      const errJson: unknown = await response.json().catch(() => ({}));
       const message =
         typeof errJson === 'object' && errJson !== null && 'message' in errJson
           ? String((errJson as Record<string, unknown>).message)
@@ -242,11 +249,68 @@ async function submitQuestion(question: string): Promise<void> {
       throw new Error(message);
     }
 
-    const data: unknown = await response.json();
-    if (typeof data === 'object' && data !== null && 'answer' in data) {
-      displayAnswer(data as AskResponse);
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/event-stream') && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulatedAnswer = '';
+      let citationsRendered = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = 'message';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          if (trimmed.startsWith('event: ')) {
+            currentEvent = trimmed.slice(7).trim();
+            continue;
+          }
+          if (trimmed.startsWith('data: ')) {
+            const dataStr = trimmed.slice(6);
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (currentEvent === 'status' && parsed.message) {
+                loadingText.textContent = parsed.message;
+              } else if (currentEvent === 'token' && parsed.delta) {
+                accumulatedAnswer += parsed.delta;
+                loadingState.classList.add('hidden');
+                resultsArea.classList.remove('hidden');
+                answerBody.innerHTML = renderSimpleMarkdown(accumulatedAnswer);
+              } else if (currentEvent === 'citations' && Array.isArray(parsed.citations)) {
+                renderCitationsList(parsed.citations);
+                citationsRendered = true;
+              } else if (currentEvent === 'done') {
+                if (parsed.answer) {
+                  accumulatedAnswer = parsed.answer;
+                  answerBody.innerHTML = renderSimpleMarkdown(accumulatedAnswer);
+                }
+                if (parsed.citations && !citationsRendered) {
+                  renderCitationsList(parsed.citations);
+                }
+              } else if (currentEvent === 'error') {
+                throw new Error(parsed.message || 'Stream error occurred');
+              }
+            } catch (err) {
+              if (currentEvent === 'error') throw err;
+            }
+          }
+        }
+      }
     } else {
-      throw new Error('Malformed answer format received from backend');
+      const data: unknown = await response.json();
+      if (typeof data === 'object' && data !== null && 'answer' in data) {
+        displayAnswer(data as AskResponse);
+      } else {
+        throw new Error('Malformed answer format received from backend');
+      }
     }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -262,10 +326,11 @@ async function submitQuestion(question: string): Promise<void> {
 function displayAnswer(data: AskResponse): void {
   loadingState.classList.add('hidden');
   resultsArea.classList.remove('hidden');
-
   answerBody.innerHTML = renderSimpleMarkdown(data.answer);
+  renderCitationsList(data.citations || []);
+}
 
-  const citations = data.citations || [];
+function renderCitationsList(citations: Citation[]): void {
   if (citations.length > 0) {
     citationsSection.classList.remove('hidden');
     citationsCount.textContent = citations.length.toString();

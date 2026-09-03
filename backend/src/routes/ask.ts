@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config.js';
-import { embedTexts, rerankChunks, chatCompletion } from '../services/openrouter.js';
+import { embedTexts, rerankChunks, chatCompletionStream } from '../services/openrouter.js';
 import { queryPoints, buildSparseVector, QdrantQueryResult } from '../services/qdrant.js';
 import { generateTextFragment } from '../services/chunker.js';
 import { translateQuery } from '../services/queryTranslator.js';
 import { ASK_SAKA_SYSTEM_PROMPT } from '../prompts.js';
-import { SAKAHUB_CONSTANTS, RAG_CONSTANTS } from '../constants.js';
+import { SAKAHUB_CONSTANTS, RAG_CONSTANTS, CEE_STATUS_MESSAGES } from '../constants.js';
 
 export const askRouter: Router = Router();
 
@@ -25,44 +25,57 @@ export interface AskResponse {
 
 export interface AskRequestBody {
   question: string;
-}
-
-export interface CitedSourceItem {
-  source_index: number;
-  exact_quote: string;
-}
-
-export interface AskLlmStructuredOutput {
-  answer: string;
-  cited_sources: CitedSourceItem[];
+  stream?: boolean;
 }
 
 /**
  * POST /ask
- * End-to-end RAG pipeline:
- * 1. Query Translation (Resolves slang, typos, brand nicknames via low-latency LLM)
- * 2. Multi-Variant Batch Dense Embeddings
- * 3. Parallel Hybrid Search in Qdrant (Dense + Sparse BM25 via native RRF)
- * 4. Candidate Union & Deduplication
- * 5. Article Flag Boosting (KeyUpdates / Featured guidelines)
- * 6. Cross-Encoder Reranking (Cohere v3.5 using translated primary query)
- * 7. Small-to-Big Context Assembly (parent sections with deduplication)
- * 8. Structured Answer Synthesis with Verified Text Fragment Citations
+ * End-to-end RAG pipeline with real-time SSE streaming:
+ * 1. Understanding request... (Query translation & shorthand expansion)
+ * 2. Searching SakaHub... (Parallel dense + sparse BM25 retrieval with RRF)
+ * 3. Reviewing procedures... (Flag boost, cross-encoder rerank & small-to-big context assembly)
+ * 4. Drafting answer... (Real-time OpenRouter token streaming)
+ * 5. Formulating sources... (Inline citation extraction with Chrome Text Fragments)
  */
 askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Response): Promise<void> => {
   const requestStart = Date.now();
+  const isStream =
+    (req.headers.accept && req.headers.accept.includes('text/event-stream')) ||
+    req.query.stream === 'true' ||
+    req.body.stream === true;
+
+  if (isStream) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    (res as any).flushHeaders?.();
+  }
+
+  const sendEvent = (event: string, data: unknown) => {
+    if (!isStream || res.writableEnded) return;
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
 
   try {
     const { question } = req.body;
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
-      res.status(400).json({ error: 'Question is required' });
+      if (isStream) {
+        sendEvent('error', { message: 'Question is required' });
+        res.end();
+      } else {
+        res.status(400).json({ error: 'Question is required' });
+      }
       return;
     }
 
     const trimmedQuestion = question.trim();
-    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}"`);
+    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}" (streaming: ${isStream})`);
 
-    // 1. Query Translation
+    // 1. Understanding request...
+    sendEvent('status', { message: CEE_STATUS_MESSAGES.UNDERSTANDING });
     const transStart = Date.now();
     const translated = await translateQuery(trimmedQuestion);
     console.log(`[Ask:1/6] ✔ Query translated in ${Date.now() - transStart}ms:`);
@@ -77,37 +90,42 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       queryVariants.push(translated.alt);
     }
 
-    // 2. Generate embeddings for all query variants in a single batch
+    // 2. Searching SakaHub...
+    sendEvent('status', { message: CEE_STATUS_MESSAGES.SEARCHING });
     const embedStart = Date.now();
     console.log(`[Ask:2/6] Generating embeddings for ${queryVariants.length} query variants via ${config.OPENROUTER_EMBED_MODEL}...`);
     const queryVectors = await embedTexts(queryVariants);
     if (!queryVectors || queryVectors.length === 0 || !queryVectors[0]) {
       console.error('[Ask:2/6] ❌ Failed to generate embeddings for query variants.');
-      res.status(500).json({ error: 'Failed to generate embedding for query' });
+      if (isStream) {
+        sendEvent('error', { message: 'Failed to generate embedding for query' });
+        res.end();
+      } else {
+        res.status(500).json({ error: 'Failed to generate embedding for query' });
+      }
       return;
     }
     console.log(`[Ask:2/6] ✔ Embeddings ready in ${Date.now() - embedStart}ms (dim: ${queryVectors[0].length})`);
 
-    // 3. Parallel Hybrid Search in Qdrant (Dense + Sparse BM25 with RRF)
+    // Hybrid search in parallel across all variants
     const searchStart = Date.now();
     console.log(`[Ask:3/6] Hybrid search in Qdrant (candidate limit: ${config.RETRIEVAL_CANDIDATES})...`);
-
-    const candidateSets = await Promise.all(
-      queryVectors.map((denseVec, i) => {
-        const variantText = queryVariants[i] || trimmedQuestion;
+    const searchResults = await Promise.all(
+      queryVariants.map((variantText, idx) => {
+        const denseVec = queryVectors[idx];
         const sparseVec = buildSparseVector(variantText);
         return queryPoints(denseVec, sparseVec, config.RETRIEVAL_CANDIDATES);
       })
     );
 
-    // Union and deduplicate candidates by chunk ID
-    const seenIds = new Set<string | number>();
     const candidates: QdrantQueryResult[] = [];
-    for (const set of candidateSets) {
-      for (const c of set) {
-        if (!seenIds.has(c.id)) {
-          seenIds.add(c.id);
-          candidates.push(c);
+    const seenIds = new Set<string | number>();
+
+    for (const points of searchResults) {
+      for (const p of points) {
+        if (!seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          candidates.push(p);
         }
       }
     }
@@ -115,10 +133,16 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
 
     if (candidates.length === 0) {
       console.warn(`[Ask:3/6] ⚠️ No matching vectors found in Qdrant (${searchMs}ms).`);
-      res.json({
+      const emptyPayload: AskResponse = {
         answer: 'No relevant articles or information found in the SakaHub knowledge base for this query.',
         citations: [],
-      });
+      };
+      if (isStream) {
+        sendEvent('done', emptyPayload);
+        res.end();
+      } else {
+        res.json(emptyPayload);
+      }
       return;
     }
 
@@ -126,7 +150,10 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     const lowScore = candidates[candidates.length - 1]?.score ?? 0;
     console.log(`[Ask:3/6] ✔ Retrieved and deduplicated ${candidates.length} candidates across ${queryVariants.length} variants in ${searchMs}ms (scores: ${topScore.toFixed(3)} down to ${lowScore.toFixed(3)})`);
 
-    // 4. Apply article flag boost for KeyUpdates and Featured guidelines
+    // 3. Reviewing procedures...
+    sendEvent('status', { message: CEE_STATUS_MESSAGES.REVIEWING });
+
+    // Apply article flag boost for KeyUpdates and Featured guidelines
     const boostedCandidates = candidates.map(c => {
       const flag = c.payload?.article_flag;
       if (flag && SAKAHUB_CONSTANTS.BOOSTED_FLAGS.includes(flag as any)) {
@@ -136,7 +163,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     });
     boostedCandidates.sort((a, b) => b.score - a.score);
 
-    // 5. Cross-encoder reranking using translated.primary (clean, semantically explicit)
+    // Cross-encoder reranking using translated.primary (clean, semantically explicit)
     const rerankStart = Date.now();
     const candidateTexts = boostedCandidates.map(c => {
       const p = c.payload;
@@ -145,29 +172,29 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       return `${numPrefix}${p?.article_title || ''}${heading}\n${p?.chunk_text || ''}`;
     });
 
-    console.log(`[Ask:4/6] Cross-encoder reranking top candidates via ${config.OPENROUTER_RERANK_MODEL} (top ${config.RERANK_TOP_K})...`);
-    const rerankedResults = await rerankChunks(
+    const rerankedIndices = await rerankChunks(
       translated.primary,
       candidateTexts,
       config.RERANK_TOP_K
     );
-
-    // Pick top-ranked points
-    const topChunks: QdrantQueryResult[] = rerankedResults
-      .map(r => boostedCandidates[r.index])
-      .filter((c): c is QdrantQueryResult => Boolean(c));
-
     const rerankMs = Date.now() - rerankStart;
-    console.log(`[Ask:4/6] ✔ Pruned to ${topChunks.length} most relevant sources in ${rerankMs}ms:`);
-    topChunks.forEach((c, idx) => {
-      const p = c.payload;
-      const score = rerankedResults[idx]?.relevanceScore ?? c.score ?? 0;
-      console.log(`   #${idx + 1} [Rel: ${score.toFixed(3)}] [${p?.article_number || 'N/A'}] "${p?.article_title}" > "${p?.section_heading}"`);
-    });
 
-    // 6. Construct context for LLM synthesis (Small-to-Big: parent sections with deduplication)
+    let selectedCandidates: QdrantQueryResult[] = [];
+    if (rerankedIndices && rerankedIndices.length > 0) {
+      selectedCandidates = rerankedIndices.map(r => boostedCandidates[r.index]).filter((c): c is QdrantQueryResult => !!c);
+      console.log(`[Ask:4/6] ✔ Pruned to ${selectedCandidates.length} most relevant sources in ${rerankMs}ms:`);
+      rerankedIndices.slice(0, 3).forEach((r, rankIdx) => {
+        const p = boostedCandidates[r.index]?.payload;
+        console.log(`   #${rankIdx + 1} [Rel: ${r.relevanceScore.toFixed(3)}] [${p?.article_number || 'N/A'}] "${p?.article_title}" > "${p?.section_heading}"`);
+      });
+    } else {
+      selectedCandidates = boostedCandidates.slice(0, config.RERANK_TOP_K);
+      console.log(`[Ask:4/6] ⚠️ Reranker returned empty, fallback to top ${selectedCandidates.length} vector candidates.`);
+    }
+
+    // Assemble context using full parent sections with section deduplication
     const seenParents = new Set<string>();
-    const contextSources: {
+    const contextSources: Array<{
       index: number;
       articleId: string;
       articleTitle: string;
@@ -176,17 +203,18 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       sectionHeading: string;
       content: string;
       chunk: QdrantQueryResult;
-    }[] = [];
+    }> = [];
 
-    for (const chunk of topChunks) {
-      const p = chunk.payload;
-      const parentKey = `${p?.article_id || ''}::${p?.section_heading || ''}`;
+    for (const candidate of selectedCandidates) {
+      const p = candidate.payload;
+      const parentKey = `${p?.article_id}::${p?.section_heading}`;
+      const content = p?.parent_text || p?.chunk_text || '';
+
       if (seenParents.has(parentKey)) {
         continue;
       }
       seenParents.add(parentKey);
 
-      const content = p?.parent_text || p?.chunk_text || '';
       contextSources.push({
         index: contextSources.length + 1,
         articleId: p?.article_id || 'Unknown',
@@ -195,7 +223,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         articleFlag: p?.article_flag || SAKAHUB_CONSTANTS.DEFAULT_ARTICLE_FLAG,
         sectionHeading: p?.section_heading || 'General',
         content,
-        chunk,
+        chunk: candidate,
       });
     }
 
@@ -212,53 +240,42 @@ ${s.content}
 `;
     }).join('\n---\n\n');
 
-    const userMessage = `Context Sources:\n${contextBlocks}\n\nQuestion: ${trimmedQuestion}`;
+    const userMessage = `Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}\n\nProvide the immediate action checklist for the CEE agent:`;
 
+    // 4. Drafting answer... (Real streaming token-by-token from OpenRouter)
+    sendEvent('status', { message: CEE_STATUS_MESSAGES.DRAFTING });
     const llmStart = Date.now();
-    console.log(`[Ask:5/6] Synthesizing answer via ${config.OPENROUTER_CHAT_MODEL}...`);
-    const llmRawResponse = await chatCompletion([
+    console.log(`[Ask:5/6] Streaming answer via ${config.OPENROUTER_CHAT_MODEL}...`);
+
+    let answerText = '';
+    for await (const token of chatCompletionStream([
       { role: 'system', content: ASK_SAKA_SYSTEM_PROMPT },
       { role: 'user', content: userMessage },
-    ], {
-      responseFormat: { type: 'json_object' },
-      temperature: 0.2,
-    });
-    const llmMs = Date.now() - llmStart;
-    console.log(`[Ask:5/6] ✔ Answer generated in ${llmMs}ms (raw response: ${llmRawResponse.length} chars)`);
-
-    function parseAskOutput(raw: string): AskLlmStructuredOutput {
-      let cleaned = raw.trim();
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsed: unknown = JSON.parse(jsonMatch[0]);
-          if (typeof parsed === 'object' && parsed !== null && 'answer' in parsed) {
-            const record = parsed as { answer?: unknown; cited_sources?: unknown };
-            const answer = typeof record.answer === 'string' ? record.answer : raw;
-            const cited_sources = Array.isArray(record.cited_sources) ? (record.cited_sources as CitedSourceItem[]) : [];
-            return { answer, cited_sources };
-          }
-        } catch {}
+    ])) {
+      answerText += token;
+      if (isStream) {
+        sendEvent('token', { delta: token });
       }
-
-      return { answer: raw, cited_sources: [] };
     }
+    const llmMs = Date.now() - llmStart;
+    console.log(`[Ask:5/6] ✔ Answer stream finished in ${llmMs}ms (${answerText.length} chars)`);
 
-    const parsedOutput = parseAskOutput(llmRawResponse);
-    const answerText = parsedOutput.answer;
-    const citedList: CitedSourceItem[] = parsedOutput.cited_sources || [];
+    // 5. Formulating sources... (Build verified Chrome Text Fragment citations)
+    sendEvent('status', { message: CEE_STATUS_MESSAGES.FORMULATING_SOURCES });
 
-    // 7. Build structured citations with adaptive Chrome Text Fragments
     const citations: Citation[] = [];
     const seenQuotes = new Set<string>();
 
-    for (const citationItem of citedList) {
-      const sourceIndex = citationItem.source_index - 1;
-      const source = contextSources[sourceIndex] || contextSources[0];
+    // Detect inline source references like [1], [2] in answer text
+    const matches = [...answerText.matchAll(/\[(\d+)\]/g)];
+    const citedIndices = [...new Set(matches.map(m => parseInt(m[1], 10)))];
+
+    for (const srcIdx of citedIndices) {
+      const source = contextSources.find(s => s.index === srcIdx);
       if (!source) continue;
 
       const p = source.chunk.payload;
-      const quote = citationItem.exact_quote || p?.chunk_text.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH) || source.content.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH);
+      const quote = p?.chunk_text.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH) || source.content.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH);
       if (seenQuotes.has(quote)) continue;
       seenQuotes.add(quote);
 
@@ -275,7 +292,7 @@ ${s.content}
       });
     }
 
-    // Fallback if model did not return structured cited_sources array
+    // Fallback if model did not include [X] brackets
     if (citations.length === 0 && contextSources.length > 0) {
       for (const source of contextSources.slice(0, RAG_CONSTANTS.CITATIONS.FALLBACK_COUNT)) {
         const p = source.chunk.payload;
@@ -305,10 +322,21 @@ ${s.content}
       citations,
     };
 
-    res.json(responsePayload);
+    if (isStream) {
+      sendEvent('citations', { citations });
+      sendEvent('done', responsePayload);
+      res.end();
+    } else {
+      res.json(responsePayload);
+    }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error('[Ask Router Error] Error processing query:', error);
-    res.status(500).json({ error: 'Failed to process question', message: msg });
+    if (isStream) {
+      sendEvent('error', { message: msg });
+      res.end();
+    } else {
+      res.status(500).json({ error: 'Failed to process question', message: msg });
+    }
   }
 });

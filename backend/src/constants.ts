@@ -41,3 +41,12 @@ export const RAG_CONSTANTS = {
   },
   SPLITTER_SEPARATORS: ['\n\n', '\n', '. ', ' ', ''],
 } as const;
+
+export const CEE_STATUS_MESSAGES = {
+  UNDERSTANDING: 'Understanding request...',
+  SEARCHING: 'Searching SakaHub...',
+  REVIEWING: 'Reviewing procedures...',
+  DRAFTING: 'Drafting answer...',
+  FORMULATING_SOURCES: 'Formulating sources...',
+} as const;
+
