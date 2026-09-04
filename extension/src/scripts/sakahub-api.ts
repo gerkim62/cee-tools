@@ -116,7 +116,7 @@ export interface FetchPageResult {
   totalPages?: number;
 }
 
-export const SAKAHUB_AUTH_ERROR = 'SakaHub portal session is not active. Please open SakaHub in your browser to connect.';
+export const SAKAHUB_AUTH_ERROR = 'Please open SakaHub in your browser and it will automatically pick up.';
 
 /**
  * Validates that SakaHub returned actual JSON articles, not a 307 redirect to /login or HTML login page.

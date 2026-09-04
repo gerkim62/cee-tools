@@ -109,15 +109,17 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
 
       {/* Sync Error Box if sync failed */}
       {!isSyncing && syncProgress?.stage === 'error' && !dismissedError && (() => {
-        const isPortalSession =
+        const isSakaConnection =
           !syncProgress.message ||
+          syncProgress.message.includes('SakaHub') ||
+          syncProgress.message.includes('automatically pick') ||
           syncProgress.message.includes('portal') ||
           syncProgress.message.includes('session') ||
           syncProgress.message.includes('SAKAHUB_AUTH') ||
           syncProgress.message.includes('401') ||
           syncProgress.message.includes('redirect');
 
-        if (isPortalSession) {
+        if (isSakaConnection) {
           return (
             <div
               style={{
@@ -133,7 +135,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fcd34d', fontSize: '13px' }}>
                   <Globe size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
-                  <span>SakaHub Portal Connection Needed</span>
+                  <span>Open SakaHub to Connect</span>
                 </div>
                 <button
                   type="button"
@@ -147,7 +149,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
               </div>
 
               <p style={{ margin: 0, color: '#cbd5e1', fontSize: '12px', lineHeight: 1.5 }}>
-                To download the latest articles, please open SakaHub.
+                Please open SakaHub in your browser and it will automatically pick up.
               </p>
 
               <a
@@ -170,7 +172,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
                   marginTop: '4px',
                 }}
               >
-                <span>Open SakaHub Portal</span>
+                <span>Open SakaHub</span>
                 <ExternalLink size={13} />
               </a>
             </div>

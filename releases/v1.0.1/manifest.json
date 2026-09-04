@@ -13,7 +13,7 @@
     "http://127.0.0.1:3000/*"
   ],
   "background": {
-    "service_worker": "src/background.ts",
+    "service_worker": "service-worker-loader.js",
     "type": "module"
   },
   "action": {
@@ -21,8 +21,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content.tsx"],
+      "js": [
+        "assets/content.tsx-loader-CKlNYfUR.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
       "run_at": "document_end"
     }
   ],
@@ -30,5 +34,17 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "assets/syncer-DAeaKS4q.js",
+        "assets/content.tsx-CZ03-zNt.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ]
 }

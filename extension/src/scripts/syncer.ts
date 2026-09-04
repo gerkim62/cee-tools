@@ -335,7 +335,7 @@ export async function performSmartSync(
 
     if (changedArticles.length === 0 && deletedIds.length === 0) {
       if (probeStatus.backendCount === 0) {
-        throw new Error('No articles could be read from SakaHub. Please make sure the SakaHub portal is open.');
+        throw new Error('Please open SakaHub in your browser and it will automatically pick up.');
       }
 
       const upToDateMsg = 'Knowledge base is completely up to date. No changes needed.';
@@ -479,8 +479,11 @@ export async function performSmartSync(
         errorMsg.includes('401') ||
         errorMsg.includes('redirect') ||
         errorMsg.includes('portal') ||
-        errorMsg.includes('signed in')
-        ? 'Cannot download articles: SakaHub portal session is not active. Open SakaHub in a browser tab to sync.'
+        errorMsg.includes('signed in') ||
+        errorMsg.includes('session') ||
+        errorMsg.includes('automatically pick') ||
+        errorMsg.includes('No articles could be read')
+        ? 'Please open SakaHub in your browser and it will automatically pick up.'
         : `Sync failed: ${errorMsg}`;
 
     notify({
