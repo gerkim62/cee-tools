@@ -152,7 +152,17 @@ export type ExtensionMessage =
   | { type: 'SYNC_PROGRESS'; progress: SyncProgressUpdate }
   | { type: 'SYNC_COMPLETED'; result: unknown }
   | { type: 'SYNC_ERROR'; error: string }
-  | { type: 'BG_FETCH'; url: string; options?: any };
+  | { type: 'BG_FETCH'; url: string; options?: any }
+  | { type: 'SAKAHUB_RELAY_FETCH'; url: string; options?: { headers?: Record<string, string> } };
+
+export interface SakaHubRelayFetchResponse {
+  success: boolean;
+  status?: number;
+  redirected?: boolean;
+  url?: string;
+  text?: string;
+  error?: string;
+}
 
 export interface AskStreamClientMessage {
   type: 'START_ASK';

@@ -3,6 +3,7 @@ import {
   SakaNormalizedArticle,
   ProbeResult,
   SakaFetchResponse,
+  SakaHubRelayFetchResponse,
 } from '../types.js';
 
 const SAKAHUB_BASE_URL = 'https://sakahub.safaricom.co.ke/api/v1/published-articles';
@@ -117,11 +118,77 @@ export interface FetchPageResult {
 }
 
 export const SAKAHUB_AUTH_ERROR = 'Please open SakaHub in your browser and it will automatically pick up.';
+export const SAKAHUB_NO_TAB_ERROR = 'No open SakaHub tab found. Please open https://sakahub.safaricom.co.ke in a browser tab, then try again.';
+const SAKAHUB_TAB_URL_PATTERN = 'https://sakahub.safaricom.co.ke/*';
+
+export interface SakaHttpResult {
+  status: number;
+  redirected: boolean;
+  url: string;
+  ok: boolean;
+  statusText: string;
+}
+
+async function relayFetchToSakaHubTab(
+  url: string,
+  headers: Record<string, string>
+): Promise<{ result: SakaHttpResult; text: string }> {
+  if (typeof chrome === 'undefined' || !chrome.tabs) {
+    throw new Error(SAKAHUB_NO_TAB_ERROR);
+  }
+
+  const tabs = await chrome.tabs.query({ url: SAKAHUB_TAB_URL_PATTERN });
+  // Find a valid tab, prioritizing active tab if multiple are open
+  const tab =
+    tabs.find((t) => t.active && typeof t.id === 'number') ||
+    tabs.find((t) => typeof t.id === 'number');
+
+  if (!tab || typeof tab.id !== 'number') {
+    throw new Error(SAKAHUB_NO_TAB_ERROR);
+  }
+
+  let response: SakaHubRelayFetchResponse | undefined;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      response = (await chrome.tabs.sendMessage(tab.id, {
+        type: 'SAKAHUB_RELAY_FETCH',
+        url,
+        options: { headers },
+      })) as SakaHubRelayFetchResponse;
+      break;
+    } catch (err) {
+      if (attempt === 3) {
+        throw new Error(
+          (response && response.error) ||
+            (err instanceof Error ? err.message : String(err)) ||
+            SAKAHUB_NO_TAB_ERROR
+        );
+      }
+      await sleep(300);
+    }
+  }
+
+  if (!response || response.success !== true) {
+    throw new Error(response?.error || SAKAHUB_NO_TAB_ERROR);
+  }
+
+  const status: number = response.status ?? 0;
+  return {
+    result: {
+      status,
+      redirected: Boolean(response.redirected),
+      url: response.url ?? url,
+      ok: status >= 200 && status < 300,
+      statusText: '',
+    },
+    text: response.text ?? '',
+  };
+}
 
 /**
  * Validates that SakaHub returned actual JSON articles, not a 307 redirect to /login or HTML login page.
  */
-export function parseAndValidateSakaResponse(response: Response, text: string): unknown {
+export function parseAndValidateSakaResponse(response: SakaHttpResult, text: string): unknown {
   // Check if redirected to login, not-found, or SSO
   if (
     response.redirected ||
@@ -143,8 +210,7 @@ export function parseAndValidateSakaResponse(response: Response, text: string): 
   if (
     trimmed.startsWith('<!DOCTYPE') ||
     trimmed.startsWith('<html') ||
-    trimmed.includes('<body') ||
-    trimmed.includes('login')
+    trimmed.includes('<body')
   ) {
     throw new Error(SAKAHUB_AUTH_ERROR);
   }
@@ -164,24 +230,18 @@ export function parseAndValidateSakaResponse(response: Response, text: string): 
 }
 
 /**
- * Lightweight probe fetching page=0&size=1.
+ * Lightweight probe fetching page=0&size=1 via open SakaHub tab relay.
  * Returns totalElements count and newest article's normalized lastUpdated.
  */
 export async function probeSakaHub(): Promise<ProbeResult> {
   const url = `${SAKAHUB_BASE_URL}?page=0&size=1`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    mode: 'cors',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      'x-kbui-api-client': 'internal',
-    },
+  const { result, text } = await relayFetchToSakaHubTab(url, {
+    Accept: 'application/json',
+    'x-kbui-api-client': 'internal',
   });
 
-  const text = await response.text();
-  const json = parseAndValidateSakaResponse(response, text);
+  const json = parseAndValidateSakaResponse(result, text);
 
   const { rawArticles, totalElements } = extractArticlesFromResponse(json);
 
@@ -196,7 +256,7 @@ export async function probeSakaHub(): Promise<ProbeResult> {
 }
 
 /**
- * Fetches a specific page of published articles with exponential backoff and universal normalization.
+ * Fetches a specific page of published articles with exponential backoff and universal normalization via tab relay.
  */
 export async function fetchSakaHubPage(
   page: number,
@@ -207,18 +267,12 @@ export async function fetchSakaHubPage(
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-          'x-kbui-api-client': 'internal',
-        },
+      const { result, text } = await relayFetchToSakaHubTab(url, {
+        Accept: 'application/json',
+        'x-kbui-api-client': 'internal',
       });
 
-      const text = await response.text();
-      const json = parseAndValidateSakaResponse(response, text);
+      const json = parseAndValidateSakaResponse(result, text);
 
       const { rawArticles, totalElements, totalPages } = extractArticlesFromResponse(json);
 
@@ -236,7 +290,10 @@ export async function fetchSakaHubPage(
         totalPages,
       };
     } catch (err: unknown) {
-      if (err instanceof Error && err.message === SAKAHUB_AUTH_ERROR) {
+      if (
+        err instanceof Error &&
+        (err.message === SAKAHUB_AUTH_ERROR || err.message === SAKAHUB_NO_TAB_ERROR)
+      ) {
         throw err;
       }
       const msg = err instanceof Error ? err.message : String(err);

@@ -149,7 +149,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
               </div>
 
               <p style={{ margin: 0, color: '#cbd5e1', fontSize: '12px', lineHeight: 1.5 }}>
-                Please open SakaHub in your browser and it will automatically pick up.
+                {syncProgress.message || 'Please open SakaHub in your browser and it will automatically pick up.'}
               </p>
 
               <a

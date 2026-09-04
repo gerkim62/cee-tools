@@ -1,4 +1,4 @@
-import { probeSakaHub, fetchSakaHubPage, sleep } from './sakahub-api.js';
+import { probeSakaHub, fetchSakaHubPage, sleep, SAKAHUB_NO_TAB_ERROR } from './sakahub-api.js';
 import { cleanWordHtmlToMarkdown } from './turndown-cleaner.js';
 import {
   SakaNormalizedArticle,
@@ -475,16 +475,18 @@ export async function performSmartSync(
     console.error('[Syncer Error]', err);
 
     const userFriendlyMsg =
-      errorMsg.includes('SAKAHUB_AUTH') ||
-        errorMsg.includes('401') ||
-        errorMsg.includes('redirect') ||
-        errorMsg.includes('portal') ||
-        errorMsg.includes('signed in') ||
-        errorMsg.includes('session') ||
-        errorMsg.includes('automatically pick') ||
-        errorMsg.includes('No articles could be read')
-        ? 'Please open SakaHub in your browser and it will automatically pick up.'
-        : `Sync failed: ${errorMsg}`;
+      errorMsg.includes('No open SakaHub tab') || errorMsg.includes('SAKAHUB_NO_TAB')
+        ? errorMsg
+        : errorMsg.includes('SAKAHUB_AUTH') ||
+          errorMsg.includes('401') ||
+          errorMsg.includes('redirect') ||
+          errorMsg.includes('portal') ||
+          errorMsg.includes('signed in') ||
+          errorMsg.includes('session') ||
+          errorMsg.includes('automatically pick') ||
+          errorMsg.includes('No articles could be read')
+          ? 'Please open SakaHub in your browser and it will automatically pick up.'
+          : `Sync failed: ${errorMsg}`;
 
     notify({
       stage: 'error',
