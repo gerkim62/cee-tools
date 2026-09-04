@@ -35,11 +35,11 @@ const configSchema = z.object({
   SAKAHUB_BASE_URL: z.string().default(SAKAHUB_CONSTANTS.DEFAULT_BASE_URL),
 
   // AI Models (Defaulted with .env overrides)
-  OPENROUTER_CHAT_MODEL: z.string().default('google/gemini-2.5-flash'),
+  OPENROUTER_CHAT_MODEL: z.string().default('anthropic/claude-3.5-sonnet'),
   OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-large'),
-  OPENROUTER_CONTEXT_MODEL: z.string().default('google/gemini-2.5-flash'),
+  OPENROUTER_CONTEXT_MODEL: z.string().default('anthropic/claude-3.5-haiku'),
   OPENROUTER_RERANK_MODEL: z.string().default('cohere/rerank-v3.5'),
-  QUERY_TRANSLATION_MODEL: z.string().default('google/gemini-2.5-flash'),
+  QUERY_TRANSLATION_MODEL: z.string().default('openai/gpt-4o-mini'),
 
   // Vector Collection Base
   QDRANT_COLLECTION_BASE: z.string().default('saka_articles'),
