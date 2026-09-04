@@ -5,7 +5,6 @@
   "description": "Intelligent RAG copilot widget and real-time synchronizer for Safaricom SakaHub knowledge base.",
   "permissions": [
     "storage",
-    "alarms",
     "tabs"
   ],
   "host_permissions": [

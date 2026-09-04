@@ -5,22 +5,10 @@ import {
   AskStreamClientMessage,
 } from './types.js';
 
-const ALARM_NAME = 'sakahub_staleness_check';
 let isSyncInProgress = false;
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create(ALARM_NAME, {
-    periodInMinutes: 60,
-  });
-  console.log('[Background] Ask Saka installed. Registered periodic staleness alarm.');
-  runStalenessCheck();
-});
-
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === ALARM_NAME) {
-    console.log('[Background] Running scheduled staleness check...');
-    runStalenessCheck();
-  }
+  console.log('[Background] Ask Saka ready.');
 });
 
 chrome.action.onClicked.addListener(async (tab) => {
@@ -56,10 +44,10 @@ async function broadcastMessage(msg: ExtensionMessage): Promise<void> {
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
-async function runStalenessCheck(): Promise<void> {
+async function runStalenessCheck(force: boolean = false): Promise<void> {
   if (isSyncInProgress) return;
   try {
-    const status = await checkStaleness();
+    const status = await checkStaleness(force);
     if (status.isBehind) {
       await updateBadge('SYNC', '#f59e0b');
     } else {
@@ -75,19 +63,7 @@ async function runStalenessCheck(): Promise<void> {
       },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn('[Background Check Error]', err);
-    if (msg.includes('SAKAHUB_AUTH_REQUIRED') || msg.includes('401') || msg.includes('not authenticated')) {
-      await updateBadge('AUTH', '#f59e0b');
-      await broadcastMessage({
-        type: 'SYNC_PROGRESS',
-        progress: {
-          stage: 'error',
-          message: 'Please log in to SakaHub in your browser to sync articles.',
-          progressPercent: 0,
-        },
-      });
-    }
+    console.debug('[Background Staleness Check]', err);
   }
 }
 

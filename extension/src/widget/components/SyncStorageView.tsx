@@ -102,81 +102,24 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
 
       {/* Sync Error Box if sync failed */}
       {!isSyncing && syncProgress?.stage === 'error' && (
-        (() => {
-          const isAuth =
-            syncProgress.message.includes('log in to SakaHub') ||
-            syncProgress.message.includes('SAKAHUB_AUTH') ||
-            syncProgress.message.includes('session expired') ||
-            syncProgress.message.includes('unauthenticated');
-
-          if (isAuth) {
-            return (
-              <div
-                style={{
-                  background: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
-                  borderRadius: '10px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  color: '#fde68a',
-                  fontSize: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fcd34d' }}>
-                  <AlertCircle size={16} color="#f59e0b" />
-                  <span>SakaHub Login Required</span>
-                </div>
-                <p style={{ margin: 0, lineHeight: 1.4, color: '#fde68a' }}>
-                  Your browser session on SakaHub is unauthenticated (HTTP 401). Please log in to SakaHub to pull the latest article revisions.
-                </p>
-                <a
-                  href="https://sakahub.safaricom.co.ke"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="saka-btn-primary"
-                  style={{
-                    alignSelf: 'flex-start',
-                    padding: '4px 12px',
-                    fontSize: '11.5px',
-                    borderRadius: '6px',
-                    background: '#f59e0b',
-                    color: '#0f172a',
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    marginTop: '2px',
-                  }}
-                >
-                  <span>Log In to SakaHub</span>
-                  <ExternalLink size={12} />
-                </a>
-              </div>
-            );
-          }
-
-          return (
-            <div
-              style={{
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                borderRadius: '10px',
-                padding: '10px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                color: '#fca5a5',
-                fontSize: '12px',
-              }}
-            >
-              <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1 }}>{syncProgress.message}</span>
-            </div>
-          );
-        })()
+        <div
+          style={{
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: '#fca5a5',
+            fontSize: '12px',
+          }}
+        >
+          <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>
+            Unable to fetch online updates right now. Existing knowledge base remains active and verified.
+          </span>
+        </div>
       )}
 
       {/* Single Unified Sync Status Card (Minimalist percentage pill, no refresh icons!) */}

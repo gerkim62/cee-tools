@@ -8,9 +8,9 @@ export function useSyncState() {
   const [staleReason, setStaleReason] = useState<string>('');
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
-  const refreshStatus = useCallback(() => {
+  const refreshStatus = useCallback((force: boolean = false) => {
     try {
-      chrome.runtime.sendMessage({ type: 'CHECK_STALENESS' }, (response) => {
+      chrome.runtime.sendMessage({ type: 'CHECK_STALENESS', force }, (response) => {
         if (chrome.runtime.lastError) return;
         if (response && response.success && response.data) {
           setIsStale(Boolean(response.data.isBehind));
@@ -30,8 +30,19 @@ export function useSyncState() {
     } catch {}
   }, []);
 
+  // On initial mount: only load cached local storage.
+  // Never send network requests on dormant page load!
   useEffect(() => {
-    refreshStatus();
+    try {
+      chrome.storage.local.get(['syncProgress', 'lastSyncedAt'], (items) => {
+        if (items.syncProgress) {
+          setSyncProgress(items.syncProgress);
+        }
+        if (items.lastSyncedAt) {
+          setLastSyncedAt(items.lastSyncedAt);
+        }
+      });
+    } catch {}
 
     const handleMessage = (msg: ExtensionMessage) => {
       if (msg.type === 'SYNC_PROGRESS') {
@@ -63,7 +74,7 @@ export function useSyncState() {
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [refreshStatus]);
+  }, []);
 
   const triggerSync = useCallback((mode: 'smart' | 'deep' = 'smart') => {
     setIsSyncing(true);

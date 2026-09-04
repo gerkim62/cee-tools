@@ -49,8 +49,9 @@ function isBackendSyncStatus(data: unknown): data is BackendSyncStatus {
 
 /**
  * Checks whether the backend is behind SakaHub by comparing probe counts and timestamps.
+ * Gracefully backs off when unauthenticated or offline without user-facing login alarm.
  */
-export async function checkStaleness(): Promise<StalenessCheckResult> {
+export async function checkStaleness(force: boolean = false): Promise<StalenessCheckResult> {
   const backendUrl = await getBackendUrl();
 
   // 1. Fetch backend sync-status
@@ -63,40 +64,80 @@ export async function checkStaleness(): Promise<StalenessCheckResult> {
     throw new Error('Invalid sync status structure received from backend');
   }
 
-  // 2. Probe SakaHub (page=0, size=1)
-  const sakaProbe = await probeSakaHub();
-
   const totalIndexed = backendData.totalIndexed;
   const maxLastUpdated = backendData.maxLastUpdated;
   const isSyncing = backendData.isSyncing;
 
-  let isBehind = false;
-  let reason = '';
-
-  if (totalIndexed === 0 && sakaProbe.totalElements > 0) {
-    isBehind = true;
-    reason = 'Initial indexing required (0 indexed articles in backend).';
-  } else if (sakaProbe.totalElements !== totalIndexed) {
-    isBehind = true;
-    reason = `Article count mismatch (SakaHub: ${sakaProbe.totalElements}, Backend: ${totalIndexed}).`;
-  } else if (
-    sakaProbe.newestLastUpdated &&
-    maxLastUpdated &&
-    new Date(sakaProbe.newestLastUpdated) > new Date(maxLastUpdated)
-  ) {
-    isBehind = true;
-    reason = `Newer article detected on SakaHub (${sakaProbe.newestLastUpdated} > ${maxLastUpdated}).`;
+  // If not forcing a check, check if recent probe failed to avoid unnecessary repeated network calls
+  if (!force && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    try {
+      const stored = await chrome.storage.local.get(['sakaProbeBackoffUntil']);
+      if (stored.sakaProbeBackoffUntil && Date.now() < Number(stored.sakaProbeBackoffUntil)) {
+        return {
+          isBehind: false,
+          isSyncing,
+          reason: '',
+          sakaCount: totalIndexed,
+          backendCount: totalIndexed,
+          newestSakaDate: null,
+          maxBackendDate: maxLastUpdated,
+        };
+      }
+    } catch {}
   }
 
-  return {
-    isBehind,
-    isSyncing,
-    reason,
-    sakaCount: sakaProbe.totalElements,
-    backendCount: totalIndexed,
-    newestSakaDate: sakaProbe.newestLastUpdated,
-    maxBackendDate: maxLastUpdated,
-  };
+  // 2. Probe SakaHub (page=0, size=1)
+  try {
+    const sakaProbe = await probeSakaHub();
+
+    // Probe succeeded: clear any backoff
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.remove(['sakaProbeBackoffUntil']).catch(() => {});
+    }
+
+    let isBehind = false;
+    let reason = '';
+
+    if (totalIndexed === 0 && sakaProbe.totalElements > 0) {
+      isBehind = true;
+      reason = 'Initial indexing required.';
+    } else if (sakaProbe.totalElements !== totalIndexed) {
+      isBehind = true;
+      reason = `Article updates detected on SakaHub (${sakaProbe.totalElements} vs ${totalIndexed} indexed).`;
+    } else if (
+      sakaProbe.newestLastUpdated &&
+      maxLastUpdated &&
+      new Date(sakaProbe.newestLastUpdated) > new Date(maxLastUpdated)
+    ) {
+      isBehind = true;
+      reason = 'Newer article revisions detected on SakaHub.';
+    }
+
+    return {
+      isBehind,
+      isSyncing,
+      reason,
+      sakaCount: sakaProbe.totalElements,
+      backendCount: totalIndexed,
+      newestSakaDate: sakaProbe.newestLastUpdated,
+      maxBackendDate: maxLastUpdated,
+    };
+  } catch (err: unknown) {
+    // When probe returns 401 or offline, back off for 15 minutes and suppress background errors
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ sakaProbeBackoffUntil: Date.now() + 15 * 60 * 1000 }).catch(() => {});
+    }
+
+    return {
+      isBehind: false,
+      isSyncing,
+      reason: '',
+      sakaCount: totalIndexed,
+      backendCount: totalIndexed,
+      newestSakaDate: null,
+      maxBackendDate: maxLastUpdated,
+    };
+  }
 }
 
 /**
@@ -107,7 +148,8 @@ export async function checkStaleness(): Promise<StalenessCheckResult> {
  */
 export async function performSmartSync(
   mode: 'smart' | 'deep' = 'smart',
-  onProgress?: (update: SyncProgressUpdate) => void
+  onProgress?: (update: SyncProgressUpdate) => void,
+  force: boolean = true
 ): Promise<{
   synced: boolean;
   addedCount: number;
@@ -125,12 +167,12 @@ export async function performSmartSync(
 
   notify({
     stage: 'probing',
-    message: 'Probing SakaHub & Backend status...',
+    message: 'Checking SakaHub & backend status...',
     progressPercent: 5,
   });
 
-  // Step 1: Probe backend & SakaHub
-  const probeStatus = await checkStaleness();
+  // Step 1: Probe backend & SakaHub (force=true when user explicitly triggers sync)
+  const probeStatus = await checkStaleness(force);
 
   // Step 2: Acquire backend lock
   notify({

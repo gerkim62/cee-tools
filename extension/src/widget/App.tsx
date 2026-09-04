@@ -55,6 +55,13 @@ export const App: React.FC = () => {
     } catch {}
   }, []);
 
+  // Check staleness non-blockingly ONLY when user launches/opens the widget
+  useEffect(() => {
+    if (isOpen) {
+      syncState.refreshStatus(false);
+    }
+  }, [isOpen]);
+
   // Listen for toolbar toggle message
   useEffect(() => {
     const handleMessage = (msg: ExtensionMessage | { type: string }) => {
@@ -178,6 +185,7 @@ export const App: React.FC = () => {
             onClose={() => setIsOpen(false)}
             isMenuOpen={isMenuOpen}
             currentViewTitle={getViewTitle()}
+            lastSyncedAt={syncState.lastSyncedAt}
           />
 
           {isMenuOpen && (
