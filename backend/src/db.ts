@@ -80,12 +80,15 @@ export async function initDb(): Promise<void> {
       CREATE TABLE IF NOT EXISTS messages (
         id UUID PRIMARY KEY,
         conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        parent_id UUID REFERENCES messages(id) ON DELETE CASCADE,
         role VARCHAR(16) NOT NULL,
         content TEXT NOT NULL,
         citations JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES messages(id) ON DELETE CASCADE;
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at ASC);
+      CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);
     `);
 
     await client.query('COMMIT');

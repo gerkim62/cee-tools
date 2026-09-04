@@ -181,6 +181,8 @@ chrome.runtime.onConnect.addListener((port) => {
             question: clientMsg.question,
             conversationId: clientMsg.conversationId,
             clientId: clientMsg.clientId,
+            parentId: clientMsg.parentId,
+            retryUserMessageId: clientMsg.retryUserMessageId,
             stream: true,
           }),
           signal: abortController.signal,
@@ -241,7 +243,13 @@ chrome.runtime.onConnect.addListener((port) => {
                     answer: data.answer,
                     citations: data.citations,
                     conversationId: data.conversationId,
+                    conversationTitle: data.conversationTitle,
                     executionSteps: data.executionSteps,
+                    clarifyingQuestion: data.clarifyingQuestion,
+                    suggestedFollowUps: data.suggestedFollowUps,
+                    messageId: data.messageId,
+                    userMessageId: data.userMessageId,
+                    parentId: data.parentId,
                   });
                 } else if (currentEvent === 'error') {
                   port.postMessage({ type: 'error', message: data.message });

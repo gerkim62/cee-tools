@@ -246,6 +246,10 @@ export const App: React.FC = () => {
               isCompacting={chat.isCompacting}
               onCompactConversation={chat.compactCurrentConversation}
               onSendMessage={chat.sendMessage}
+              getBranchInfo={chat.getBranchInfo}
+              onSwitchBranch={chat.switchBranch}
+              onRetryResponse={chat.retryResponse}
+              onEditUserMessage={chat.editUserMessage}
               onHoverCitation={handleHoverCitation}
               onLeaveCitation={handleLeaveCitation}
             />

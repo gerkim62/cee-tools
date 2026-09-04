@@ -39,6 +39,9 @@ export interface AskResponse {
   executionSteps?: ExecutionStep[];
   clarifyingQuestion?: ClarifyingQuestion;
   suggestedFollowUps?: string[];
+  messageId?: string;
+  userMessageId?: string;
+  parentId?: string | null;
 }
 
 export function extractClarification(text: string): { cleanText: string; clarification?: ClarifyingQuestion } {
@@ -86,38 +89,92 @@ export function extractClarification(text: string): { cleanText: string; clarifi
 }
 
 export function extractSuggestions(text: string): { cleanText: string; suggestions?: string[] } {
-  const suggestionsRegex = /\[SUGGESTIONS:\s*([\s\S]*?)\]/i;
+  // 1. Check for [SUGGESTIONS: ...] or [FOLLOWUP: ...] handling nested brackets like ["a", "b"]
+  const suggestionsRegex = /\[(?:SUGGESTIONS|FOLLOWUP|FOLLOWUPS):\s*(\[[\s\S]*?\]|[^\]]+)\]/i;
   const match = text.match(suggestionsRegex);
-  if (!match) return { cleanText: text };
-
-  const rawContent = match[1].trim();
   let suggestions: string[] | undefined = undefined;
 
-  // 1. Try JSON array format: ["...", "..."]
-  if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
-    try {
-      const arr = JSON.parse(rawContent);
-      if (Array.isArray(arr)) {
-        suggestions = arr.map((s: any) => String(s).trim()).filter(Boolean);
+  if (match) {
+    const rawContent = match[1].trim();
+    // Try JSON array format: ["...", "..."]
+    if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
+      try {
+        const arr = JSON.parse(rawContent);
+        if (Array.isArray(arr)) {
+          suggestions = arr.map((s: any) => String(s).trim()).filter(Boolean);
+        }
+      } catch {}
+    }
+
+    // Try quoted matches or delimiter split
+    if (!suggestions || suggestions.length === 0) {
+      const quoted = [...rawContent.matchAll(/"([^"]+)"|'([^']+)'/g)].map(m => m[1] || m[2]).filter(Boolean);
+      if (quoted.length > 0) {
+        suggestions = quoted;
+      } else {
+        const delimiter = rawContent.includes('|') ? '|' : ',';
+        suggestions = rawContent.split(delimiter).map(s => s.trim().replace(/^["'\s]+|["'\s]+$/g, '')).filter(Boolean);
       }
-    } catch {
-      // Fall through
     }
   }
 
-  // 2. Try quoted matches or delimiter split
-  if (!suggestions) {
-    const quoted = [...rawContent.matchAll(/"([^"]+)"|'([^']+)'/g)].map(m => m[1] || m[2]).filter(Boolean);
-    if (quoted.length > 0) {
-      suggestions = quoted;
-    } else {
-      const delimiter = rawContent.includes('|') ? '|' : ',';
-      suggestions = rawContent.split(delimiter).map(s => s.trim()).filter(Boolean);
+  // 2. Also check for markdown section at the end of answer
+  const mdListRegex = /(?:\n\s*|\n{2,})(?:(?:\*{1,2}|#{1,4})\s*(?:Suggested|Follow-up|Next)\s*(?:Questions?|Steps?):?\*{0,2})\s*\n((?:[ \t]*[-*•\d.]+[ \t]+[^\n]+\n?)+)$/i;
+  const mdMatch = text.match(mdListRegex);
+  if (!suggestions && mdMatch) {
+    const lines = mdMatch[1].split('\n')
+      .map(l => l.replace(/^[ \t]*[-*•\d.]+[ \t]+/, '').trim())
+      .filter(l => l.length > 5);
+    if (lines.length > 0) {
+      suggestions = lines.slice(0, 4);
     }
   }
 
-  const cleanText = text.replace(suggestionsRegex, '').trimEnd();
-  return { cleanText, suggestions };
+  let cleanText = text.replace(suggestionsRegex, '').trimEnd();
+  if (mdMatch) {
+    cleanText = cleanText.replace(mdListRegex, '').trimEnd();
+  }
+
+  return { cleanText, suggestions: (suggestions && suggestions.length > 0) ? suggestions : undefined };
+}
+
+export function generateFallbackSuggestions(
+  question: string,
+  contextSources: Array<{ sectionHeading?: string; articleTitle?: string }>
+): string[] {
+  const fallbacks: string[] = [];
+  const qLower = question.toLowerCase();
+
+  for (const src of contextSources) {
+    const heading = src.sectionHeading?.trim();
+    if (
+      heading &&
+      heading !== 'General' &&
+      heading !== 'Introduction' &&
+      heading !== 'Overview' &&
+      !qLower.includes(heading.toLowerCase()) &&
+      !fallbacks.some(f => f.toLowerCase().includes(heading.toLowerCase()))
+    ) {
+      if (/^[A-Z0-9\s-]+$/i.test(heading) && heading.length > 3 && heading.length < 50) {
+        fallbacks.push(`What are the procedures for ${heading}?`);
+      }
+    }
+    if (fallbacks.length >= 2) break;
+  }
+
+  if (fallbacks.length < 2) {
+    if (!qLower.includes('sla') && !qLower.includes('turnaround') && !qLower.includes('time')) {
+      fallbacks.push('What is the turnaround time (SLA) for this procedure?');
+    }
+    if (!qLower.includes('escalat') && !qLower.includes('siebel') && !qLower.includes('g3')) {
+      fallbacks.push('What is the escalation path if the customer issue persists?');
+    }
+    if (!qLower.includes('eligib') && !qLower.includes('require') && fallbacks.length < 3) {
+      fallbacks.push('What are the required customer vetting conditions?');
+    }
+  }
+
+  return fallbacks.slice(0, 3);
 }
 
 export interface AskRequestBody {
@@ -125,6 +182,8 @@ export interface AskRequestBody {
   conversationId?: string;
   clientId?: string;
   stream?: boolean;
+  parentId?: string | null;
+  retryUserMessageId?: string | null;
 }
 
 const activeAskRequests = new Set<string>();
@@ -163,7 +222,9 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
   let requestDedupeKey: string | null = null;
 
   try {
-    const { question, conversationId, clientId } = req.body;
+    const { question, conversationId, clientId, parentId, retryUserMessageId } = req.body;
+    const isRetry = Boolean(retryUserMessageId);
+    const userMessageId = retryUserMessageId || crypto.randomUUID();
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       if (isStream) {
         sendEvent('error', { message: 'Question is required' });
@@ -191,7 +252,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     }
     activeAskRequests.add(requestDedupeKey);
 
-    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}" (streaming: ${isStream}, convId: ${conversationId || 'none'})`);
+    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}" (streaming: ${isStream}, convId: ${conversationId || 'none'}, parentId: ${parentId || 'none'}, isRetry: ${isRetry})`);
 
     // Manage conversation thread and history
     let activeConversationId: string | null = conversationId || null;
@@ -228,25 +289,51 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         }
 
         if (activeConversationId) {
-          // Record incoming user message
-          await query(
-            `INSERT INTO messages (id, conversation_id, role, content, created_at)
-             VALUES ($1, $2, $3, $4, NOW())`,
-            [crypto.randomUUID(), activeConversationId, 'user', trimmedQuestion]
-          );
+          // Record incoming user message with parent_id ONLY if not retrying an existing user turn
+          if (!isRetry) {
+            await query(
+              `INSERT INTO messages (id, conversation_id, parent_id, role, content, created_at)
+               VALUES ($1, $2, $3, $4, $5, NOW())`,
+              [userMessageId, activeConversationId, parentId || null, 'user', trimmedQuestion]
+            );
+          }
 
-          // Fetch recent previous turns for context continuity (excluding the turn just inserted)
-          const pastMessagesRes = await query(
-            `SELECT role, content FROM messages
-             WHERE conversation_id = $1 AND role IN ('user', 'assistant')
-             ORDER BY created_at DESC
-             OFFSET 1 LIMIT 4`,
-            [activeConversationId]
-          );
+          // Fetch previous turns along the active branch ancestry for context continuity
+          let pastRows: Array<{ role: string; content: string }> = [];
+          const effectiveAnchorId = isRetry ? userMessageId : parentId;
+          if (effectiveAnchorId) {
+            const ancestorRes = await query(
+              `WITH RECURSIVE ancestors AS (
+                 SELECT id, parent_id, role, content, created_at, 1 AS depth
+                 FROM messages
+                 WHERE id = $1
+                 UNION ALL
+                 SELECT m.id, m.parent_id, m.role, m.content, m.created_at, a.depth + 1
+                 FROM messages m
+                 JOIN ancestors a ON m.id = a.parent_id
+                 WHERE a.depth < 8
+               )
+               SELECT id, role, content FROM ancestors
+               WHERE role IN ('user', 'assistant')
+               ORDER BY depth DESC`,
+              [effectiveAnchorId]
+            );
+            pastRows = isRetry
+              ? ancestorRes.rows.filter((r) => r.id !== userMessageId)
+              : ancestorRes.rows;
+          } else {
+            const pastMessagesRes = await query(
+              `SELECT role, content FROM messages
+               WHERE conversation_id = $1 AND role IN ('user', 'assistant') AND id != $2
+               ORDER BY created_at DESC
+               LIMIT 4`,
+              [activeConversationId, userMessageId]
+            );
+            pastRows = pastMessagesRes.rows.reverse();
+          }
 
-          if (pastMessagesRes.rows.length > 0) {
-            const chronological = pastMessagesRes.rows.reverse();
-            previousTurnsContext = chronological
+          if (pastRows.length > 0) {
+            previousTurnsContext = pastRows
               .map((m) => `${m.role === 'user' ? 'CEE Agent' : 'Ask Saka'}: ${m.content.slice(0, 400)}`)
               .join('\n');
           }
@@ -301,21 +388,26 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         { label: 'Intent', detail: 'Conversational message — responding directly' },
       ];
 
+      const conversationalAssistantId = crypto.randomUUID();
       sendEvent('done', {
         answer: naturalReply,
         citations: [],
         executionSteps: conversationalSteps,
         conversationId: activeConversationId,
+        messageId: conversationalAssistantId,
+        userMessageId,
+        parentId: userMessageId,
       });
 
       if (activeConversationId) {
         try {
           await query(
-            `INSERT INTO messages (id, conversation_id, role, content, citations, created_at)
-             VALUES ($1, $2, $3, $4, $5, NOW())`,
+            `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
             [
-              crypto.randomUUID(),
+              conversationalAssistantId,
               activeConversationId,
+              userMessageId,
               'assistant',
               naturalReply,
               JSON.stringify({ citations: [], executionSteps: conversationalSteps }),
@@ -686,8 +778,12 @@ ${s.content}
 
     // Extract clarifying question and suggested follow-ups
     const { cleanText: textAfterClarification, clarification } = extractClarification(answerText);
-    const { cleanText: cleanFinalAnswer, suggestions } = extractSuggestions(textAfterClarification);
+    let { cleanText: cleanFinalAnswer, suggestions } = extractSuggestions(textAfterClarification);
     answerText = cleanFinalAnswer;
+
+    if (!suggestions || suggestions.length === 0) {
+      suggestions = generateFallbackSuggestions(trimmedQuestion, contextSources);
+    }
 
     // Fallback if model did not include [X] brackets
     if (citations.length === 0 && contextSources.length > 0) {
@@ -750,15 +846,17 @@ ${s.content}
       }
     }
 
+    const assistantMessageId = crypto.randomUUID();
     // Save assistant message to conversation history in DB
     if (activeConversationId) {
       try {
         await query(
-          `INSERT INTO messages (id, conversation_id, role, content, citations, created_at)
-           VALUES ($1, $2, $3, $4, $5, NOW())`,
+          `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
           [
-            crypto.randomUUID(),
+            assistantMessageId,
             activeConversationId,
+            userMessageId,
             'assistant',
             answerText,
             JSON.stringify({
@@ -794,6 +892,9 @@ ${s.content}
       executionSteps,
       clarifyingQuestion: clarification,
       suggestedFollowUps: suggestions,
+      messageId: assistantMessageId,
+      userMessageId,
+      parentId: userMessageId,
     };
 
     if (isStream) {

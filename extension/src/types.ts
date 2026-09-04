@@ -148,6 +148,7 @@ export interface ExecutionStep {
 
 export interface ChatMessage {
   id: string;
+  parentId?: string | null;
   role: 'user' | 'assistant';
   content: string;
   citations?: Citation[];
@@ -184,6 +185,8 @@ export interface AskStreamClientMessage {
   question: string;
   conversationId?: string;
   clientId: string;
+  parentId?: string | null;
+  retryUserMessageId?: string | null;
 }
 
 export type AskStreamServerMessage =
@@ -199,6 +202,9 @@ export type AskStreamServerMessage =
       executionSteps?: ExecutionStep[];
       clarifyingQuestion?: ClarifyingQuestion;
       suggestedFollowUps?: string[];
+      messageId?: string;
+      userMessageId?: string;
+      parentId?: string | null;
     }
   | { type: 'error'; message: string };
 

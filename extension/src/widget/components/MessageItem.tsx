@@ -1,12 +1,31 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { marked } from 'marked';
-import { Copy, Check, Sparkles, Compass, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  Sparkles,
+  Compass,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  HelpCircle,
+  RotateCcw,
+  Edit3,
+  X,
+  CornerDownLeft,
+} from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
+import { BranchInfo } from '../hooks/useChat.js';
 import { RollingStatus } from './RollingStatus.js';
 
 interface MessageItemProps {
   message: ChatMessage;
   statusLog: string[];
+  branchInfo?: BranchInfo;
+  onSwitchBranch?: (direction: 'prev' | 'next') => void;
+  onRetryResponse?: (messageId: string) => void;
+  onEditUserMessage?: (messageId: string, newContent: string) => void;
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
   onSendMessage?: (text: string) => void;
@@ -15,6 +34,10 @@ interface MessageItemProps {
 export const MessageItem: React.FC<MessageItemProps> = ({
   message,
   statusLog,
+  branchInfo,
+  onSwitchBranch,
+  onRetryResponse,
+  onEditUserMessage,
   onHoverCitation,
   onLeaveCitation,
   onSendMessage,
@@ -22,7 +45,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const [copied, setCopied] = useState(false);
   const [userToggled, setUserToggled] = useState(false);
   const [isExecutionExpanded, setIsExecutionExpanded] = useState(Boolean(message.isStreaming));
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const prevStreamingRef = useRef(message.isStreaming);
+
+  useEffect(() => {
+    // Auto-focus textarea when entering edit mode
+    if (isEditing && editTextareaRef.current) {
+      editTextareaRef.current.focus();
+      editTextareaRef.current.select();
+    }
+  }, [isEditing]);
 
   useEffect(() => {
     // When streaming finishes, auto-collapse execution steps unless user manually toggled it
@@ -42,6 +76,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  const handleSaveEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed) return;
+    setIsEditing(false);
+    if (trimmed !== message.content) {
+      onEditUserMessage?.(message.id, trimmed);
+    }
   };
 
   // Convert markdown to HTML and inject interactive citation buttons
@@ -114,15 +157,104 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     onLeaveCitation();
   };
 
+  // ----------------------------------------------------
+  // USER MESSAGE RENDERING
+  // ----------------------------------------------------
   if (message.role === 'user') {
+    if (isEditing) {
+      return (
+        <div className="saka-user-edit-container">
+          <textarea
+            ref={editTextareaRef}
+            className="saka-user-edit-textarea"
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSaveEdit();
+              } else if (e.key === 'Escape') {
+                setIsEditing(false);
+              }
+            }}
+            rows={2}
+          />
+          <div className="saka-user-edit-actions">
+            <button
+              type="button"
+              className="saka-user-edit-btn saka-user-edit-cancel"
+              onClick={() => setIsEditing(false)}
+            >
+              <X size={12} />
+              <span>Cancel</span>
+            </button>
+            <button
+              type="button"
+              className="saka-user-edit-btn saka-user-edit-save"
+              onClick={handleSaveEdit}
+              disabled={!editText.trim()}
+            >
+              <CornerDownLeft size={12} />
+              <span>Save & Submit</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="saka-message-bubble saka-message-user">
-        {message.content}
+      <div className="saka-user-message-wrapper">
+        <div className="saka-message-bubble saka-message-user">
+          <span className="saka-user-content-text">{message.content}</span>
+          <button
+            type="button"
+            className="saka-user-edit-trigger"
+            onClick={() => {
+              setEditText(message.content);
+              setIsEditing(true);
+            }}
+            title="Edit question & branch"
+          >
+            <Edit3 size={11} />
+          </button>
+        </div>
+
+        {branchInfo && branchInfo.total > 1 && (
+          <div className="saka-branch-nav saka-branch-nav-user">
+            <button
+              type="button"
+              className="saka-branch-btn"
+              disabled={!branchInfo.canPrev}
+              onClick={() => onSwitchBranch?.('prev')}
+              title="Previous question branch"
+            >
+              <ChevronLeft size={12} />
+            </button>
+            <span className="saka-branch-counter">
+              {branchInfo.current} / {branchInfo.total}
+            </span>
+            <button
+              type="button"
+              className="saka-branch-btn"
+              disabled={!branchInfo.canNext}
+              onClick={() => onSwitchBranch?.('next')}
+              title="Next question branch"
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
+  // ----------------------------------------------------
+  // ASSISTANT MESSAGE RENDERING
+  // ----------------------------------------------------
   const steps = message.executionSteps || [];
+  const isErrorOrInterrupted =
+    Boolean(message.content) &&
+    (message.content.includes('⚠️') || message.content.includes('❌') || message.content.includes('Interrupted'));
 
   return (
     <div
@@ -138,17 +270,57 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           <span>Ask Saka</span>
         </div>
 
-        {message.content && !message.isStreaming && (
-          <button
-            type="button"
-            className="saka-copy-btn"
-            onClick={handleCopy}
-            title="Copy answer to clipboard"
-          >
-            {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
-        )}
+        <div className="saka-assistant-actions">
+          {branchInfo && branchInfo.total > 1 && (
+            <div className="saka-branch-nav">
+              <button
+                type="button"
+                className="saka-branch-btn"
+                disabled={!branchInfo.canPrev}
+                onClick={() => onSwitchBranch?.('prev')}
+                title="Previous answer branch"
+              >
+                <ChevronLeft size={12} />
+              </button>
+              <span className="saka-branch-counter">
+                {branchInfo.current} / {branchInfo.total}
+              </span>
+              <button
+                type="button"
+                className="saka-branch-btn"
+                disabled={!branchInfo.canNext}
+                onClick={() => onSwitchBranch?.('next')}
+                title="Next answer branch"
+              >
+                <ChevronRight size={12} />
+              </button>
+            </div>
+          )}
+
+          {!message.isStreaming && (
+            <button
+              type="button"
+              className="saka-action-btn saka-retry-btn"
+              onClick={() => onRetryResponse?.(message.id)}
+              title="Regenerate answer"
+            >
+              <RotateCcw size={11} />
+              <span>Retry</span>
+            </button>
+          )}
+
+          {message.content && !message.isStreaming && (
+            <button
+              type="button"
+              className="saka-action-btn saka-copy-btn"
+              onClick={handleCopy}
+              title="Copy answer to clipboard"
+            >
+              {copied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
+              <span>{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Terminal rolling log while thinking before any tokens arrive */}
@@ -156,7 +328,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         <RollingStatus statusLog={statusLog} />
       )}
 
-      {/* Persistent Execution Steps Disclosure (Shows how query was interpreted & retrieved) */}
+      {/* Persistent Execution Steps Disclosure */}
       {steps.length > 0 && (
         <div className="saka-execution-box">
           <button
@@ -195,7 +367,21 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         />
       )}
 
-      {/* Clarifying Question Options (Non-blocking selection chips) */}
+      {/* Prominent Retry row for error or interrupted responses */}
+      {isErrorOrInterrupted && !message.isStreaming && (
+        <div className="saka-error-recovery-row">
+          <button
+            type="button"
+            className="saka-error-retry-action"
+            onClick={() => onRetryResponse?.(message.id)}
+          >
+            <RotateCcw size={12} />
+            <span>Retry Answering</span>
+          </button>
+        </div>
+      )}
+
+      {/* Clarifying Question Options */}
       {!message.isStreaming && message.clarifyingQuestion && message.clarifyingQuestion.options && message.clarifyingQuestion.options.length > 0 && (
         <div className="saka-clarification-container">
           <div className="saka-clarification-title">
@@ -221,6 +407,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       {/* Suggested Follow-up Question Chips */}
       {!message.isStreaming && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
         <div className="saka-followups-container">
+          <div className="saka-followups-title">
+            <Sparkles size={11} className="saka-followups-sparkle-icon" />
+            <span>Suggested follow-up questions:</span>
+          </div>
           <div className="saka-followups-chips">
             {message.suggestedFollowUps.map((suggestion, idx) => (
               <button

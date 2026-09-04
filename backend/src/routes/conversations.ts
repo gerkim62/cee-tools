@@ -20,6 +20,7 @@ export interface ConversationSummary {
 export interface ConversationMessage {
   id: string;
   conversationId: string;
+  parentId?: string | null;
   role: 'user' | 'assistant';
   content: string;
   citations?: any[];
@@ -171,7 +172,7 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
     const conv = convResult.rows[0];
 
     const messagesResult = await query(
-      `SELECT id, conversation_id, role, content, citations, created_at
+      `SELECT id, conversation_id, parent_id, role, content, citations, created_at
        FROM messages
        WHERE conversation_id = $1
        ORDER BY created_at ASC`,
@@ -196,6 +197,7 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
       return {
         id: row.id,
         conversationId: row.conversation_id,
+        parentId: row.parent_id || null,
         role: row.role,
         content: row.content,
         citations,

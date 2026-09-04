@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Bot, Minimize2, RefreshCw, Lock } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
+import { BranchInfo } from '../hooks/useChat.js';
 import { MessageItem } from './MessageItem.js';
 import { ChatInput } from './ChatInput.js';
 
@@ -13,6 +14,10 @@ interface ChatViewProps {
   isCompacting?: boolean;
   onCompactConversation?: () => void;
   onSendMessage: (text: string) => void;
+  getBranchInfo?: (messageId: string) => BranchInfo;
+  onSwitchBranch?: (messageId: string, direction: 'prev' | 'next') => void;
+  onRetryResponse?: (messageId: string) => void;
+  onEditUserMessage?: (messageId: string, newContent: string) => void;
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
 }
@@ -26,6 +31,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   isCompacting = false,
   onCompactConversation,
   onSendMessage,
+  getBranchInfo,
+  onSwitchBranch,
+  onRetryResponse,
+  onEditUserMessage,
   onHoverCitation,
   onLeaveCitation,
 }) => {
@@ -110,6 +119,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
               key={msg.id}
               message={msg}
               statusLog={msg.isStreaming ? statusLog : []}
+              branchInfo={getBranchInfo?.(msg.id)}
+              onSwitchBranch={(direction) => onSwitchBranch?.(msg.id, direction)}
+              onRetryResponse={onRetryResponse}
+              onEditUserMessage={onEditUserMessage}
               onHoverCitation={onHoverCitation}
               onLeaveCitation={onLeaveCitation}
               onSendMessage={onSendMessage}

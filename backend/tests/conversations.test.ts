@@ -35,4 +35,35 @@ describe('Conversation Continuity & Multi-turn Formatting', () => {
     assert.strictEqual(title1, 'How do I onboard a customer to Postpaid Platinum tariff?');
     assert.strictEqual(title2, 'New Conversation');
   });
+
+  test('should extract suggestions from JSON array, pipe formats, and markdown lists', async () => {
+    const { extractSuggestions } = await import('../src/routes/ask.js');
+
+    // 1. JSON array format
+    const resJson = extractSuggestions('Here is the procedure.\n\n[SUGGESTIONS: ["How to check status?", "What are the fees?"]]');
+    assert.strictEqual(resJson.cleanText, 'Here is the procedure.');
+    assert.deepStrictEqual(resJson.suggestions, ['How to check status?', 'What are the fees?']);
+
+    // 2. Pipe format
+    const resPipe = extractSuggestions('Here is the procedure.\n\n[SUGGESTIONS: How to reverse? | What is the SLA?]');
+    assert.strictEqual(resPipe.cleanText, 'Here is the procedure.');
+    assert.deepStrictEqual(resPipe.suggestions, ['How to reverse?', 'What is the SLA?']);
+
+    // 3. Markdown list at end of message
+    const resMd = extractSuggestions(`Here is the procedure.\n\n**Suggested Questions:**\n- How do I check the balance?\n- What if customer is roaming?`);
+    assert.strictEqual(resMd.cleanText, 'Here is the procedure.');
+    assert.deepStrictEqual(resMd.suggestions, ['How do I check the balance?', 'What if customer is roaming?']);
+  });
+
+  test('should generate fallback suggestions when model omits [SUGGESTIONS:] tag', async () => {
+    const { generateFallbackSuggestions } = await import('../src/routes/ask.js');
+
+    const fallbacks = generateFallbackSuggestions('How to reverse an M-Pesa transaction?', [
+      { sectionHeading: 'Reversal Eligibility Criteria', articleTitle: 'M-PESA Reversals' },
+      { sectionHeading: 'Escalation to Backoffice', articleTitle: 'M-PESA Reversals' }
+    ]);
+
+    assert.ok(fallbacks.length >= 2);
+    assert.ok(fallbacks.some(f => f.includes('Eligibility') || f.includes('turnaround') || f.includes('escalation')));
+  });
 });
