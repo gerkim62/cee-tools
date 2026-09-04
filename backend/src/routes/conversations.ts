@@ -304,8 +304,10 @@ Summarize the following customer support conversation into a clear, factual hand
 
 Strict Format:
 - **Customer Issue / Request:** <Brief summary of what the customer needed>
-- **Verified Rules & Actions Taken:** <Key policy findings, steps executed, or eligibility checked>
-- **Current Status & Pending Actions:** <What was resolved vs what still needs to happen>`;
+- **Verified Rules & Actions Taken:** <Key policy findings, steps executed, or eligibility checked from SakaHub>
+- **Current Status & Pending Actions:** <What was resolved vs what still needs to happen (e.g. SR logged on G3/Siebel, partner consent pending, retail escalation)>
+
+Note: Rely strictly on the verified facts and actions documented in this conversation transcript. Do not assume or inject generic external policies, hypothetical SLAs, or stale examples.`;
 
     const summaryText = await chatCompletion([
       { role: 'system', content: summaryPrompt },

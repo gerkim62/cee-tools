@@ -279,8 +279,8 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
           content:
             `You are "Ask Saka", the friendly, knowledgeable AI copilot for Safaricom Customer Experience Executives (CEE agents).\n` +
             `The agent is on an active customer shift. Respond warmly, naturally, and concisely.\n` +
-            `If it is a greeting, greet the agent back and let them know you are ready to help with Safaricom procedures, M-PESA reversals, tariffs, float limits, or troubleshooting.\n` +
-            `Keep your reply brief, natural, and helpful (1-3 sentences).`,
+            `If it is a greeting, greet the agent back and let them know you are ready to help with verified SakaHub procedures (such as Lipa Na M-PESA reversals, View360 customer vetting, SIM swap journeys, Pochi la Biashara, or data bundle mechanics).\n` +
+            `Keep your reply brief, natural, and helpful (1-3 sentences). Do not invent procedural steps or state specific SLAs in greetings, as prompt examples may be stale; always wait for the agent's specific query.`,
         },
         ...(previousTurnsContext
           ? [{ role: 'system', content: `Prior conversation context:\n${previousTurnsContext}` }]
@@ -587,7 +587,7 @@ ${s.content}
     const historyBlock = previousTurnsContext
       ? `Previous Conversation Context (for continuity):\n${previousTurnsContext}\n\n`
       : '';
-    const userMessage = `${historyBlock}Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}\n\nProvide the direct factual answer or sequential action checklist as appropriate:`;
+    const userMessage = `${historyBlock}Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}\n\nProvide the direct factual answer or sequential action checklist based strictly on the retrieved SakaHub sources above (do not use external or stale prompt examples):`;
 
     // 4. Drafting answer... (Real streaming token-by-token from OpenRouter)
     sendEvent('status', { message: CEE_STATUS_MESSAGES.DRAFTING });
@@ -721,7 +721,7 @@ ${s.content}
             const titleRes = await chatCompletion([
               {
                 role: 'system',
-                content: 'Generate a concise, professional 3-5 word title for this customer support query (e.g. "M-PESA Reversal Timelines", "Sim Swap Requirements", "Till Number Registration"). Respond ONLY with the 3-5 words title, no punctuation, quotes, or markdown.'
+                content: 'Generate a concise, professional 3-5 word title for this customer support query (e.g. "Paybill Reversal Guidelines", "View360 SIM Swap Vetting", "Pochi la Biashara Features", "Data Bundle Amnesty"). Respond ONLY with the 3-5 words title, no punctuation, quotes, or markdown.'
               },
               { role: 'user', content: trimmedQuestion }
             ], {
