@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { WidgetView, ExtensionMessage } from '../types.js';
+import React, { useState, useEffect, useRef } from 'react';
+import { WidgetView, ExtensionMessage, Citation } from '../types.js';
 import { useDraggable } from './hooks/useDraggable.js';
 import { useSyncState } from './hooks/useSyncState.js';
 import { useChat } from './hooks/useChat.js';
@@ -12,11 +12,19 @@ import { ChatView } from './components/ChatView.js';
 import { HistoryView } from './components/HistoryView.js';
 import { SyncStorageView } from './components/SyncStorageView.js';
 import { SettingsView } from './components/SettingsView.js';
+import { CitationHoverCard } from './components/CitationHoverCard.js';
 
 export const App: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentView, setCurrentView] = useState<WidgetView>('chat');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Citation hovercard state at the root level (allows overflowing outside the widget window)
+  const [hoveredCitation, setHoveredCitation] = useState<{
+    citation: Citation;
+    position: { top: number; left: number; transform: string };
+  } | null>(null);
+  const hoverTimeoutRef = useRef<any>(null);
 
   // Dragging for collapsed badge
   const badgeDraggable = useDraggable({
@@ -67,9 +75,60 @@ export const App: React.FC = () => {
     setIsMenuOpen(false);
   };
 
+  const handleStartNewChat = () => {
+    chat.startNewChat();
+    setCurrentView('chat');
+    setIsMenuOpen(false);
+  };
+
   const handleSelectHistoryConversation = (id: string) => {
     chat.loadConversation(id);
     setCurrentView('chat');
+  };
+
+  const handleHoverCitation = (citation: Citation, targetRect: DOMRect) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    const spaceAbove = targetRect.top;
+    let top: number;
+    let transform: string;
+
+    // If space above >= 260px, place above; otherwise flip below
+    if (spaceAbove >= 260) {
+      top = targetRect.top - 8;
+      transform = 'translateY(-100%)';
+    } else {
+      top = targetRect.bottom + 8;
+      transform = 'translateY(0)';
+    }
+
+    let left = targetRect.left - 60;
+    if (left < 12) left = 12;
+    if (left + 375 > window.innerWidth) left = window.innerWidth - 380;
+
+    setHoveredCitation({
+      citation,
+      position: { top, left, transform },
+    });
+  };
+
+  const handleLeaveCitation = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredCitation(null);
+    }, 250);
+  };
+
+  const handleCardMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+  };
+
+  const handleCardMouseLeave = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredCitation(null);
+    }, 200);
   };
 
   const getViewTitle = () => {
@@ -114,7 +173,7 @@ export const App: React.FC = () => {
         >
           <WindowHeader
             onMouseDown={windowDraggable.handleMouseDown}
-            onNewChat={chat.startNewChat}
+            onNewChat={handleStartNewChat}
             onToggleMenu={() => setIsMenuOpen((prev) => !prev)}
             onClose={() => setIsOpen(false)}
             isMenuOpen={isMenuOpen}
@@ -132,14 +191,17 @@ export const App: React.FC = () => {
             />
           )}
 
-          <SyncBanner
-            isSyncing={syncState.isSyncing}
-            isStale={syncState.isStale}
-            staleReason={syncState.staleReason}
-            syncProgress={syncState.syncProgress}
-            onSyncNow={() => syncState.triggerSync('smart')}
-            onDismissError={syncState.dismissSyncError}
-          />
+          {/* Render SyncBanner ONLY when NOT in the sync view to avoid duplicate loading indicators */}
+          {currentView !== 'sync' && (
+            <SyncBanner
+              isSyncing={syncState.isSyncing}
+              isStale={syncState.isStale}
+              staleReason={syncState.staleReason}
+              syncProgress={syncState.syncProgress}
+              onSyncNow={() => syncState.triggerSync('smart')}
+              onDismissError={syncState.dismissSyncError}
+            />
+          )}
 
           {currentView === 'chat' && (
             <ChatView
@@ -147,6 +209,8 @@ export const App: React.FC = () => {
               statusLog={chat.statusLog}
               isStreaming={chat.isStreaming}
               onSendMessage={chat.sendMessage}
+              onHoverCitation={handleHoverCitation}
+              onLeaveCitation={handleLeaveCitation}
             />
           )}
 
@@ -171,6 +235,22 @@ export const App: React.FC = () => {
 
           {currentView === 'settings' && <SettingsView />}
         </div>
+      )}
+
+      {/* Root-level Popover Portal (Outside saka-window so it can freely overflow outside the widget!) */}
+      {isOpen && hoveredCitation && (
+        <CitationHoverCard
+          citation={hoveredCitation.citation}
+          style={{
+            position: 'fixed',
+            top: `${hoveredCitation.position.top}px`,
+            left: `${hoveredCitation.position.left}px`,
+            transform: hoveredCitation.position.transform,
+            zIndex: 2147483647,
+          }}
+          onMouseEnter={handleCardMouseEnter}
+          onMouseLeave={handleCardMouseLeave}
+        />
       )}
     </div>
   );

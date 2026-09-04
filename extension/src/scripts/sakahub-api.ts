@@ -116,6 +116,8 @@ export interface FetchPageResult {
   totalPages?: number;
 }
 
+export const SAKAHUB_AUTH_ERROR = 'SAKAHUB_AUTH_REQUIRED';
+
 /**
  * Lightweight probe fetching page=0&size=1.
  * Returns totalElements count and newest article's normalized lastUpdated.
@@ -133,11 +135,19 @@ export async function probeSakaHub(): Promise<ProbeResult> {
     },
   });
 
+  if (response.status === 401) {
+    throw new Error(SAKAHUB_AUTH_ERROR);
+  }
+
   if (!response.ok) {
     throw new Error(`[SakaHub API Error] Probe failed: HTTP ${response.status} ${response.statusText}`);
   }
 
-  const json: unknown = await response.json();
+  const json: unknown = await response.json().catch(() => null);
+  if (json && typeof json === 'object' && (json as any).message === 'User is not authenticated') {
+    throw new Error(SAKAHUB_AUTH_ERROR);
+  }
+
   const { rawArticles, totalElements } = extractArticlesFromResponse(json);
 
   const rawFirst = rawArticles[0];
@@ -172,11 +182,19 @@ export async function fetchSakaHubPage(
         },
       });
 
+      if (response.status === 401) {
+        throw new Error(SAKAHUB_AUTH_ERROR);
+      }
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
 
-      const json: unknown = await response.json();
+      const json: unknown = await response.json().catch(() => null);
+      if (json && typeof json === 'object' && (json as any).message === 'User is not authenticated') {
+        throw new Error(SAKAHUB_AUTH_ERROR);
+      }
+
       const { rawArticles, totalElements, totalPages } = extractArticlesFromResponse(json);
 
       const normalizedArticles: SakaNormalizedArticle[] = [];
@@ -193,6 +211,9 @@ export async function fetchSakaHubPage(
         totalPages,
       };
     } catch (err: unknown) {
+      if (err instanceof Error && err.message === SAKAHUB_AUTH_ERROR) {
+        throw err;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[SakaHub Fetch] Page ${page} attempt ${attempt} failed: ${msg}`);
       if (attempt === retries) {

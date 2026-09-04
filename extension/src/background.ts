@@ -75,7 +75,19 @@ async function runStalenessCheck(): Promise<void> {
       },
     });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.warn('[Background Check Error]', err);
+    if (msg.includes('SAKAHUB_AUTH_REQUIRED') || msg.includes('401') || msg.includes('not authenticated')) {
+      await updateBadge('AUTH', '#f59e0b');
+      await broadcastMessage({
+        type: 'SYNC_PROGRESS',
+        progress: {
+          stage: 'error',
+          message: 'Please log in to SakaHub in your browser to sync articles.',
+          progressPercent: 0,
+        },
+      });
+    }
   }
 }
 

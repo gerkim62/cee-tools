@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 import { SyncProgressUpdate } from '../../types.js';
 
 interface SyncBannerProps {
@@ -22,36 +22,69 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
   const isError = !isSyncing && syncProgress?.stage === 'error';
   if (!isSyncing && !isStale && !isError) return null;
 
-  const pct = syncProgress?.progressPercent ?? (isSyncing ? 10 : 0);
+  const pct = syncProgress?.progressPercent ?? (isSyncing ? 5 : 0);
 
   if (isError) {
+    const isAuth =
+      syncProgress?.message?.includes('log in to SakaHub') ||
+      syncProgress?.message?.includes('SAKAHUB_AUTH') ||
+      syncProgress?.message?.includes('session expired') ||
+      syncProgress?.message?.includes('unauthenticated');
+
     return (
       <div
         className="saka-sync-banner"
         style={{
-          background: 'rgba(239, 68, 68, 0.15)',
-          borderBottom: '1px solid rgba(239, 68, 68, 0.35)',
+          background: isAuth ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+          borderBottom: `1px solid ${isAuth ? 'rgba(245, 158, 11, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
         }}
       >
         <div className="saka-sync-banner-row">
-          <div className="saka-sync-banner-text" style={{ color: '#fca5a5' }}>
-            <AlertCircle size={14} color="#ef4444" style={{ flexShrink: 0 }} />
+          <div className="saka-sync-banner-text" style={{ color: isAuth ? '#fde68a' : '#fca5a5' }}>
+            <AlertCircle size={14} color={isAuth ? '#f59e0b' : '#ef4444'} style={{ flexShrink: 0 }} />
             <span>
-              {syncProgress?.message && (syncProgress.message.includes('fetch') || syncProgress.message.includes('ECONNREFUSED') || syncProgress.message.includes('localhost'))
+              {isAuth
+                ? 'Please log in to SakaHub to sync knowledge base.'
+                : syncProgress?.message &&
+                  (syncProgress.message.includes('fetch') ||
+                    syncProgress.message.includes('ECONNREFUSED') ||
+                    syncProgress.message.includes('localhost'))
                 ? 'Knowledge service is temporarily unreachable.'
                 : syncProgress?.message || 'Sync could not be completed.'}
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              type="button"
-              className="saka-btn-primary"
-              style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '5px', background: '#ef4444' }}
-              onClick={onSyncNow}
-            >
-              Retry
-            </button>
+            {isAuth ? (
+              <a
+                href="https://sakahub.safaricom.co.ke"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="saka-btn-primary"
+                style={{
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  borderRadius: '5px',
+                  background: '#f59e0b',
+                  color: '#0f172a',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                Log In ↗
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="saka-btn-primary"
+                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '5px', background: '#ef4444' }}
+                onClick={onSyncNow}
+              >
+                Retry
+              </button>
+            )}
             {onDismissError && (
               <button
                 type="button"
@@ -70,7 +103,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
   }
 
   const message = isSyncing
-    ? syncProgress?.message || 'Syncing SakaHub knowledge base...'
+    ? syncProgress?.message || 'Synchronizing SakaHub...'
     : staleReason || 'New articles detected on SakaHub.';
 
   return (
@@ -78,7 +111,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
       <div className="saka-sync-banner-row">
         <div className="saka-sync-banner-text">
           {isSyncing ? (
-            <RefreshCw size={13} className="spin" style={{ animation: 'spin 1.5s linear infinite' }} />
+            <span className="saka-percentage-pill">{pct}%</span>
           ) : (
             <AlertCircle size={13} style={{ color: '#f59e0b' }} />
           )}

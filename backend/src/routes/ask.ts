@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { config } from '../config.js';
 import { query } from '../db.js';
-import { embedTexts, rerankChunks, chatCompletionStream } from '../services/openrouter.js';
+import { embedTexts, rerankChunks, chatCompletionStream, OpenRouterChatMessage } from '../services/openrouter.js';
 import { queryPoints, buildSparseVector, QdrantQueryResult } from '../services/qdrant.js';
 import { generateTextFragment } from '../services/chunker.js';
 import { translateQuery } from '../services/queryTranslator.js';
@@ -140,15 +140,76 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
 
     const executionSteps: ExecutionStep[] = [];
 
-    // 1. Understanding request...
+    // 1. Understanding request & analyzing context requirements
     sendEvent('status', { message: CEE_STATUS_MESSAGES.UNDERSTANDING });
     const transStart = Date.now();
     const translated = await translateQuery(trimmedQuestion);
-    console.log(`[Ask:1/6] ✔ Query translated in ${Date.now() - transStart}ms:`);
+    console.log(`[Ask:1/6] ✔ Query translated in ${Date.now() - transStart}ms (needsContext: ${translated.needsContext}):`);
     console.log(`   Primary  : "${translated.primary}"`);
     console.log(`   Fallback : "${translated.fallback}"`);
     if (translated.alt) {
       console.log(`   Alt      : "${translated.alt}"`);
+    }
+
+    // If the query is conversational (e.g. greetings, thanks, pleasantries) and does not need KB context:
+    if (!translated.needsContext) {
+      sendEvent('status', { message: 'Responding...' });
+
+      const conversationalMessages: OpenRouterChatMessage[] = [
+        {
+          role: 'system',
+          content:
+            `You are "Ask Saka", the friendly, knowledgeable AI copilot for Safaricom Customer Experience Executives (CEE agents).\n` +
+            `The agent is on an active customer shift. Respond warmly, naturally, and concisely.\n` +
+            `If it is a greeting, greet the agent back and let them know you are ready to help with Safaricom procedures, M-PESA reversals, tariffs, float limits, or troubleshooting.\n` +
+            `Keep your reply brief, natural, and helpful (1-3 sentences).`,
+        },
+        ...(previousTurnsContext
+          ? [{ role: 'system', content: `Prior conversation context:\n${previousTurnsContext}` }]
+          : []),
+        { role: 'user', content: trimmedQuestion },
+      ];
+
+      let naturalReply = '';
+      for await (const token of chatCompletionStream(conversationalMessages, {
+        temperature: 0.7,
+        model: config.OPENROUTER_CHAT_MODEL,
+      })) {
+        naturalReply += token;
+        sendEvent('token', { token });
+      }
+
+      const conversationalSteps: ExecutionStep[] = [
+        { label: 'Intent', detail: 'Conversational message — responding directly' },
+      ];
+
+      sendEvent('done', {
+        answer: naturalReply,
+        citations: [],
+        executionSteps: conversationalSteps,
+        conversationId: activeConversationId,
+      });
+
+      if (activeConversationId) {
+        try {
+          await query(
+            `INSERT INTO messages (id, conversation_id, role, content, citations, created_at)
+             VALUES ($1, $2, $3, $4, $5, NOW())`,
+            [
+              crypto.randomUUID(),
+              activeConversationId,
+              'assistant',
+              naturalReply,
+              JSON.stringify({ citations: [], executionSteps: conversationalSteps }),
+            ]
+          );
+        } catch (dbErr) {
+          console.warn('[Ask] Failed persisting conversational assistant message:', dbErr);
+        }
+      }
+
+      res.end();
+      return;
     }
 
     executionSteps.push({
@@ -375,16 +436,22 @@ ${s.content}
     const matches = [...answerText.matchAll(/\[(\d+)\]/g)];
     const citedIndices = [...new Set(matches.map(m => parseInt(m[1], 10)))];
 
+function formatCleanExcerpt(text: string): string {
+  if (!text) return '';
+  return text.trim();
+}
+
     for (const srcIdx of citedIndices) {
       const source = contextSources.find(s => s.index === srcIdx);
       if (!source) continue;
 
       const p = source.chunk.payload;
-      const quote = p?.chunk_text.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH) || source.content.slice(0, RAG_CONSTANTS.CITATIONS.MAX_PREVIEW_LENGTH);
+      const rawText = p?.chunk_text || source.content || '';
+      const quote = formatCleanExcerpt(rawText);
       if (seenQuotes.has(quote)) continue;
       seenQuotes.add(quote);
 
-      const fragment = generateTextFragment(quote);
+      const fragment = generateTextFragment(rawText.slice(0, 120));
       const urlWithTextFragment = `${config.SAKAHUB_BASE_URL}/app/article/${source.articleId}${fragment}`;
 
       citations.push({
@@ -401,8 +468,9 @@ ${s.content}
     if (citations.length === 0 && contextSources.length > 0) {
       for (const source of contextSources.slice(0, RAG_CONSTANTS.CITATIONS.FALLBACK_COUNT)) {
         const p = source.chunk.payload;
-        const quote = p?.chunk_text.slice(0, RAG_CONSTANTS.CITATIONS.MAX_FALLBACK_QUOTE_LENGTH) || source.content.slice(0, RAG_CONSTANTS.CITATIONS.MAX_FALLBACK_QUOTE_LENGTH);
-        const fragment = generateTextFragment(quote);
+        const rawText = p?.chunk_text || source.content || '';
+        const quote = formatCleanExcerpt(rawText);
+        const fragment = generateTextFragment(rawText.slice(0, 120));
         citations.push({
           articleId: source.articleId,
           articleTitle: source.articleTitle,

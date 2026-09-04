@@ -35,8 +35,8 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           type="button"
           className="saka-btn-icon"
           onClick={onNewChat}
-          title="Start New Chat"
-          aria-label="New Chat"
+          title="Start New Chat (Clear current conversation)"
+          aria-label="Start New Chat"
         >
           <Plus size={17} />
         </button>
@@ -45,7 +45,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           type="button"
           className={`saka-btn-icon ${isMenuOpen ? 'active' : ''}`}
           onClick={onToggleMenu}
-          title="Toggle Navigation Menu"
+          title="Navigation Menu (History, Knowledge Sync, Settings)"
           aria-label="Menu"
         >
           <ChevronDown
@@ -61,7 +61,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           type="button"
           className="saka-btn-icon"
           onClick={onClose}
-          title="Minimize Widget"
+          title="Minimize Widget (Dock to Floating Badge)"
           aria-label="Close"
         >
           <X size={17} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ShieldCheck, ExternalLink } from 'lucide-react';
 import { BackendSyncStatus, SyncProgressUpdate } from '../../types.js';
 import { getBackendUrl } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
@@ -55,6 +55,8 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
     return `${days}d ago`;
   };
 
+  const pct = syncProgress?.progressPercent || 0;
+
   return (
     <div className="saka-view-container">
       <h3 className="saka-view-title">Knowledge Base Sync</h3>
@@ -98,66 +100,137 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
         </div>
       )}
 
-      {/* Active Sync Progress Box */}
-      {isSyncing && (
-        <div
-          style={{
-            background: 'rgba(59, 130, 246, 0.12)',
-            border: '1px solid rgba(59, 130, 246, 0.35)',
-            borderRadius: '12px',
-            padding: '12px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: '#93c5fd', fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <RefreshCw size={14} className="spin" style={{ animation: 'spin 1.5s linear infinite' }} />
-              Syncing SakaHub...
-            </span>
-            <span style={{ color: '#60a5fa', fontWeight: 700, fontSize: '12px' }}>
-              {syncProgress?.progressPercent || 0}%
-            </span>
-          </div>
-
-          <p style={{ fontSize: '12px', color: '#cbd5e1' }}>
-            {syncProgress?.message || 'Processing articles...'}
-          </p>
-
-          <div className="saka-sync-progress-track">
-            <div
-              className="saka-sync-progress-fill"
-              style={{ width: `${Math.max(5, syncProgress?.progressPercent || 0)}%` }}
-            />
-          </div>
-        </div>
-      )}
-
       {/* Sync Error Box if sync failed */}
       {!isSyncing && syncProgress?.stage === 'error' && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            borderRadius: '10px',
-            padding: '10px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            color: '#fca5a5',
-            fontSize: '12px',
-          }}
-        >
-          <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>{syncProgress.message}</span>
-        </div>
+        (() => {
+          const isAuth =
+            syncProgress.message.includes('log in to SakaHub') ||
+            syncProgress.message.includes('SAKAHUB_AUTH') ||
+            syncProgress.message.includes('session expired') ||
+            syncProgress.message.includes('unauthenticated');
+
+          if (isAuth) {
+            return (
+              <div
+                style={{
+                  background: 'rgba(245, 158, 11, 0.12)',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  color: '#fde68a',
+                  fontSize: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fcd34d' }}>
+                  <AlertCircle size={16} color="#f59e0b" />
+                  <span>SakaHub Login Required</span>
+                </div>
+                <p style={{ margin: 0, lineHeight: 1.4, color: '#fde68a' }}>
+                  Your browser session on SakaHub is unauthenticated (HTTP 401). Please log in to SakaHub to pull the latest article revisions.
+                </p>
+                <a
+                  href="https://sakahub.safaricom.co.ke"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="saka-btn-primary"
+                  style={{
+                    alignSelf: 'flex-start',
+                    padding: '4px 12px',
+                    fontSize: '11.5px',
+                    borderRadius: '6px',
+                    background: '#f59e0b',
+                    color: '#0f172a',
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    marginTop: '2px',
+                  }}
+                >
+                  <span>Log In to SakaHub</span>
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: '10px',
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#fca5a5',
+                fontSize: '12px',
+              }}
+            >
+              <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{syncProgress.message}</span>
+            </div>
+          );
+        })()
       )}
 
-      {/* Clean 2-Metric Cards (KISS) */}
+      {/* Single Unified Sync Status Card (Minimalist percentage pill, no refresh icons!) */}
+      <div
+        className="saka-stats-card"
+        style={{
+          padding: '14px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          border: isSyncing ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
+            {isSyncing ? 'Synchronizing Knowledge Base' : 'Knowledge Base Synchronized'}
+          </span>
+          {isSyncing ? (
+            <span className="saka-percentage-pill">{pct}%</span>
+          ) : (
+            <span
+              style={{
+                fontSize: '11px',
+                color: '#10b981',
+                background: 'rgba(16, 185, 129, 0.15)',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                fontWeight: 600,
+              }}
+            >
+              Ready
+            </span>
+          )}
+        </div>
+
+        {isSyncing && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+              {syncProgress?.message || 'Probing SakaHub articles...'}
+            </p>
+            <div className="saka-sync-progress-track">
+              <div
+                className="saka-sync-progress-fill"
+                style={{ width: `${Math.max(5, pct)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 2-Metric Cards (KISS) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <div className="saka-stats-card" style={{ padding: '14px', textAlign: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '11.5px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Indexed Articles
           </span>
           <span style={{ fontSize: '24px', fontWeight: 700, color: '#10b981' }}>
@@ -166,30 +239,25 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
         </div>
 
         <div className="saka-stats-card" style={{ padding: '14px', textAlign: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '11.5px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Last Synced
           </span>
-          <span style={{ fontSize: '15px', fontWeight: 600, color: '#f1f5f9', marginTop: '6px' }}>
+          <span style={{ fontSize: '14.5px', fontWeight: 600, color: '#f1f5f9', marginTop: '6px' }}>
             {formatRelativeTime(lastSyncedAt)}
           </span>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+      {/* Action Buttons (No refresh icons!) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
         <button
           type="button"
           className="saka-btn-primary"
           onClick={() => onTriggerSync('smart')}
           disabled={isSyncing}
-          style={{ padding: '12px', fontSize: '13.5px' }}
+          style={{ padding: '12px', fontSize: '13.5px', opacity: isSyncing ? 0.75 : 1 }}
         >
-          <RefreshCw
-            size={16}
-            className={isSyncing ? 'spin' : ''}
-            style={isSyncing ? { animation: 'spin 1.5s linear infinite' } : {}}
-          />
-          <span>{isSyncing ? 'Synchronizing...' : 'Sync Knowledge Base'}</span>
+          <span>{isSyncing ? `Synchronizing (${pct}%)...` : 'Sync Knowledge Base'}</span>
         </button>
 
         <button

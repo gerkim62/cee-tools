@@ -37,13 +37,19 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       let html = marked.parse(message.content, { async: false }) as string;
       // Replace [1], [2] with interactive citation buttons
       html = html.replace(/\[(\d+)\]/g, (_match, numStr) => {
-        return `<button type="button" class="saka-citation-tag" data-cite-num="${numStr}">[${numStr}]</button>`;
+        const citeNum = parseInt(numStr, 10);
+        const cite = message.citations?.[citeNum - 1];
+        const titleText = cite
+          ? `Source [${numStr}]: ${cite.articleNumber ? `[${cite.articleNumber}] ` : ''}${cite.articleTitle} (Click to open in SakaHub, hover for excerpt)`
+          : `Source [${numStr}] — Click to open in SakaHub`;
+        const safeTitle = titleText.replace(/"/g, '&quot;');
+        return `<button type="button" class="saka-citation-tag" data-cite-num="${numStr}" title="${safeTitle}">[${numStr}]</button>`;
       });
       return html;
     } catch {
       return message.content;
     }
-  }, [message.content]);
+  }, [message.content, message.citations]);
 
   // Event delegation for citation clicks and hovers
   const handleContainerClick = (e: React.MouseEvent) => {

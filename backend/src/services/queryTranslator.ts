@@ -4,6 +4,7 @@ import { QUERY_TRANSLATION_SYSTEM_PROMPT } from '../prompts.js';
 import { RAG_CONSTANTS } from '../constants.js';
 
 export interface TranslatedQuery {
+  needsContext: boolean;
   primary: string;    // Clean, canonical search query for dense retrieval & cross-encoder
   fallback: string;   // Primary query + raw user input appended verbatim for safety
   alt: string | null; // Secondary interpretation if two distinct support flows are plausible
@@ -15,6 +16,7 @@ export function parseTranslationResponse(raw: string, rawQuery: string): Transla
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       if (parsed && typeof parsed === 'object') {
+        const needsContext = parsed.needsContext !== false;
         const primary = typeof parsed.primary === 'string' && parsed.primary.trim()
           ? parsed.primary.trim()
           : rawQuery;
@@ -25,7 +27,7 @@ export function parseTranslationResponse(raw: string, rawQuery: string): Transla
           ? parsed.alt.trim()
           : null;
 
-        return { primary, fallback, alt };
+        return { needsContext, primary, fallback, alt };
       }
     }
   } catch (err) {
@@ -53,6 +55,7 @@ export function parseTranslationResponse(raw: string, rawQuery: string): Transla
   }
 
   return {
+    needsContext: true,
     primary: primary || rawQuery,
     fallback: fallback || `${primary || rawQuery} ${rawQuery}`.trim(),
     alt,
@@ -65,7 +68,7 @@ export function parseTranslationResponse(raw: string, rawQuery: string): Transla
 export async function translateQuery(rawQuery: string): Promise<TranslatedQuery> {
   const trimmed = rawQuery.trim();
   if (!trimmed) {
-    return { primary: '', fallback: '', alt: null };
+    return { needsContext: true, primary: '', fallback: '', alt: null };
   }
 
   try {
@@ -84,6 +87,6 @@ export async function translateQuery(rawQuery: string): Promise<TranslatedQuery>
     return parseTranslationResponse(raw, trimmed);
   } catch (err) {
     console.warn('[QueryTranslator] Translation failed, falling back to raw query:', err);
-    return { primary: trimmed, fallback: trimmed, alt: null };
+    return { needsContext: true, primary: trimmed, fallback: trimmed, alt: null };
   }
 }
