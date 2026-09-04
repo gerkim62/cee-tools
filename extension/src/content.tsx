@@ -56,39 +56,69 @@ function initAskSakaWidget() {
 
 /**
  * Item 17: Saka Article SPA Quote Highlighter
- * Handles dynamic SPA routing where native browser #:~:text gets stripped by router before fetch.
+ * Handles dynamic SPA routing where native browser #:~:text gets stripped by router or fails
+ * due to async rendering / Microsoft Word bullet artifacts.
  * Uses window.find / Selection API to scroll and highlight the excerpt safely.
  */
 function initSakaQuoteHighlighter() {
-  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-
-  chrome.storage.local.get(['pendingSakaHighlight'], (items) => {
-    const pending = items.pendingSakaHighlight;
-    if (!pending || !pending.quote) return;
-
-    // Only apply if initiated within last 60 seconds
-    if (Date.now() - (pending.timestamp || 0) > 60000) {
-      chrome.storage.local.remove(['pendingSakaHighlight']).catch(() => {});
-      return;
+  function extractTargetFromHash(): string {
+    try {
+      const hash = window.location.hash;
+      if (!hash || !hash.includes(':~:text=')) return '';
+      const param = hash.split(':~:text=')[1] || '';
+      const firstSegment = param.split('&')[0] || '';
+      const startPart = firstSegment.split(',')[0] || '';
+      const withoutPrefix = startPart.includes('-,') ? startPart.split('-,')[1] : startPart;
+      return decodeURIComponent(withoutPrefix || '');
+    } catch {
+      return '';
     }
+  }
 
-    // Clean excerpt for searching: take first 6-10 significant words
-    const cleanWords = pending.quote
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter((w: string) => w.length > 2);
+  function getSearchPhrases(rawText: string): string[] {
+    if (!rawText) return [];
+    // Clean Word list markers, bullets (·, •, middle dot), numbering, and normalize whitespace
+    const clean = rawText
+      .replace(/^[·•\u00b7\u2022\-\*\d\.\)\(\s]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!clean) return [];
 
-    if (cleanWords.length === 0) return;
-    const searchPhrase = cleanWords.slice(0, 6).join(' ');
+    const words = clean.split(' ').filter(Boolean);
+    const phrases: string[] = [];
+
+    // Attempt with 4-5 consecutive words first, then 3 words as fallback
+    if (words.length >= 4) {
+      phrases.push(words.slice(0, 5).join(' '));
+      phrases.push(words.slice(0, 4).join(' '));
+    } else if (words.length >= 3) {
+      phrases.push(words.slice(0, 3).join(' '));
+    } else if (words.length > 0) {
+      phrases.push(words.join(' '));
+    }
+    return phrases;
+  }
+
+  const runHighlighter = (targetText: string) => {
+    const searchPhrases = getSearchPhrases(targetText);
+    if (searchPhrases.length === 0) return;
 
     let attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 25;
 
     const tryHighlight = () => {
       attempts++;
-      // Search for text in the page DOM
-      // @ts-ignore
-      const found = typeof window.find === 'function' ? window.find(searchPhrase, false, false, true, false, false, false) : false;
+      let found = false;
+
+      // Try phrases in order of specificity
+      for (const phrase of searchPhrases) {
+        // @ts-ignore
+        if (typeof window.find === 'function' && window.find(phrase, false, false, true, false, false, false)) {
+          found = true;
+          break;
+        }
+      }
+
       if (found) {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
@@ -133,22 +163,49 @@ function initSakaQuoteHighlighter() {
           if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
+
+          // Clear selection blue overlay so custom highlight shines
+          selection.removeAllRanges();
         }
 
         // Clean up storage once matched
-        chrome.storage.local.remove(['pendingSakaHighlight']).catch(() => {});
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.remove(['pendingSakaHighlight']).catch(() => {});
+        }
         return true;
       }
 
       if (attempts < maxAttempts) {
-        setTimeout(tryHighlight, 500);
+        setTimeout(tryHighlight, 400);
       }
       return false;
     };
 
-    // Initial attempt + retry loop for dynamic SPA rendering
-    setTimeout(tryHighlight, 600);
-  });
+    setTimeout(tryHighlight, 400);
+  };
+
+  // 1. Check storage for citation click from Ask Saka widget
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(['pendingSakaHighlight'], (items) => {
+      const pending = items.pendingSakaHighlight;
+      if (pending && pending.quote && Date.now() - (pending.timestamp || 0) <= 60000) {
+        runHighlighter(pending.quote);
+        return;
+      }
+
+      // 2. Fallback to URL text fragment if present
+      const hashTarget = extractTargetFromHash();
+      if (hashTarget) {
+        runHighlighter(hashTarget);
+      }
+    });
+  } else {
+    // 2. Direct fallback to URL text fragment
+    const hashTarget = extractTargetFromHash();
+    if (hashTarget) {
+      runHighlighter(hashTarget);
+    }
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -160,3 +217,8 @@ if (document.readyState === 'loading') {
   initAskSakaWidget();
   initSakaQuoteHighlighter();
 }
+
+// Support in-page hash changes for SPA citation navigation
+window.addEventListener('hashchange', () => {
+  initSakaQuoteHighlighter();
+});

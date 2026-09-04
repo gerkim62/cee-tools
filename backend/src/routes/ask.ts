@@ -612,7 +612,12 @@ ${s.content}
 
     function formatCleanExcerpt(text: string): string {
       if (!text) return '';
-      return text.trim();
+      return text
+        .trim()
+        .replace(/^[·•\u00b7\u2022]\s*/, '')
+        .replace(/^[-–—]\s+/, '')
+        .replace(/^\*\s+/, '')
+        .trim();
     }
 
     // Normalize any [Source 8], [source 8], [src 8] into [8]

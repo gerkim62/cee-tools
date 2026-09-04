@@ -22,7 +22,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/content.tsx-loader-CfpFtVag.js"
+        "assets/content.tsx-loader-BpsYm5Ho.js"
       ],
       "matches": [
         "<all_urls>"
@@ -41,8 +41,8 @@
         "<all_urls>"
       ],
       "resources": [
-        "assets/syncer-BqQtLiTi.js",
-        "assets/content.tsx-2YnszyYw.js"
+        "assets/syncer-ChPmLwMi.js",
+        "assets/content.tsx-3ESglIAL.js"
       ],
       "use_dynamic_url": false
     }

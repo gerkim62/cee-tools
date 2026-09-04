@@ -157,10 +157,13 @@ export function cleanWordHtmlToMarkdown(html: string): string {
   if (!html || typeof html !== 'string') return '';
 
   // 1. Strip Word conditional comments <!--[if ...]>...<![endif]-->
-  let preprocessed = html.replace(/<!--\[if[\s\S]*?<!\[endif\]-->/gi, '');
+  let preprocessed = html.replace(/<!--\s*\[if[\s\S]*?<!\[endif\]\s*-->/gi, '');
   preprocessed = preprocessed.replace(/<!--[\s\S]*?-->/g, '');
 
-  // 2. Remove Word namespace tags like <o:p> and <xml>
+  // 2. Remove Word list-marker ignore spans (e.g. <span style="mso-list: Ignore;">·...</span>)
+  preprocessed = preprocessed.replace(/<span[^>]*style="[^"]*mso-list:\s*Ignore[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '');
+
+  // 3. Remove Word namespace tags like <o:p> and <xml>
   preprocessed = preprocessed.replace(/<\/?(o:p|xml)[^>]*>/gi, '');
 
   // 3. Convert via Turndown

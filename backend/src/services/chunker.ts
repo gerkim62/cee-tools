@@ -70,10 +70,18 @@ export function generateTextFragment(quote: string): string {
     .replace(/__([^_]+)__/g, '$1')
     // Strip inline code `code`
     .replace(/`([^`]+)`/g, '$1')
-    // Strip heading markers at line start: # Title
-    .replace(/^#+\s+/gm, '')
-    // Normalize spaces
-    .replace(/\s+/g, ' ')
+  // Strip markdown heading markers at line start: # Title
+  clean = clean.replace(/^#+\s+/gm, '').replace(/\s+/g, ' ').trim();
+
+  // Strip leading list bullets, middle dots, numbering and punctuation without stripping USSD codes like *334#
+  clean = clean
+    .replace(/^[·•\u00b7\u2022]\s*/, '') // Middle dot or bullet
+    .replace(/^[-–—]\s+/, '')            // Dash list marker
+    .replace(/^\*\s+/, '')               // Markdown star bullet (space required, preserves *334#)
+    .replace(/^\d+[\.\)]\s+/, '')        // Numbered list: "1. " or "1) "
+    .replace(/^[a-zA-Z][\.\)]\s+/, '')   // Letter list: "a. " or "a) "
+    .replace(/^\([a-zA-Z\d]+\)\s+/, '')  // Parenthesized list: "(1) " or "(a) "
+    .replace(/[\s·•\u00b7\u2022\-]+$/, '') // Trailing bullets or dashes
     .trim();
 
   const words = clean.split(' ').filter(Boolean);

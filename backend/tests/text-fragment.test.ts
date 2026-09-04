@@ -39,5 +39,23 @@ describe('Text Fragment Generation', () => {
       'https://sakahub.safaricom.co.ke/app/article/9d0967c3-104c-4dc7-b7e1-0938bbf37fb1#:~:text=Dial%20*334%23%20and%20select%20Option%207'
     );
   });
+
+  test('should strip leading Word middle dots and bullets without breaking text matching', () => {
+    const wordBulletQuote = '· Query the customer number on M-PESA G2 and confirm ownership of the line using the Customer Names as per M-PESA system.';
+    const fragment = generateTextFragment(wordBulletQuote);
+    assert.ok(!fragment.includes('%C2%B7'), 'Should not contain encoded middle dot (%C2%B7)');
+    assert.ok(fragment.includes('Query%20the%20customer'), 'Should start directly with clean words');
+  });
+
+  test('should strip leading unicode bullet and dash list markers', () => {
+    const bulletQuote = '• Search the number seeking assistance on CRM.';
+    const fragment = generateTextFragment(bulletQuote);
+    assert.ok(!fragment.includes('%E2%80%A2'), 'Should not contain encoded bullet');
+    assert.ok(fragment.includes('Search%20the%20number'), 'Should start directly with clean text');
+
+    const dashQuote = '- Initiate the reversal and advise on the 12 working hours SLA.';
+    const dashFragment = generateTextFragment(dashQuote);
+    assert.ok(dashFragment.includes('Initiate%20the%20reversal'));
+  });
 });
 
