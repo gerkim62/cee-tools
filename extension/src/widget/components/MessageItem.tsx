@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { marked } from 'marked';
 import { Copy, Check, Sparkles, Compass, ChevronDown, ChevronUp } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
@@ -18,7 +18,19 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   onLeaveCitation,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [isExecutionExpanded, setIsExecutionExpanded] = useState(true);
+  const [userToggled, setUserToggled] = useState(false);
+  const [isExecutionExpanded, setIsExecutionExpanded] = useState(Boolean(message.isStreaming));
+  const prevStreamingRef = useRef(message.isStreaming);
+
+  useEffect(() => {
+    // When streaming finishes, auto-collapse execution steps unless user manually toggled it
+    if (prevStreamingRef.current && !message.isStreaming) {
+      if (!userToggled) {
+        setIsExecutionExpanded(false);
+      }
+    }
+    prevStreamingRef.current = message.isStreaming;
+  }, [message.isStreaming, userToggled]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -129,7 +141,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           <button
             type="button"
             className="saka-execution-toggle"
-            onClick={() => setIsExecutionExpanded(!isExecutionExpanded)}
+            onClick={() => {
+              setUserToggled(true);
+              setIsExecutionExpanded((prev) => !prev);
+            }}
             title="Toggle understanding & search details"
           >
             <div className="saka-execution-toggle-left">
