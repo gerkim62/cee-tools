@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, ShieldCheck, ExternalLink } from 'lucide-react';
+import { AlertCircle, ShieldCheck, ExternalLink, Globe, X } from 'lucide-react';
 import { BackendSyncStatus, SyncProgressUpdate } from '../../types.js';
 import { getBackendUrl } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
@@ -20,6 +20,13 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
   const [status, setStatus] = useState<BackendSyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dismissedError, setDismissedError] = useState(false);
+
+  useEffect(() => {
+    if (isSyncing) {
+      setDismissedError(false);
+    }
+  }, [isSyncing]);
 
   const fetchStats = async () => {
     try {
@@ -101,48 +108,108 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
       )}
 
       {/* Sync Error Box if sync failed */}
-      {!isSyncing && syncProgress?.stage === 'error' && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            borderRadius: '10px',
-            padding: '12px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            color: '#fca5a5',
-            fontSize: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fca5a5' }}>
-            <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
-            <span>Sync Unavailable</span>
-          </div>
-          <span style={{ lineHeight: 1.4 }}>
-            {syncProgress.message || 'Cannot download articles: SakaHub portal session is not active.'}
-          </span>
-          <a
-            href="https://sakahub.safaricom.co.ke"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="saka-btn-secondary"
+      {!isSyncing && syncProgress?.stage === 'error' && !dismissedError && (() => {
+        const isPortalSession =
+          !syncProgress.message ||
+          syncProgress.message.includes('portal') ||
+          syncProgress.message.includes('session') ||
+          syncProgress.message.includes('SAKAHUB_AUTH') ||
+          syncProgress.message.includes('401') ||
+          syncProgress.message.includes('redirect');
+
+        if (isPortalSession) {
+          return (
+            <div
+              style={{
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.28)',
+                borderRadius: '10px',
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fcd34d', fontSize: '13px' }}>
+                  <Globe size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
+                  <span>SakaHub Portal Connection Needed</span>
+                </div>
+                <button
+                  type="button"
+                  className="saka-btn-icon"
+                  style={{ width: '22px', height: '22px' }}
+                  onClick={() => setDismissedError(true)}
+                  title="Dismiss"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+
+              <p style={{ margin: 0, color: '#cbd5e1', fontSize: '12px', lineHeight: 1.5 }}>
+                To download the latest articles, please open SakaHub.
+              </p>
+
+              <a
+                href="https://sakahub.safaricom.co.ke"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="saka-btn-primary"
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  borderRadius: '6px',
+                  background: '#f59e0b',
+                  color: '#0f172a',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginTop: '4px',
+                }}
+              >
+                <span>Open SakaHub Portal</span>
+                <ExternalLink size={13} />
+              </a>
+            </div>
+          );
+        }
+
+        return (
+          <div
             style={{
-              alignSelf: 'flex-start',
-              padding: '4px 10px',
-              fontSize: '11.5px',
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              marginTop: '2px',
+              background: 'rgba(239, 68, 68, 0.10)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              color: '#fca5a5',
+              fontSize: '12px',
             }}
           >
-            <span>Open SakaHub Portal</span>
-            <ExternalLink size={12} />
-          </a>
-        </div>
-      )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fca5a5' }}>
+                <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+                <span>Sync Failed</span>
+              </div>
+              <button
+                type="button"
+                className="saka-btn-icon"
+                style={{ width: '22px', height: '22px' }}
+                onClick={() => setDismissedError(true)}
+                title="Dismiss"
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <span style={{ lineHeight: 1.4 }}>{syncProgress.message}</span>
+          </div>
+        );
+      })()}
 
       {/* Single Unified Sync Status Card */}
       <div
@@ -160,8 +227,8 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
             {isSyncing
               ? 'Synchronizing Knowledge Base'
               : status?.totalIndexed === 0
-              ? 'Knowledge Base Empty'
-              : 'Knowledge Base Synchronized'}
+                ? 'Knowledge Base Empty'
+                : 'Knowledge Base Synchronized'}
           </span>
           {isSyncing ? (
             <span className="saka-percentage-pill">{pct}%</span>

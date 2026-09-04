@@ -9,6 +9,7 @@ dist-ssr/
 .vite/
 .turbo/
 .cache/
+!releases/**
 
 # Environment and secrets
 .env
