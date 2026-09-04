@@ -113,19 +113,32 @@ export interface Citation {
   urlWithTextFragment: string;
 }
 
+export interface ClarifyingQuestion {
+  type: 'single_choice' | 'multi_choice' | 'free_text';
+  prompt: string;
+  options?: string[];
+}
+
 export interface AskResponse {
   answer: string;
   citations: Citation[];
   conversationId?: string;
+  conversationTitle?: string;
+  executionSteps?: ExecutionStep[];
+  clarifyingQuestion?: ClarifyingQuestion;
+  suggestedFollowUps?: string[];
 }
 
 export interface ConversationSummary {
   id: string;
   clientId: string;
   title: string;
+  isCompacted?: boolean;
+  summary?: string | null;
   createdAt: string;
   updatedAt: string;
   messageCount?: number;
+  snippetMatch?: string | null;
 }
 
 export interface ExecutionStep {
@@ -139,6 +152,8 @@ export interface ChatMessage {
   content: string;
   citations?: Citation[];
   executionSteps?: ExecutionStep[];
+  clarifyingQuestion?: ClarifyingQuestion;
+  suggestedFollowUps?: string[];
   createdAt: string;
   isStreaming?: boolean;
 }
@@ -175,7 +190,16 @@ export type AskStreamServerMessage =
   | { type: 'status'; message: string; label?: string; detail?: string; step?: string }
   | { type: 'token'; delta: string }
   | { type: 'citations'; citations: Citation[] }
-  | { type: 'done'; answer?: string; citations?: Citation[]; conversationId?: string; executionSteps?: ExecutionStep[] }
+  | {
+      type: 'done';
+      answer?: string;
+      citations?: Citation[];
+      conversationId?: string;
+      conversationTitle?: string;
+      executionSteps?: ExecutionStep[];
+      clarifyingQuestion?: ClarifyingQuestion;
+      suggestedFollowUps?: string[];
+    }
   | { type: 'error'; message: string };
 
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Clock, Trash2, MessageSquarePlus, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Search, X, Trash2, MessageSquarePlus, AlertCircle, RefreshCw, Lock } from 'lucide-react';
 import { ConversationSummary } from '../../types.js';
 import { getBackendUrl, getClientId } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
@@ -15,30 +15,62 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 }) => {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<number | null>(null);
 
-  const fetchConversations = async () => {
+  const fetchConversations = async (query = '') => {
     try {
-      setLoading(true);
+      if (query.trim()) {
+        setSearching(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       const backendUrl = await getBackendUrl();
       const clientId = await getClientId();
-      const res = await bgFetch(`${backendUrl}/conversations?clientId=${encodeURIComponent(clientId)}`);
+
+      let url = `${backendUrl}/conversations?clientId=${encodeURIComponent(clientId)}`;
+      if (query.trim()) {
+        url = `${backendUrl}/conversations/search?clientId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(query.trim())}`;
+      }
+
+      const res = await bgFetch(url);
       if (!res.ok) {
         throw new Error(`Server returned HTTP ${res.status}`);
       }
       setConversations(res.data?.conversations || []);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(`Unable to connect to backend: ${msg}`);
+      setError(`Unable to load conversations: ${msg}`);
     } finally {
       setLoading(false);
+      setSearching(false);
     }
   };
 
   useEffect(() => {
     fetchConversations();
   }, []);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+
+    if (searchTimeoutRef.current) {
+      window.clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = window.setTimeout(() => {
+      fetchConversations(val);
+    }, 250);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    fetchConversations('');
+  };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -62,18 +94,77 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     return `${days}d ago`;
   };
 
+  // Group conversations chronologically
+  const groupedConversations = useMemo(() => {
+    if (searchQuery.trim()) {
+      return [{ title: `Search Results (${conversations.length})`, items: conversations }];
+    }
+
+    const today: ConversationSummary[] = [];
+    const yesterday: ConversationSummary[] = [];
+    const pastWeek: ConversationSummary[] = [];
+    const older: ConversationSummary[] = [];
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 86400000;
+    const startOfPastWeek = startOfToday - 7 * 86400000;
+
+    for (const conv of conversations) {
+      const time = new Date(conv.updatedAt).getTime();
+      if (time >= startOfToday) {
+        today.push(conv);
+      } else if (time >= startOfYesterday) {
+        yesterday.push(conv);
+      } else if (time >= startOfPastWeek) {
+        pastWeek.push(conv);
+      } else {
+        older.push(conv);
+      }
+    }
+
+    const groups = [];
+    if (today.length > 0) groups.push({ title: 'Today', items: today });
+    if (yesterday.length > 0) groups.push({ title: 'Yesterday', items: yesterday });
+    if (pastWeek.length > 0) groups.push({ title: 'Previous 7 Days', items: pastWeek });
+    if (older.length > 0) groups.push({ title: 'Older', items: older });
+
+    return groups;
+  }, [conversations, searchQuery]);
+
   return (
     <div className="saka-view-container">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
         <h3 className="saka-view-title">Conversation History</h3>
-        {conversations.length > 0 && (
+        <button
+          type="button"
+          className="saka-btn-primary"
+          style={{ padding: '4px 10px', fontSize: '11.5px', borderRadius: '6px' }}
+          onClick={onStartNewChat}
+        >
+          + New Chat
+        </button>
+      </div>
+
+      {/* Zero-Credit Instant Search Bar */}
+      <div className="saka-history-search-bar">
+        <Search size={14} color="#94a3b8" />
+        <input
+          type="text"
+          className="saka-history-search-input"
+          placeholder="Search chat history & content..."
+          value={searchQuery}
+          onChange={handleSearchChange}
+        />
+        {searching && <RefreshCw size={13} className="spin" style={{ animation: 'spin 1.2s linear infinite', color: '#38bdf8' }} />}
+        {searchQuery && !searching && (
           <button
             type="button"
-            className="saka-btn-primary"
-            style={{ padding: '4px 10px', fontSize: '11.5px', borderRadius: '6px' }}
-            onClick={onStartNewChat}
+            className="saka-btn-icon"
+            onClick={handleClearSearch}
+            title="Clear search"
           >
-            + New Chat
+            <X size={13} />
           </button>
         )}
       </div>
@@ -114,18 +205,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             type="button"
             className="saka-btn-secondary"
             style={{ alignSelf: 'flex-start', padding: '4px 12px', fontSize: '12px', marginTop: '2px' }}
-            onClick={fetchConversations}
+            onClick={() => fetchConversations(searchQuery)}
           >
             Retry Connection
           </button>
         </div>
       ) : conversations.length === 0 ? (
-        <div className="saka-empty-state" style={{ padding: '40px 16px', margin: 'auto 0' }}>
+        <div className="saka-empty-state" style={{ padding: '36px 16px', margin: 'auto 0' }}>
           <div
             style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '16px',
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
               background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.1) 100%)',
               border: '1px solid rgba(16, 185, 129, 0.3)',
               display: 'flex',
@@ -135,50 +226,87 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               boxShadow: '0 8px 20px -4px rgba(16, 185, 129, 0.2)',
             }}
           >
-            <MessageSquarePlus size={28} />
+            <MessageSquarePlus size={26} />
           </div>
 
-          <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#ffffff', marginTop: '4px' }}>
-            No Conversations Yet
+          <h4 style={{ fontSize: '14.5px', fontWeight: 700, color: '#ffffff', marginTop: '4px' }}>
+            {searchQuery ? 'No Matches Found' : 'No Conversations Yet'}
           </h4>
 
-          <p style={{ fontSize: '12.5px', color: '#94a3b8', maxWidth: '280px', lineHeight: 1.5 }}>
-            Your chats are saved automatically so you can pick up where you left off or review past SOP checklists.
+          <p style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '280px', lineHeight: 1.5 }}>
+            {searchQuery
+              ? `No saved conversations match "${searchQuery}". Try a different keyword.`
+              : 'Your chats are saved automatically so you can pick up where you left off.'}
           </p>
 
-          <button
-            type="button"
-            className="saka-btn-primary"
-            style={{ marginTop: '8px', padding: '8px 18px' }}
-            onClick={onStartNewChat}
-          >
-            + Start a New Chat
-          </button>
+          {searchQuery ? (
+            <button
+              type="button"
+              className="saka-btn-secondary"
+              style={{ marginTop: '6px', padding: '6px 14px' }}
+              onClick={handleClearSearch}
+            >
+              Clear Search Filter
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="saka-btn-primary"
+              style={{ marginTop: '6px', padding: '6px 16px' }}
+              onClick={onStartNewChat}
+            >
+              + Start a New Chat
+            </button>
+          )}
         </div>
       ) : (
-        <div className="saka-history-list">
-          {conversations.map((conv) => (
-            <div
-              key={conv.id}
-              className="saka-history-card"
-              onClick={() => onSelectConversation(conv.id)}
-            >
-              <div className="saka-history-info">
-                <span className="saka-history-title">{conv.title}</span>
-                <span className="saka-history-time">
-                  {conv.messageCount ? `${conv.messageCount} messages • ` : ''}
-                  {formatRelativeTime(conv.updatedAt)}
-                </span>
-              </div>
+        <div className="saka-history-groups-container">
+          {groupedConversations.map((group, gIdx) => (
+            <div key={gIdx} className="saka-history-group">
+              <div className="saka-history-group-title">{group.title}</div>
+              <div className="saka-history-list">
+                {group.items.map((conv) => (
+                  <div
+                    key={conv.id}
+                    className="saka-history-card"
+                    onClick={() => onSelectConversation(conv.id)}
+                  >
+                    <div className="saka-history-info">
+                      <div className="saka-history-title-row">
+                        <span className="saka-history-title" title={conv.title}>
+                          {conv.title}
+                        </span>
+                        {conv.isCompacted && (
+                          <span className="saka-badge-compacted" title="Compacted & locked thread">
+                            <Lock size={9} style={{ display: 'inline', marginRight: '2px', verticalAlign: 'middle' }} />
+                            Compacted
+                          </span>
+                        )}
+                      </div>
 
-              <button
-                type="button"
-                className="saka-btn-icon"
-                onClick={(e) => handleDelete(e, conv.id)}
-                title="Delete thread"
-              >
-                <Trash2 size={14} />
-              </button>
+                      <span className="saka-history-time">
+                        {conv.messageCount ? `${conv.messageCount} msg • ` : ''}
+                        {formatRelativeTime(conv.updatedAt)}
+                      </span>
+
+                      {conv.snippetMatch && (
+                        <div className="saka-history-snippet" title={conv.snippetMatch}>
+                          "{conv.snippetMatch}"
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="saka-btn-icon"
+                      onClick={(e) => handleDelete(e, conv.id)}
+                      title="Delete thread"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>

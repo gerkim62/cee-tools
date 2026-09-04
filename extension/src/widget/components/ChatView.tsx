@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, Minimize2, RefreshCw, Lock } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
 import { MessageItem } from './MessageItem.js';
 import { ChatInput } from './ChatInput.js';
@@ -8,6 +8,10 @@ interface ChatViewProps {
   messages: ChatMessage[];
   statusLog: string[];
   isStreaming: boolean;
+  conversationTitle?: string | null;
+  isCompacted?: boolean;
+  isCompacting?: boolean;
+  onCompactConversation?: () => void;
   onSendMessage: (text: string) => void;
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
@@ -17,6 +21,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   statusLog,
   isStreaming,
+  conversationTitle,
+  isCompacted = false,
+  isCompacting = false,
+  onCompactConversation,
   onSendMessage,
   onHoverCitation,
   onLeaveCitation,
@@ -37,8 +45,41 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
   }, [messages, statusLog]);
 
+  const showHeader = Boolean(conversationTitle || (messages.length >= 4 && !isCompacted));
+
   return (
     <div className="saka-chat-container">
+      {/* Optional Top Conversation Header Bar with Compaction Trigger */}
+      {showHeader && (
+        <div className="saka-chat-header-bar">
+          <span className="saka-chat-title-text" title={conversationTitle || 'Active Chat'}>
+            {conversationTitle || 'Active Conversation'}
+          </span>
+
+          {messages.length >= 4 && !isCompacted && onCompactConversation && (
+            <button
+              type="button"
+              className="saka-compact-btn"
+              onClick={onCompactConversation}
+              disabled={isCompacting || isStreaming}
+              title="Summarize key points, lock this thread, and start a fresh continued chat"
+            >
+              {isCompacting ? (
+                <>
+                  <RefreshCw size={11} className="spin" style={{ animation: 'spin 1.2s linear infinite' }} />
+                  <span>Compacting...</span>
+                </>
+              ) : (
+                <>
+                  <Minimize2 size={11} />
+                  <span>Compact</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="saka-messages-scroll" ref={scrollRef}>
         {messages.length === 0 ? (
           <div className="saka-empty-state">
@@ -71,12 +112,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
               statusLog={msg.isStreaming ? statusLog : []}
               onHoverCitation={onHoverCitation}
               onLeaveCitation={onLeaveCitation}
+              onSendMessage={onSendMessage}
             />
           ))
         )}
       </div>
 
-      <ChatInput onSend={onSendMessage} disabled={isStreaming} />
+      {/* Lock banner if conversation is compacted */}
+      {isCompacted ? (
+        <div className="saka-compacted-lock-banner">
+          <Lock size={13} />
+          <span>This conversation has been compacted and locked as read-only.</span>
+        </div>
+      ) : (
+        <ChatInput onSend={onSendMessage} disabled={isStreaming} />
+      )}
     </div>
   );
 };

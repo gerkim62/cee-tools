@@ -5,6 +5,10 @@ import { bgFetch } from '../../scripts/bg-fetch.js';
 
 export function useChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationTitle, setConversationTitle] = useState<string | null>(null);
+  const [isCompacted, setIsCompacted] = useState(false);
+  const [conversationSummary, setConversationSummary] = useState<string | null>(null);
+  const [isCompacting, setIsCompacting] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [statusLog, setStatusLog] = useState<string[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -18,6 +22,9 @@ export function useChat() {
       portRef.current = null;
     }
     setConversationId(null);
+    setConversationTitle(null);
+    setIsCompacted(false);
+    setConversationSummary(null);
     setMessages([]);
     setStatusLog([]);
     setIsStreaming(false);
@@ -31,12 +38,17 @@ export function useChat() {
       const data = res.data;
 
       setConversationId(data.conversation.id);
+      setConversationTitle(data.conversation.title || null);
+      setIsCompacted(Boolean(data.conversation.isCompacted));
+      setConversationSummary(data.conversation.summary || null);
       const formattedMessages: ChatMessage[] = (data.messages || []).map((m: any) => ({
         id: m.id,
         role: m.role,
         content: m.content,
         citations: m.citations || undefined,
         executionSteps: m.executionSteps || undefined,
+        clarifyingQuestion: m.clarifyingQuestion || undefined,
+        suggestedFollowUps: m.suggestedFollowUps || undefined,
         createdAt: m.createdAt,
       }));
       setMessages(formattedMessages);
@@ -46,6 +58,26 @@ export function useChat() {
       console.error('[useChat] Failed loading conversation via background:', err);
     }
   }, []);
+
+  const compactCurrentConversation = useCallback(async () => {
+    if (!conversationId || isCompacting || isStreaming) return;
+    setIsCompacting(true);
+    try {
+      const backendUrl = await getBackendUrl();
+      const res = await bgFetch(`${backendUrl}/conversations/${conversationId}/compact`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.data?.error || 'Compaction failed'}`);
+      const data = res.data;
+      if (data?.newConversation?.id) {
+        await loadConversation(data.newConversation.id);
+      }
+    } catch (err) {
+      console.error('[useChat] Compaction failed:', err);
+    } finally {
+      setIsCompacting(false);
+    }
+  }, [conversationId, isCompacting, isStreaming, loadConversation]);
 
   const sendMessage = useCallback(
     async (rawQuestion: string) => {
@@ -129,6 +161,9 @@ export function useChat() {
             if (msg.conversationId) {
               setConversationId(msg.conversationId);
             }
+            if (msg.conversationTitle) {
+              setConversationTitle(msg.conversationTitle);
+            }
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantMsgId
@@ -137,6 +172,8 @@ export function useChat() {
                       content: msg.answer || m.content,
                       citations: msg.citations || m.citations,
                       executionSteps: msg.executionSteps || m.executionSteps,
+                      clarifyingQuestion: msg.clarifyingQuestion,
+                      suggestedFollowUps: msg.suggestedFollowUps,
                       isStreaming: false,
                     }
                   : m
@@ -217,6 +254,11 @@ export function useChat() {
 
   return {
     conversationId,
+    conversationTitle,
+    isCompacted,
+    conversationSummary,
+    isCompacting,
+    compactCurrentConversation,
     messages,
     statusLog,
     isStreaming,

@@ -48,6 +48,15 @@ export const CitationHoverCard: React.FC<CitationHoverCardProps> = ({
         className="saka-popover-link"
         onClick={(e) => {
           e.stopPropagation();
+          if (citation.quote && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({
+              pendingSakaHighlight: {
+                articleId: citation.articleId,
+                quote: citation.quote,
+                timestamp: Date.now(),
+              },
+            }).catch(() => {});
+          }
         }}
       >
         <span>Open in SakaHub</span>

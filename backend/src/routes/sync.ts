@@ -2,27 +2,8 @@ import { Router, Request, Response } from 'express';
 import { query } from '../db.js';
 import { acquireLock, releaseLock, getLockStatus } from '../services/lock.js';
 import { getActiveCollectionName } from '../services/qdrant.js';
-import { clearAllDatabase } from '../services/clear-db.js';
 
 export const syncRouter: Router = Router();
-
-/**
- * POST /db/clear
- * Wipes all records from PostgreSQL and resets the Qdrant vector collection.
- */
-syncRouter.post('/db/clear', async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const result = await clearAllDatabase();
-    res.json({
-      success: true,
-      message: 'Knowledge base database completely cleared.',
-      result,
-    });
-  } catch (error: any) {
-    console.error('[Sync Router Error] Failed to clear database:', error);
-    res.status(500).json({ error: 'Failed to clear database', message: error.message });
-  }
-});
 
 /**
  * GET /sync-status

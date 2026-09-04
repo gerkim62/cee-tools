@@ -127,41 +127,23 @@ export async function initQdrant(): Promise<string> {
     const existing = collectionsRes.collections.find(c => c.name === activeCollectionName);
 
     if (existing) {
-      try {
-        const info = await qdrantClient.getCollection(activeCollectionName);
-        const hasSparse = !!info.config?.params?.sparse_vectors;
-        const hasDenseNamed = !!(info.config?.params?.vectors as any)?.dense;
-
-        if (!hasSparse || !hasDenseNamed) {
-          console.log(`[Qdrant] Upgrading collection ${activeCollectionName} to hybrid (dense + sparse)...`);
-          await qdrantClient.deleteCollection(activeCollectionName);
-        }
-      } catch (err) {
-        console.warn(`[Qdrant] Error checking collection params, recreating:`, err);
-        await qdrantClient.deleteCollection(activeCollectionName).catch(() => {});
-      }
-    }
-
-    const checkAgain = await qdrantClient.getCollections();
-    const stillExists = checkAgain.collections.some(c => c.name === activeCollectionName);
-
-    if (!stillExists) {
-      console.log(`[Qdrant] Creating hybrid collection ${activeCollectionName} (dense: ${vectorSize}, sparse: BM25)...`);
-      await qdrantClient.createCollection(activeCollectionName, {
-        vectors: {
-          dense: {
-            size: vectorSize,
-            distance: 'Cosine',
-          },
-        },
-        sparse_vectors: {
-          sparse: {},
-        },
-      });
-      console.log(`[Qdrant] Hybrid collection ${activeCollectionName} created successfully.`);
-    } else {
       console.log(`[Qdrant] Hybrid collection ${activeCollectionName} verified ready.`);
+      return activeCollectionName;
     }
+
+    console.log(`[Qdrant] Creating hybrid collection ${activeCollectionName} (dense: ${vectorSize}, sparse: BM25)...`);
+    await qdrantClient.createCollection(activeCollectionName, {
+      vectors: {
+        dense: {
+          size: vectorSize,
+          distance: 'Cosine',
+        },
+      },
+      sparse_vectors: {
+        sparse: {},
+      },
+    });
+    console.log(`[Qdrant] Hybrid collection ${activeCollectionName} created successfully.`);
 
     // 4. Ensure payload index on article_id for instant filtered deletions
     try {

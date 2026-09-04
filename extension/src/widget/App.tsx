@@ -75,6 +75,31 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Hierarchical Escape key handler:
+  // 1. Dismiss citation preview hovercard if visible
+  // 2. Dismiss chevron dropdown menu if open
+  // 3. Return to chat view if in a subview (history, sync, settings)
+  // 4. Collapse expanded widget window back to floating badge
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (hoveredCitation) {
+          setHoveredCitation(null);
+        } else if (isMenuOpen) {
+          setIsMenuOpen(false);
+        } else if (currentView !== 'chat') {
+          setCurrentView('chat');
+        } else if (isOpen) {
+          setIsOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [hoveredCitation, isMenuOpen, currentView, isOpen]);
+
   const handleToggleOpen = () => {
     // If the mouse moved significantly, it was a drag, not a click
     if (badgeDraggable.hasMoved()) return;
@@ -216,6 +241,10 @@ export const App: React.FC = () => {
               messages={chat.messages}
               statusLog={chat.statusLog}
               isStreaming={chat.isStreaming}
+              conversationTitle={chat.conversationTitle}
+              isCompacted={chat.isCompacted}
+              isCompacting={chat.isCompacting}
+              onCompactConversation={chat.compactCurrentConversation}
               onSendMessage={chat.sendMessage}
               onHoverCitation={handleHoverCitation}
               onLeaveCitation={handleLeaveCitation}

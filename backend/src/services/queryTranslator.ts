@@ -64,18 +64,26 @@ export function parseTranslationResponse(raw: string, rawQuery: string): Transla
 
 /**
  * Translates raw agent questions into structured retrieval query variants.
+ * Resolves pronouns / references using conversation context when available.
  */
-export async function translateQuery(rawQuery: string): Promise<TranslatedQuery> {
+export async function translateQuery(
+  rawQuery: string,
+  previousTurnsContext?: string
+): Promise<TranslatedQuery> {
   const trimmed = rawQuery.trim();
   if (!trimmed) {
     return { needsContext: true, primary: '', fallback: '', alt: null };
   }
 
+  const userPrompt = previousTurnsContext
+    ? `Recent Conversation Context:\n${previousTurnsContext}\n\nCurrent Question: ${trimmed}`
+    : trimmed;
+
   try {
     const raw = await chatCompletion(
       [
         { role: 'system', content: QUERY_TRANSLATION_SYSTEM_PROMPT },
-        { role: 'user', content: trimmed },
+        { role: 'user', content: userPrompt },
       ],
       {
         temperature: RAG_CONSTANTS.QUERY_TRANSLATION_TEMPERATURE,

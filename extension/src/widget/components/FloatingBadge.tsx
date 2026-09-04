@@ -19,7 +19,7 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
   onMouseDown,
   style,
 }) => {
-  const radius = 28;
+  const radius = 25;
   const circumference = 2 * Math.PI * radius;
   const progressPct = syncProgress?.progressPercent ?? 0;
   const strokeDashoffset = circumference - (progressPct / 100) * circumference;
@@ -47,28 +47,27 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
       tabIndex={0}
       aria-label="Ask Saka AI Copilot"
     >
+      {isSyncing && (
+        <svg className="saka-progress-ring" viewBox="0 0 56 56">
+          <circle
+            className="saka-progress-ring-bg"
+            cx="28"
+            cy="28"
+            r={radius}
+          />
+          <circle
+            className="saka-progress-ring-circle"
+            cx="28"
+            cy="28"
+            r={radius}
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+          />
+        </svg>
+      )}
+
       <div className="saka-badge-icon-wrapper">
         <Bot size={26} strokeWidth={2.2} />
-
-        {isSyncing && (
-          <svg className="saka-progress-ring">
-            <circle
-              className="saka-progress-ring-bg"
-              cx="32"
-              cy="32"
-              r={radius}
-            />
-            <circle
-              className="saka-progress-ring-circle"
-              cx="32"
-              cy="32"
-              r={radius}
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-            />
-          </svg>
-        )}
-
         <div className={`saka-badge-status-dot ${statusClass}`} />
       </div>
     </div>

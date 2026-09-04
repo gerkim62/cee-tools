@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { marked } from 'marked';
-import { Copy, Check, Sparkles, Compass, ChevronDown, ChevronUp } from 'lucide-react';
+import { Copy, Check, Sparkles, Compass, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
 import { RollingStatus } from './RollingStatus.js';
 
@@ -9,6 +9,7 @@ interface MessageItemProps {
   statusLog: string[];
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
+  onSendMessage?: (text: string) => void;
 }
 
 export const MessageItem: React.FC<MessageItemProps> = ({
@@ -16,6 +17,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   statusLog,
   onHoverCitation,
   onLeaveCitation,
+  onSendMessage,
 }) => {
   const [copied, setCopied] = useState(false);
   const [userToggled, setUserToggled] = useState(false);
@@ -42,20 +44,29 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     });
   };
 
-  // Convert markdown to HTML and inject citation button tags
+  // Convert markdown to HTML and inject interactive citation buttons
   const renderedHtml = useMemo(() => {
     if (!message.content) return '';
     try {
       let html = marked.parse(message.content, { async: false }) as string;
-      // Replace [1], [2] with interactive citation buttons
-      html = html.replace(/\[(\d+)\]/g, (_match, numStr) => {
-        const citeNum = parseInt(numStr, 10);
-        const cite = message.citations?.[citeNum - 1];
-        const titleText = cite
-          ? `Source [${numStr}]: ${cite.articleNumber ? `[${cite.articleNumber}] ` : ''}${cite.articleTitle} (Click to open in SakaHub, hover for excerpt)`
-          : `Source [${numStr}] — Click to open in SakaHub`;
-        const safeTitle = titleText.replace(/"/g, '&quot;');
-        return `<button type="button" class="saka-citation-tag" data-cite-num="${numStr}" title="${safeTitle}">[${numStr}]</button>`;
+
+      // Normalize any [source 8], [Source 8], [src 8] variants
+      html = html.replace(/\[\s*(?:source|src)?\s*(\d+(?:\s*,\s*(?:source|src)?\s*\d+)*)\s*\]/gi, '[$1]');
+
+      // Replace single or grouped citations like [1] or [1, 2, 3] with individual interactive button tags
+      html = html.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (_match, group) => {
+        const nums = group.split(',').map((s: string) => s.trim()).filter(Boolean);
+        return nums
+          .map((numStr: string) => {
+            const citeNum = parseInt(numStr, 10);
+            const cite = message.citations?.[citeNum - 1];
+            const titleText = cite
+              ? `Source [${numStr}]: ${cite.articleNumber ? `[${cite.articleNumber}] ` : ''}${cite.articleTitle} (Click to open in SakaHub, hover for excerpt)`
+              : `Source [${numStr}] — Click to open in SakaHub`;
+            const safeTitle = titleText.replace(/"/g, '&quot;');
+            return `<button type="button" class="saka-citation-tag" data-cite-num="${numStr}" title="${safeTitle}">[${numStr}]</button>`;
+          })
+          .join(' ');
       });
       return html;
     } catch {
@@ -71,6 +82,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const citeNum = parseInt(target.getAttribute('data-cite-num') || '0', 10);
     const citation = message.citations?.[citeNum - 1];
     if (citation?.urlWithTextFragment) {
+      // Store pending quote highlight for SakaHub SPA content script to locate on mount
+      if (citation.quote && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({
+          pendingSakaHighlight: {
+            articleId: citation.articleId,
+            quote: citation.quote,
+            timestamp: Date.now(),
+          },
+        }).catch(() => {});
+      }
       window.open(citation.urlWithTextFragment, '_blank', 'noopener,noreferrer');
     }
   };
@@ -172,6 +193,48 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           className="saka-markdown-body"
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
+      )}
+
+      {/* Clarifying Question Options (Non-blocking selection chips) */}
+      {!message.isStreaming && message.clarifyingQuestion && message.clarifyingQuestion.options && message.clarifyingQuestion.options.length > 0 && (
+        <div className="saka-clarification-container">
+          <div className="saka-clarification-title">
+            <HelpCircle size={13} />
+            <span>{message.clarifyingQuestion.prompt}</span>
+          </div>
+          <div className="saka-clarification-chips">
+            {message.clarifyingQuestion.options.map((opt, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className="saka-chip-btn saka-chip-clarify"
+                onClick={() => onSendMessage?.(opt)}
+                title={`Select: ${opt}`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Suggested Follow-up Question Chips */}
+      {!message.isStreaming && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+        <div className="saka-followups-container">
+          <div className="saka-followups-chips">
+            {message.suggestedFollowUps.map((suggestion, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className="saka-chip-btn saka-chip-followup"
+                onClick={() => onSendMessage?.(suggestion)}
+                title={`Ask: ${suggestion}`}
+              >
+                <span>{suggestion}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

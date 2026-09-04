@@ -65,9 +65,13 @@ export async function initDb(): Promise<void> {
         id UUID PRIMARY KEY,
         client_id VARCHAR(128) NOT NULL,
         title TEXT NOT NULL,
+        is_compacted BOOLEAN NOT NULL DEFAULT FALSE,
+        summary TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_compacted BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS summary TEXT;
       CREATE INDEX IF NOT EXISTS idx_conversations_client ON conversations(client_id, updated_at DESC);
     `);
 
