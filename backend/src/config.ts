@@ -35,9 +35,9 @@ const configSchema = z.object({
   SAKAHUB_BASE_URL: z.string().default(SAKAHUB_CONSTANTS.DEFAULT_BASE_URL),
 
   // AI Models (Defaulted with .env overrides)
-  OPENROUTER_CHAT_MODEL: z.string().default('anthropic/claude-3.5-sonnet'),
+  OPENROUTER_CHAT_MODEL: z.string().default('anthropic/claude-sonnet-4'),
   OPENROUTER_EMBED_MODEL: z.string().default('openai/text-embedding-3-large'),
-  OPENROUTER_CONTEXT_MODEL: z.string().default('anthropic/claude-3.5-haiku'),
+  OPENROUTER_CONTEXT_MODEL: z.string().default('anthropic/claude-haiku-4.5'),
   OPENROUTER_RERANK_MODEL: z.string().default('cohere/rerank-v3.5'),
   QUERY_TRANSLATION_MODEL: z.string().default('openai/gpt-4o-mini'),
 
