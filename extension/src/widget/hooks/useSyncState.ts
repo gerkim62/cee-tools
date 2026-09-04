@@ -16,6 +16,10 @@ export function useSyncState() {
           setIsStale(Boolean(response.data.isBehind));
           setStaleReason(response.data.reason || '');
           setIsSyncing(Boolean(response.data.isSyncing));
+          if (response.data.backendCount === 0) {
+            setLastSyncedAt(null);
+            chrome.storage.local.remove(['lastSyncedAt']).catch(() => {});
+          }
         }
       });
 

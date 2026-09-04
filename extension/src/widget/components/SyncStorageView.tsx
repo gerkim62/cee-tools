@@ -44,7 +44,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
   }, [isSyncing]);
 
   const formatRelativeTime = (isoString?: string | null) => {
-    if (!isoString) return 'Never';
+    if (!isoString || status?.totalIndexed === 0) return 'Never';
     const ms = Date.now() - new Date(isoString).getTime();
     const mins = Math.floor(ms / 60000);
     if (mins < 1) return 'Just now';
@@ -107,22 +107,44 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
             background: 'rgba(239, 68, 68, 0.12)',
             border: '1px solid rgba(239, 68, 68, 0.35)',
             borderRadius: '10px',
-            padding: '10px 12px',
+            padding: '12px 14px',
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: 'column',
             gap: '8px',
             color: '#fca5a5',
             fontSize: '12px',
           }}
         >
-          <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>
-            Unable to fetch online updates right now. Existing knowledge base remains active and verified.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fca5a5' }}>
+            <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+            <span>Sync Unavailable</span>
+          </div>
+          <span style={{ lineHeight: 1.4 }}>
+            {syncProgress.message || 'Cannot download articles: SakaHub portal session is not active.'}
           </span>
+          <a
+            href="https://sakahub.safaricom.co.ke"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="saka-btn-secondary"
+            style={{
+              alignSelf: 'flex-start',
+              padding: '4px 10px',
+              fontSize: '11.5px',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '2px',
+            }}
+          >
+            <span>Open SakaHub Portal</span>
+            <ExternalLink size={12} />
+          </a>
         </div>
       )}
 
-      {/* Single Unified Sync Status Card (Minimalist percentage pill, no refresh icons!) */}
+      {/* Single Unified Sync Status Card */}
       <div
         className="saka-stats-card"
         style={{
@@ -135,10 +157,27 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
-            {isSyncing ? 'Synchronizing Knowledge Base' : 'Knowledge Base Synchronized'}
+            {isSyncing
+              ? 'Synchronizing Knowledge Base'
+              : status?.totalIndexed === 0
+              ? 'Knowledge Base Empty'
+              : 'Knowledge Base Synchronized'}
           </span>
           {isSyncing ? (
             <span className="saka-percentage-pill">{pct}%</span>
+          ) : status?.totalIndexed === 0 ? (
+            <span
+              style={{
+                fontSize: '11px',
+                color: '#f59e0b',
+                background: 'rgba(245, 158, 11, 0.15)',
+                padding: '2px 8px',
+                borderRadius: '10px',
+                fontWeight: 600,
+              }}
+            >
+              Not Synced
+            </span>
           ) : (
             <span
               style={{

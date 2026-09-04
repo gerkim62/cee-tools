@@ -83,7 +83,7 @@ export async function checkStaleness(force: boolean = false): Promise<StalenessC
           maxBackendDate: maxLastUpdated,
         };
       }
-    } catch {}
+    } catch { }
   }
 
   // 2. Probe SakaHub (page=0, size=1)
@@ -92,7 +92,7 @@ export async function checkStaleness(force: boolean = false): Promise<StalenessC
 
     // Probe succeeded: clear any backoff
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.remove(['sakaProbeBackoffUntil']).catch(() => {});
+      chrome.storage.local.remove(['sakaProbeBackoffUntil']).catch(() => { });
     }
 
     let isBehind = false;
@@ -125,7 +125,12 @@ export async function checkStaleness(force: boolean = false): Promise<StalenessC
   } catch (err: unknown) {
     // When probe returns 401 or offline, back off for 15 minutes and suppress background errors
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ sakaProbeBackoffUntil: Date.now() + 15 * 60 * 1000 }).catch(() => {});
+      chrome.storage.local.set({ sakaProbeBackoffUntil: Date.now() + 15 * 60 * 1000 }).catch(() => { });
+    }
+
+    // When explicitly forced (e.g. user clicked Sync), do NOT pretend it succeeded!
+    if (force) {
+      throw err;
     }
 
     return {
@@ -162,7 +167,7 @@ export async function performSmartSync(
 
   const notify = (update: SyncProgressUpdate) => {
     if (onProgress) onProgress(update);
-    chrome.storage.local.set({ syncProgress: update }).catch(() => {});
+    chrome.storage.local.set({ syncProgress: update }).catch(() => { });
   };
 
   notify({
@@ -329,6 +334,10 @@ export async function performSmartSync(
     );
 
     if (changedArticles.length === 0 && deletedIds.length === 0) {
+      if (probeStatus.backendCount === 0) {
+        throw new Error('No articles could be read from SakaHub. Please make sure the SakaHub portal is open.');
+      }
+
       const upToDateMsg = 'Knowledge base is completely up to date. No changes needed.';
       notify({
         stage: 'completed',
@@ -341,7 +350,7 @@ export async function performSmartSync(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId }),
-      }).catch(() => {});
+      }).catch(() => { });
       return {
         synced: true,
         addedCount: 0,
@@ -435,7 +444,7 @@ export async function performSmartSync(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId }),
-    }).catch(() => {});
+    }).catch(() => { });
 
     const summaryMsg = `Sync complete: ${addedCount} added, ${updatedCount} updated, ${deletedIds.length} deleted.`;
     notify({
@@ -465,9 +474,18 @@ export async function performSmartSync(
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error('[Syncer Error]', err);
 
+    const userFriendlyMsg =
+      errorMsg.includes('SAKAHUB_AUTH') ||
+        errorMsg.includes('401') ||
+        errorMsg.includes('redirect') ||
+        errorMsg.includes('portal') ||
+        errorMsg.includes('signed in')
+        ? 'Cannot download articles: SakaHub portal session is not active. Open SakaHub in a browser tab to sync.'
+        : `Sync failed: ${errorMsg}`;
+
     notify({
       stage: 'error',
-      message: `Sync failed: ${errorMsg}`,
+      message: userFriendlyMsg,
       progressPercent: 0,
     });
 
@@ -477,8 +495,8 @@ export async function performSmartSync(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId }),
       });
-    } catch {}
+    } catch { }
 
-    throw err;
+    throw new Error(userFriendlyMsg);
   }
 }

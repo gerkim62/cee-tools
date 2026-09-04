@@ -119,6 +119,51 @@ export interface FetchPageResult {
 export const SAKAHUB_AUTH_ERROR = 'SAKAHUB_AUTH_REQUIRED';
 
 /**
+ * Validates that SakaHub returned actual JSON articles, not a 307 redirect to /login or HTML login page.
+ */
+export function parseAndValidateSakaResponse(response: Response, text: string): unknown {
+  // Check if redirected to login, not-found, or SSO
+  if (
+    response.redirected ||
+    response.url.includes('/login') ||
+    response.url.includes('/not-found') ||
+    response.status === 307 ||
+    response.status === 302 ||
+    response.status === 401
+  ) {
+    throw new Error(SAKAHUB_AUTH_ERROR);
+  }
+
+  if (!response.ok) {
+    throw new Error(`[SakaHub API Error] HTTP ${response.status} ${response.statusText}`);
+  }
+
+  // Check if body is HTML (SakaHub returns the HTML login page when session is inactive)
+  const trimmed = text.trim();
+  if (
+    trimmed.startsWith('<!DOCTYPE') ||
+    trimmed.startsWith('<html') ||
+    trimmed.includes('<body') ||
+    trimmed.includes('login')
+  ) {
+    throw new Error(SAKAHUB_AUTH_ERROR);
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(SAKAHUB_AUTH_ERROR);
+  }
+
+  if (json && typeof json === 'object' && (json as any).message === 'User is not authenticated') {
+    throw new Error(SAKAHUB_AUTH_ERROR);
+  }
+
+  return json;
+}
+
+/**
  * Lightweight probe fetching page=0&size=1.
  * Returns totalElements count and newest article's normalized lastUpdated.
  */
@@ -135,18 +180,8 @@ export async function probeSakaHub(): Promise<ProbeResult> {
     },
   });
 
-  if (response.status === 401) {
-    throw new Error(SAKAHUB_AUTH_ERROR);
-  }
-
-  if (!response.ok) {
-    throw new Error(`[SakaHub API Error] Probe failed: HTTP ${response.status} ${response.statusText}`);
-  }
-
-  const json: unknown = await response.json().catch(() => null);
-  if (json && typeof json === 'object' && (json as any).message === 'User is not authenticated') {
-    throw new Error(SAKAHUB_AUTH_ERROR);
-  }
+  const text = await response.text();
+  const json = parseAndValidateSakaResponse(response, text);
 
   const { rawArticles, totalElements } = extractArticlesFromResponse(json);
 
@@ -182,18 +217,8 @@ export async function fetchSakaHubPage(
         },
       });
 
-      if (response.status === 401) {
-        throw new Error(SAKAHUB_AUTH_ERROR);
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} ${response.statusText}`);
-      }
-
-      const json: unknown = await response.json().catch(() => null);
-      if (json && typeof json === 'object' && (json as any).message === 'User is not authenticated') {
-        throw new Error(SAKAHUB_AUTH_ERROR);
-      }
+      const text = await response.text();
+      const json = parseAndValidateSakaResponse(response, text);
 
       const { rawArticles, totalElements, totalPages } = extractArticlesFromResponse(json);
 
