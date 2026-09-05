@@ -8,6 +8,10 @@ function isWidgetView(val: string): val is WidgetView {
   return val === 'chat' || val === 'history' || val === 'sync' || val === 'settings';
 }
 
+function isAgentChannel(val: string): val is AgentChannel {
+  return val === 'care_center' || val === 'retail';
+}
+
 export const SettingsView: React.FC = () => {
   const { themePreference, setTheme } = useTheme();
   const [backendUrl, setBackendUrl] = useState('https://cee-tools-wine.vercel.app');
@@ -26,7 +30,7 @@ export const SettingsView: React.FC = () => {
         (res) => {
           if (res.backendUrl) setBackendUrl(res.backendUrl);
           if (res.defaultView) setDefaultView(res.defaultView);
-          if (res.saka_agent_channel) setAgentChannel(res.saka_agent_channel);
+          if (isAgentChannel(res.saka_agent_channel)) setAgentChannel(res.saka_agent_channel);
           if (typeof res.saka_remember_conversation_across_tabs === 'boolean') {
             setRememberCrossTab(res.saka_remember_conversation_across_tabs);
           }
@@ -93,7 +97,12 @@ export const SettingsView: React.FC = () => {
         <select
           className="saka-select-input"
           value={agentChannel}
-          onChange={(e) => setAgentChannel(e.target.value as AgentChannel)}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (isAgentChannel(val)) {
+              setAgentChannel(val);
+            }
+          }}
         >
           <option value="care_center">Care Center (Call Center / CEE)</option>
           <option value="retail">Retail Shop / Franchise Desk</option>
