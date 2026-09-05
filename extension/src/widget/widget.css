@@ -334,6 +334,7 @@
 
 /* Chat View */
 .saka-chat-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -347,7 +348,6 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  scroll-behavior: smooth;
 }
 
 .saka-messages-scroll::-webkit-scrollbar {
@@ -359,6 +359,56 @@
 .saka-messages-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
+}
+
+/* Floating Jump-to-Bottom Button */
+.saka-scroll-bottom-btn {
+  position: absolute;
+  bottom: 70px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 10px rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 25;
+  transition: all 0.2s ease;
+  animation: scrollBtnFadeIn 0.2s ease-out;
+}
+
+.saka-scroll-bottom-btn:hover {
+  background: rgba(30, 41, 59, 0.98);
+  transform: translateY(-2px);
+  border-color: #38bdf8;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65), 0 0 16px rgba(56, 189, 248, 0.35);
+}
+
+.saka-scroll-bottom-btn:active {
+  transform: translateY(0);
+}
+
+@keyframes scrollBtnFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.saka-scroll-streaming-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 1.5px solid #0f172a;
+  box-shadow: 0 0 6px #10b981;
+  animation: pulseDot 1s infinite alternate;
 }
 
 /* Message Bubbles */
@@ -385,9 +435,10 @@
 
 .saka-message-user {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  display: inline-block;
+  align-self: flex-end;
+  width: fit-content;
+  max-width: 100%;
   background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
   color: #ffffff;
   padding: 9px 13px;
@@ -396,36 +447,43 @@
   font-size: 13px;
   line-height: 1.45;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
-.saka-user-content-text {
-  flex: 1;
+.saka-user-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  align-self: flex-end;
+  min-height: 20px;
 }
 
 .saka-user-edit-trigger {
   opacity: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.15);
-  border: none;
-  color: #cbd5e1;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  flex-shrink: 0;
 }
 
-.saka-message-user:hover .saka-user-edit-trigger {
+.saka-user-message-wrapper:hover .saka-user-edit-trigger,
+.saka-user-message-wrapper:focus-within .saka-user-edit-trigger {
   opacity: 1;
 }
 
 .saka-user-edit-trigger:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
-  transform: scale(1.08);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 /* User Inline Edit Box */
@@ -563,6 +621,15 @@
   color: #0b1329;
 }
 
+.saka-assistant-message-wrapper {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+}
+
 .saka-message-assistant {
   align-self: flex-start;
   background: rgba(30, 41, 59, 0.7);
@@ -576,7 +643,6 @@
 .saka-assistant-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 8px;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -593,38 +659,51 @@
   letter-spacing: 0.04em;
 }
 
-.saka-assistant-actions {
+.saka-assistant-bottom-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  align-self: flex-end;
   gap: 6px;
+  margin-top: 2px;
+  padding-right: 2px;
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+}
+
+.saka-assistant-message-wrapper:hover .saka-assistant-bottom-actions {
+  opacity: 1;
 }
 
 .saka-action-btn {
-  background: transparent;
-  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
-  font-size: 11.5px;
+  font-size: 11px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  padding: 3px 6px;
+  padding: 3px 8px;
   border-radius: 5px;
   transition: all 0.15s ease;
 }
 
 .saka-action-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .saka-retry-btn:hover {
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
   color: #34d399;
 }
 
 .saka-copy-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
   color: #ffffff;
 }
 
@@ -1052,27 +1131,11 @@
 }
 
 .saka-followups-container {
-  margin-top: 12px;
-  padding-top: 10px;
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.saka-followups-title {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.saka-followups-sparkle-icon {
-  color: #10b981;
 }
 
 .saka-followups-chips {

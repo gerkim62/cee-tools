@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { Bot, Minimize2, RefreshCw, Lock } from 'lucide-react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { Bot, Minimize2, RefreshCw, Lock, ChevronDown } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
 import { BranchInfo } from '../hooks/useChat.js';
 import { MessageItem } from './MessageItem.js';
@@ -39,6 +39,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onLeaveCitation,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isUserScrolledUpRef = useRef(false);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+  const prevMessagesCountRef = useRef(messages.length);
 
   const suggestionChips = [
     { label: 'M-Pesa reversal', query: 'How do I reverse an M-Pesa transaction?' },
@@ -47,9 +50,46 @@ export const ChatView: React.FC<ChatViewProps> = ({
     { label: 'Postpaid onboarding', query: 'How to onboard a new Postpaid customer?' },
   ];
 
-  // Auto-scroll on new messages or streaming tokens
+  // Check if user is near bottom (within 70px)
+  const checkIfNearBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return true;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    return distanceFromBottom <= 70;
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = checkIfNearBottom();
+    isUserScrolledUpRef.current = !nearBottom;
+    setShowScrollBottomBtn(!nearBottom && messages.length > 0);
+  }, [checkIfNearBottom, messages.length]);
+
+  const scrollToBottom = useCallback((smooth = false) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isUserScrolledUpRef.current = false;
+    setShowScrollBottomBtn(false);
+    if (smooth) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, []);
+
+  // When a new message is appended (e.g. user sends message or new response created), scroll to bottom
   useEffect(() => {
-    if (scrollRef.current) {
+    if (messages.length > prevMessagesCountRef.current) {
+      isUserScrolledUpRef.current = false;
+      scrollToBottom(false);
+    }
+    prevMessagesCountRef.current = messages.length;
+  }, [messages.length, scrollToBottom]);
+
+  // When streaming tokens or status updates arrive: only auto-scroll if user has NOT scrolled up
+  useEffect(() => {
+    if (!isUserScrolledUpRef.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, statusLog]);
@@ -89,7 +129,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       )}
 
-      <div className="saka-messages-scroll" ref={scrollRef}>
+      <div className="saka-messages-scroll" ref={scrollRef} onScroll={handleScroll}>
         {messages.length === 0 ? (
           <div className="saka-empty-state">
             <div className="saka-empty-icon">
@@ -130,6 +170,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
           ))
         )}
       </div>
+
+      {/* Floating jump-to-bottom button if user has scrolled up */}
+      {showScrollBottomBtn && (
+        <button
+          type="button"
+          className="saka-scroll-bottom-btn"
+          onClick={() => scrollToBottom(true)}
+          title="Jump to latest response"
+        >
+          <ChevronDown size={14} />
+          {isStreaming && <span className="saka-scroll-streaming-dot" />}
+        </button>
+      )}
 
       {/* Lock banner if conversation is compacted */}
       {isCompacted ? (
