@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders, Sun } from 'lucide-react';
 import { WidgetView } from '../../types.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
-import { useTheme, ThemePreference } from '../hooks/useTheme.js';
+import { useTheme } from '../hooks/useTheme.js';
 
 function isWidgetView(val: string): val is WidgetView {
   return val === 'chat' || val === 'history' || val === 'sync' || val === 'settings';
@@ -108,7 +108,7 @@ export const SettingsView: React.FC = () => {
           className="saka-select-input"
           value={themePreference}
           onChange={(e) => {
-            const val = e.target.value as ThemePreference;
+            const val = e.target.value;
             if (val === 'system' || val === 'dark' || val === 'light') {
               setTheme(val);
             }

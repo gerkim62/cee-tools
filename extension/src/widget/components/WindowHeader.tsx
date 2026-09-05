@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { GripHorizontal, Plus, X, MoreVertical, Sun, Moon, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
+import { Plus, X, MoreVertical, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
 import { PopoutMode } from '../../types.js';
-import { useTheme } from '../hooks/useTheme.js';
 
 interface WindowHeaderProps {
   onMouseDown: (e: React.MouseEvent) => void;
@@ -37,14 +36,13 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
   onClose,
   onOpenPopout,
   isMenuOpen,
-  currentViewTitle,
+  currentViewTitle: _currentViewTitle,
   lastSyncedAt,
 }) => {
   const syncLabel = formatSyncTime(lastSyncedAt);
   const [preferredMode, setPreferredMode] = useState<PopoutMode>('window');
   const [isPopoutMenuOpen, setIsPopoutMenuOpen] = useState(false);
   const popoutContainerRef = React.useRef<HTMLDivElement>(null);
-  const { isDark, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -95,22 +93,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
 
   return (
     <header className="saka-header" onMouseDown={onMouseDown}>
-      <div className="saka-header-left">
-        <div className="saka-header-drag-zone" title="Drag to reposition window">
-          <GripHorizontal size={14} className="saka-header-drag-icon" />
-          <span className="saka-header-drag-text">
-            {currentViewTitle && currentViewTitle !== 'Assistant' ? currentViewTitle : 'Drag'}
-          </span>
-          {syncLabel && (
-            <span className="saka-sync-badge-header">
-              {syncLabel}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="saka-header-actions" onMouseDown={(e) => e.stopPropagation()}>
-        {/* Prominent & Clear 'New Chat' Pill Button */}
+      <div className="saka-header-left" onMouseDown={(e) => e.stopPropagation()}>
         <button
           type="button"
           className="saka-header-newchat-pill"
@@ -118,12 +101,18 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           title="Start New Chat (Clear current conversation)"
           aria-label="New Chat"
         >
-          <Plus size={13} />
-          <span>New</span>
+          <Plus size={13} strokeWidth={2.4} />
+          <span>New Chat</span>
         </button>
 
-        <div className="saka-header-divider" />
+        {syncLabel && (
+          <span className="saka-sync-badge-header">
+            {syncLabel}
+          </span>
+        )}
+      </div>
 
+      <div className="saka-header-actions" onMouseDown={(e) => e.stopPropagation()}>
         {/* Dedicated Pop-out Split Control */}
         {onOpenPopout && (
           <div className="saka-popout-split-container" ref={popoutContainerRef}>
@@ -189,23 +178,12 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           </div>
         )}
 
-        {/* Theme Quick Toggle Button */}
-        <button
-          type="button"
-          className="saka-btn-icon"
-          onClick={toggleTheme}
-          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          aria-label="Toggle Theme"
-        >
-          {isDark ? <Sun size={14} /> : <Moon size={14} />}
-        </button>
-
         {/* Navigation Menu Button */}
         <button
           type="button"
           className={`saka-btn-icon ${isMenuOpen ? 'active' : ''}`}
           onClick={onToggleMenu}
-          title="Navigation Menu (History, Knowledge Sync, Settings)"
+          title="Navigation Menu (History, Knowledge Sync, Settings, Theme)"
           aria-label="Menu"
         >
           <MoreVertical size={14} />

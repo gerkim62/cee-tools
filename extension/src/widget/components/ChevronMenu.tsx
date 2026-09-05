@@ -1,6 +1,7 @@
 import React from 'react';
-import { MessageSquare, Clock, RefreshCw, Settings } from 'lucide-react';
+import { MessageSquare, Clock, RefreshCw, Settings, Sun, Moon } from 'lucide-react';
 import { WidgetView } from '../../types.js';
+import { useTheme } from '../hooks/useTheme.js';
 
 interface ChevronMenuProps {
   currentView: WidgetView;
@@ -13,6 +14,8 @@ export const ChevronMenu: React.FC<ChevronMenuProps> = ({
   onSelectView,
   onClose,
 }) => {
+  const { isDark, toggleTheme } = useTheme();
+
   const menuItems: { view: WidgetView; label: string; icon: React.ReactNode }[] = [
     {
       view: 'chat',
@@ -52,6 +55,21 @@ export const ChevronMenu: React.FC<ChevronMenuProps> = ({
           <span>{item.label}</span>
         </button>
       ))}
+
+      <div className="saka-menu-divider" />
+
+      <button
+        type="button"
+        className="saka-menu-item"
+        onClick={() => {
+          toggleTheme();
+          onClose();
+        }}
+        title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      >
+        {isDark ? <Sun size={16} /> : <Moon size={16} />}
+        <span>{isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</span>
+      </button>
     </div>
   );
 };

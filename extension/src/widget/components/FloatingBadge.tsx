@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, GripHorizontal, X } from 'lucide-react';
 import { SyncProgressUpdate } from '../../types.js';
 
 interface FloatingBadgeProps {
@@ -10,6 +10,7 @@ interface FloatingBadgeProps {
   onMouseDown: (e: React.MouseEvent) => void;
   style: React.CSSProperties;
   showDragHint?: boolean;
+  onDismissDragHint?: () => void;
 }
 
 export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
@@ -20,6 +21,7 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
   onMouseDown,
   style,
   showDragHint = false,
+  onDismissDragHint,
 }) => {
   const radius = 25;
   const circumference = 2 * Math.PI * radius;
@@ -74,8 +76,32 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
       </div>
 
       {showDragHint && (
-        <div className="saka-badge-drag-hint" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="saka-badge-drag-hint"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismissDragHint?.();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          role="tooltip"
+          aria-label="Drag badge hint"
+        >
+          <GripHorizontal size={13} className="saka-badge-drag-hint-grip" />
           <span>Drag if blocking view</span>
+          {onDismissDragHint && (
+            <button
+              type="button"
+              className="saka-badge-drag-hint-close"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDismissDragHint();
+              }}
+              title="Dismiss hint"
+              aria-label="Dismiss hint"
+            >
+              <X size={11} />
+            </button>
+          )}
         </div>
       )}
     </div>

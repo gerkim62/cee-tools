@@ -224,6 +224,13 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDismissBadgeHint = () => {
+    setHasDraggedBadge(true);
+    try {
+      chrome.storage.local.set({ saka_has_dragged_badge: true }).catch(() => {});
+    } catch {}
+  };
+
   return (
     <div id="ask-saka-container" data-theme={theme.effectiveTheme} onClick={() => setIsMenuOpen(false)}>
       {/* Collapsed Draggable Floating Badge */}
@@ -235,6 +242,7 @@ export const App: React.FC = () => {
           syncProgress={syncState.syncProgress}
           onMouseDown={badgeDraggable.handleMouseDown}
           showDragHint={!hasDraggedBadge}
+          onDismissDragHint={handleDismissBadgeHint}
           style={{
             left: `${badgeDraggable.position.x}px`,
             top: `${badgeDraggable.position.y}px`,
@@ -264,14 +272,26 @@ export const App: React.FC = () => {
           />
 
           {!hasDraggedWindow && (
-            <div className="saka-drag-pointer-tooltip">
-              <div className="saka-drag-pointer-arrow" />
-              <div className="saka-drag-pointer-body">
-                <GripHorizontal size={13} className="saka-drag-hint-icon" />
-                <span>Drag here to move if hiding your view</span>
+            <div className="saka-speech-bubble" role="tooltip" aria-label="Drag header hint">
+              <div className="saka-speech-bubble-tail-wrapper">
+                <svg width="16" height="8" viewBox="0 0 16 8" fill="none">
+                  <path
+                    d="M1 8 L8 1 L15 8"
+                    stroke="rgba(255, 255, 255, 0.22)"
+                    strokeWidth="1.2"
+                    fill="rgba(22, 28, 24, 0.95)"
+                  />
+                  <rect x="1" y="7" width="14" height="2" fill="rgba(22, 28, 24, 0.95)" />
+                </svg>
+              </div>
+              <div className="saka-speech-bubble-body">
+                <span className="saka-speech-bubble-text">
+                  <GripHorizontal size={13} className="saka-bubble-grip-icon" />
+                  <span>Drag header to reposition</span>
+                </span>
                 <button
                   type="button"
-                  className="saka-floating-drag-close"
+                  className="saka-bubble-close-btn"
                   onClick={() => {
                     setHasDraggedWindow(true);
                     try {
@@ -281,7 +301,7 @@ export const App: React.FC = () => {
                   title="Dismiss hint"
                   aria-label="Dismiss hint"
                 >
-                  <X size={10} />
+                  <X size={11} />
                 </button>
               </div>
             </div>
