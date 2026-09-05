@@ -45,97 +45,28 @@ export interface AskResponse {
 }
 
 export function extractClarification(text: string): { cleanText: string; clarification?: ClarifyingQuestion } {
-  const clarificationRegex = /\[CLARIFICATION:\s*([\s\S]*?)\]/i;
+  const clarificationRegex = /<clarify(?:\s+type="([^"]+)")?>([\s\S]*?)<\/clarify>/i;
   const match = text.match(clarificationRegex);
   if (!match) return { cleanText: text };
 
-  const rawContent = match[1].trim();
-  let clarification: ClarifyingQuestion | undefined = undefined;
+  const rawType = (match[1] || 'single_choice').toLowerCase();
+  const type: ClarifyingQuestion['type'] =
+    rawType.includes('multi') ? 'multi_choice' : rawType.includes('free') ? 'free_text' : 'single_choice';
 
-  // 1. Try JSON format: {"type": "...", "prompt": "...", "options": [...]}
-  if (rawContent.startsWith('{') && rawContent.endsWith('}')) {
-    try {
-      const obj = JSON.parse(rawContent);
-      const type = (obj.type === 'multi_choice' || obj.type === 'free_text') ? obj.type : 'single_choice';
-      const prompt = obj.prompt || obj.question || 'Please select an option:';
-      const options = Array.isArray(obj.options) ? obj.options.map((o: any) => String(o).trim()).filter(Boolean) : undefined;
-      clarification = { type, prompt, options };
-    } catch {
-      // Fall through to pipe parsing
-    }
-  }
-
-  // 2. Try pipe format: single_choice | Which scenario? | "Opt1", "Opt2"
-  if (!clarification) {
-    const parts = rawContent.split('|').map(p => p.trim());
-    if (parts.length >= 2) {
-      const rawType = parts[0].toLowerCase();
-      const type: 'single_choice' | 'multi_choice' | 'free_text' =
-        rawType.includes('multi') ? 'multi_choice' : rawType.includes('free') ? 'free_text' : 'single_choice';
-      const prompt = parts[1];
-      let options: string[] | undefined = undefined;
-      if (parts[2]) {
-        options = parts[2]
-          .split(',')
-          .map(opt => opt.replace(/^["'\s]+|["'\s]+$/g, '').trim())
-          .filter(Boolean);
-      }
-      clarification = { type, prompt, options };
-    }
-  }
+  const parts = match[2].split('|').map(p => p.trim()).filter(Boolean);
+  const prompt = parts[0] || 'Please select an option:';
+  const options = parts.length > 1 ? parts.slice(1) : undefined;
 
   const cleanText = text.replace(clarificationRegex, '').trimEnd();
-  return { cleanText, clarification };
+  return { cleanText, clarification: { type, prompt, options } };
 }
 
 export function extractSuggestions(text: string): { cleanText: string; suggestions?: string[] } {
-  // 1. Check for [SUGGESTIONS: ...] or [FOLLOWUP: ...] handling nested brackets like ["a", "b"]
-  const suggestionsRegex = /\[(?:SUGGESTIONS|FOLLOWUP|FOLLOWUPS):\s*(\[[\s\S]*?\]|[^\]]+)\]/i;
+  const suggestionsRegex = /<suggest>([\s\S]*?)<\/suggest>/i;
   const match = text.match(suggestionsRegex);
-  let suggestions: string[] | undefined = undefined;
-
-  if (match) {
-    const rawContent = match[1].trim();
-    // Try JSON array format: ["...", "..."]
-    if (rawContent.startsWith('[') && rawContent.endsWith(']')) {
-      try {
-        const arr = JSON.parse(rawContent);
-        if (Array.isArray(arr)) {
-          suggestions = arr.map((s: any) => String(s).trim()).filter(Boolean);
-        }
-      } catch {}
-    }
-
-    // Try quoted matches or delimiter split
-    if (!suggestions || suggestions.length === 0) {
-      const quoted = [...rawContent.matchAll(/"([^"]+)"|'([^']+)'/g)].map(m => m[1] || m[2]).filter(Boolean);
-      if (quoted.length > 0) {
-        suggestions = quoted;
-      } else {
-        const delimiter = rawContent.includes('|') ? '|' : ',';
-        suggestions = rawContent.split(delimiter).map(s => s.trim().replace(/^["'\s]+|["'\s]+$/g, '')).filter(Boolean);
-      }
-    }
-  }
-
-  // 2. Also check for markdown section at the end of answer
-  const mdListRegex = /(?:\n\s*|\n{2,})(?:(?:\*{1,2}|#{1,4})\s*(?:Suggested|Follow-up|Next)\s*(?:Questions?|Steps?):?\*{0,2})\s*\n((?:[ \t]*[-*•\d.]+[ \t]+[^\n]+\n?)+)$/i;
-  const mdMatch = text.match(mdListRegex);
-  if (!suggestions && mdMatch) {
-    const lines = mdMatch[1].split('\n')
-      .map(l => l.replace(/^[ \t]*[-*•\d.]+[ \t]+/, '').trim())
-      .filter(l => l.length > 5);
-    if (lines.length > 0) {
-      suggestions = lines.slice(0, 4);
-    }
-  }
-
-  let cleanText = text.replace(suggestionsRegex, '').trimEnd();
-  if (mdMatch) {
-    cleanText = cleanText.replace(mdListRegex, '').trimEnd();
-  }
-
-  return { cleanText, suggestions: (suggestions && suggestions.length > 0) ? suggestions : undefined };
+  const suggestions = match ? match[1].split('|').map(s => s.trim()).filter(Boolean) : undefined;
+  const cleanText = text.replace(suggestionsRegex, '').trimEnd();
+  return { cleanText, suggestions: suggestions && suggestions.length > 0 ? suggestions : undefined };
 }
 
 export function generateFallbackSuggestions(
@@ -364,10 +295,10 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         {
           role: 'system',
           content:
-            `You are "Ask Saka", the friendly, knowledgeable AI copilot for Safaricom Customer Experience Executives (CEE agents).\n` +
-            `The agent is on an active customer shift. Respond warmly, naturally, and concisely.\n` +
-            `If it is a greeting, greet the agent back and let them know you are ready to help with verified SakaHub procedures (such as Lipa Na M-PESA reversals, View360 customer vetting, SIM swap journeys, Pochi la Biashara, or data bundle mechanics).\n` +
-            `Keep your reply brief, natural, and helpful (1-3 sentences). Do not invent procedural steps or state specific SLAs in greetings, as prompt examples may be stale; always wait for the agent's specific query.`,
+            `You are "Ask Saka", the AI copilot for Safaricom Customer Experience Executives (CEE agents) on active customer calls.\n` +
+            `This message is a greeting or small talk, not a knowledge question — respond warmly and briefly (1-3 sentences).\n` +
+            `Let the agent know you're ready to help with SakaHub procedures (e.g. Lipa Na M-PESA reversals, View360 vetting, SIM swaps, Pochi la Biashara, data bundles).\n` +
+            `Never state a specific fee, SLA, code, or step in a greeting — wait for the agent's actual question before giving any factual detail.`,
         },
         ...(previousTurnsContext
           ? [{ role: 'system', content: `Prior conversation context:\n${previousTurnsContext}` }]

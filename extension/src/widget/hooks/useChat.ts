@@ -56,10 +56,11 @@ function findLatestDescendant(nodeId: string, msgs: ChatMessage[]): string {
 }
 
 /**
- * Mask raw stream tags while tokens arrive so [SUGGESTIONS: ...] does not flash raw in markdown
+ * Mask raw stream tags while tokens arrive so <suggest> / <clarify> tags do not flash raw in markdown
  */
 function maskStreamTags(text: string): string {
   return text
+    .replace(/<(?:suggest|clarify)[\s\S]*$/i, '')
     .replace(/\[(?:SUGGESTIONS|FOLLOWUP|FOLLOWUPS):[\s\S]*$/i, '')
     .replace(/\[CLARIFICATION:[\s\S]*$/i, '')
     .trimEnd();

@@ -36,26 +36,27 @@ describe('Conversation Continuity & Multi-turn Formatting', () => {
     assert.strictEqual(title2, 'New Conversation');
   });
 
-  test('should extract suggestions from JSON array, pipe formats, and markdown lists', async () => {
+  test('should extract suggestions from <suggest> XML tag', async () => {
     const { extractSuggestions } = await import('../src/routes/ask.js');
 
-    // 1. JSON array format
-    const resJson = extractSuggestions('Here is the procedure.\n\n[SUGGESTIONS: ["How to check status?", "What are the fees?"]]');
-    assert.strictEqual(resJson.cleanText, 'Here is the procedure.');
-    assert.deepStrictEqual(resJson.suggestions, ['How to check status?', 'What are the fees?']);
-
-    // 2. Pipe format
-    const resPipe = extractSuggestions('Here is the procedure.\n\n[SUGGESTIONS: How to reverse? | What is the SLA?]');
-    assert.strictEqual(resPipe.cleanText, 'Here is the procedure.');
-    assert.deepStrictEqual(resPipe.suggestions, ['How to reverse?', 'What is the SLA?']);
-
-    // 3. Markdown list at end of message
-    const resMd = extractSuggestions(`Here is the procedure.\n\n**Suggested Questions:**\n- How do I check the balance?\n- What if customer is roaming?`);
-    assert.strictEqual(resMd.cleanText, 'Here is the procedure.');
-    assert.deepStrictEqual(resMd.suggestions, ['How do I check the balance?', 'What if customer is roaming?']);
+    const res = extractSuggestions('Here is the procedure.\n\n<suggest>How to reverse?|What is the SLA?</suggest>');
+    assert.strictEqual(res.cleanText, 'Here is the procedure.');
+    assert.deepStrictEqual(res.suggestions, ['How to reverse?', 'What is the SLA?']);
   });
 
-  test('should generate fallback suggestions when model omits [SUGGESTIONS:] tag', async () => {
+  test('should extract clarifying question from <clarify> XML tag', async () => {
+    const { extractClarification } = await import('../src/routes/ask.js');
+
+    const res = extractClarification('Here is the partial procedure.\n\n<clarify type="single_choice">Which scenario applies?|Option 1|Option 2</clarify>');
+    assert.strictEqual(res.cleanText, 'Here is the partial procedure.');
+    assert.deepStrictEqual(res.clarification, {
+      type: 'single_choice',
+      prompt: 'Which scenario applies?',
+      options: ['Option 1', 'Option 2'],
+    });
+  });
+
+  test('should generate fallback suggestions when model omits <suggest> tag', async () => {
     const { generateFallbackSuggestions } = await import('../src/routes/ask.js');
 
     const fallbacks = generateFallbackSuggestions('How to reverse an M-Pesa transaction?', [

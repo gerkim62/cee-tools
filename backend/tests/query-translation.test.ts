@@ -64,10 +64,10 @@ describe('Query Translation & Prompt Suite', () => {
     assert.ok(QUERY_TRANSLATION_SYSTEM_PROMPT.includes('primary'));
     assert.ok(QUERY_TRANSLATION_SYSTEM_PROMPT.includes('fallback'));
 
-    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('ROLE & STYLE'));
-    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('ACCURACY & GROUNDING'));
-    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('[CLARIFICATION:'));
-    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('[SUGGESTIONS:'));
+    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<role>'));
+    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<grounding>'));
+    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<clarify'));
+    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<suggest>'));
 
     const contextualPrompt = buildContextualChunkPrompt('Full doc text', 'Chunk text');
     assert.ok(contextualPrompt.includes('<document>\nFull doc text\n</document>'));
