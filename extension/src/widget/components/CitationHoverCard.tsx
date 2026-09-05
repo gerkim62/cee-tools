@@ -26,7 +26,7 @@ export const CitationHoverCard: React.FC<CitationHoverCardProps> = ({
         {citation.articleNumber && (
           <span className="saka-popover-num">{citation.articleNumber}</span>
         )}
-        <span>{citation.articleTitle}</span>
+        <span className="saka-popover-title-text">{citation.articleTitle}</span>
       </div>
 
       {citation.sectionHeading && citation.sectionHeading !== 'General' && (

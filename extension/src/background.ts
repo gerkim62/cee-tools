@@ -46,12 +46,71 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.action.onClicked.addListener(async (tab) => {
-  if (tab.id) {
+  const isRestrictedUrl = (url?: string) => {
+    if (!url) return true;
+    return (
+      url.startsWith('chrome://') ||
+      url.startsWith('chrome-extension://') ||
+      url.startsWith('edge://') ||
+      url.startsWith('about:') ||
+      url.startsWith('view-source:') ||
+      url.includes('chromewebstore.google.com') ||
+      url.includes('chrome.google.com/webstore')
+    );
+  };
+
+  const openFallbackMode = async () => {
     try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_WIDGET' });
-    } catch {
-      // Content script might not be injected on restricted pages (e.g. chrome://)
+      const stored = await chrome.storage.local.get(['saka_last_open_mode', 'saka_window_bounds']);
+      const mode = stored.saka_last_open_mode || 'window';
+      const bounds = stored.saka_window_bounds || { width: 1200, height: 800 };
+
+      if (mode === 'tab') {
+        const url = chrome.runtime.getURL('window.html?mode=tab');
+        await chrome.tabs.create({ url, active: true });
+        return;
+      }
+
+      // Default fallback is dedicated popup window
+      const url = chrome.runtime.getURL('window.html');
+      if (activeWorkstationWindowId) {
+        try {
+          const existingWin = await chrome.windows.get(activeWorkstationWindowId);
+          if (existingWin) {
+            await chrome.windows.update(activeWorkstationWindowId, { focused: true });
+            return;
+          }
+        } catch {
+          activeWorkstationWindowId = null;
+        }
+      }
+
+      const win = await chrome.windows.create({
+        url,
+        type: 'popup',
+        width: Math.max(900, bounds.width || 1200),
+        height: Math.max(650, bounds.height || 800),
+        left: bounds.left,
+        top: bounds.top,
+        focused: true,
+      });
+      activeWorkstationWindowId = win.id ?? null;
+    } catch (err) {
+      console.warn('[Background] Failed to open fallback window:', err);
     }
+  };
+
+  if (!tab.id || isRestrictedUrl(tab.url)) {
+    await openFallbackMode();
+    return;
+  }
+
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_WIDGET' });
+    chrome.storage.local.set({ saka_last_open_mode: 'widget' }).catch(() => {});
+  } catch {
+    // Content script might not be injected or page cannot run content scripts
+    await openFallbackMode();
   }
 });
 
@@ -201,6 +260,7 @@ chrome.runtime.onMessage.addListener(
           focused: true,
         });
         activeWorkstationWindowId = win.id ?? null;
+        chrome.storage.local.set({ saka_last_open_mode: 'window' }).catch(() => {});
         sendResponse({ success: true, windowId: win.id });
       });
       return true;
@@ -218,6 +278,7 @@ chrome.runtime.onMessage.addListener(
       const url = chrome.runtime.getURL(`window.html${query}`);
       chrome.tabs.create({ url, active: true }).then((tab) => {
         activeWorkstationTabId = tab.id ?? null;
+        chrome.storage.local.set({ saka_last_open_mode: 'tab' }).catch(() => {});
         sendResponse({ success: true, tabId: tab.id });
       });
       return true;

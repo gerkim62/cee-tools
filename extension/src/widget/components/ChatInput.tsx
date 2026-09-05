@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Terminal } from 'lucide-react';
+import { Send, Terminal, X } from 'lucide-react';
 
 interface SlashCommand {
   command: string;
@@ -42,6 +42,7 @@ interface ChatInputProps {
 
 export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
   const [text, setText] = useState('');
+  const [activeCommand, setActiveCommand] = useState<SlashCommand | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isMenuDismissed, setIsMenuDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -63,17 +64,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
   }, [filteredCommands.length]);
 
   const applyCommand = (cmd: SlashCommand) => {
-    setText(cmd.template);
+    setActiveCommand(cmd);
+    setText('');
     setIsMenuDismissed(true);
     if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
       textareaRef.current.focus();
-      // Position cursor at end
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.value.length;
-          textareaRef.current.selectionEnd = textareaRef.current.value.length;
-        }
-      }, 10);
     }
   };
 
@@ -101,6 +97,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
       }
     }
 
+    // Backspace on empty text removes active command badge
+    if (e.key === 'Backspace' && !text && activeCommand) {
+      e.preventDefault();
+      setActiveCommand(null);
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -109,7 +112,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
 
   const handleSubmit = () => {
     const trimmed = text.trim();
-    if (!trimmed || disabled || isSubmittingRef.current) return;
+    let messageToSend = trimmed;
+    if (activeCommand) {
+      messageToSend = trimmed ? `${activeCommand.command} ${trimmed}` : activeCommand.command;
+    }
+
+    if (!messageToSend || disabled || isSubmittingRef.current) return;
 
     // Lock submission for 500ms to debounce rapid enter/clicks
     isSubmittingRef.current = true;
@@ -117,8 +125,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
       isSubmittingRef.current = false;
     }, 500);
 
-    onSend(trimmed);
+    onSend(messageToSend);
     setText('');
+    setActiveCommand(null);
     setIsMenuDismissed(false);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -161,7 +170,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
               onClick={() => applyCommand(cmd)}
             >
               <div className="saka-slash-header">
-                <Terminal size={12} color="#38bdf8" />
+                <Terminal size={13} className="saka-slash-terminal-icon" />
                 <span className="saka-slash-badge">{cmd.label}</span>
               </div>
               <span className="saka-slash-desc">{cmd.description}</span>
@@ -171,11 +180,35 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
       )}
 
       <div className="saka-input-wrapper">
+        {activeCommand && (
+          <div className="saka-active-command-chip">
+            <span className="saka-active-command-name">{activeCommand.command}</span>
+            <button
+              type="button"
+              className="saka-active-command-remove"
+              onClick={() => {
+                setActiveCommand(null);
+                textareaRef.current?.focus();
+              }}
+              title="Remove command"
+              aria-label="Remove command"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        )}
+
         <textarea
           ref={textareaRef}
           className="saka-textarea"
           rows={1}
-          placeholder="Ask a question or type /"
+          placeholder={
+            activeCommand
+              ? activeCommand.command === '/sakanumber'
+                ? 'Enter article number (e.g. BPJM-0001)...'
+                : 'Add context or press Enter to send...'
+              : 'Ask a question or type /'
+          }
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
@@ -185,7 +218,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
           type="button"
           className="saka-btn-send"
           onClick={handleSubmit}
-          disabled={disabled || !text.trim()}
+          disabled={disabled || (!text.trim() && !activeCommand)}
           title="Send query (Enter)"
         >
           <Send size={15} />

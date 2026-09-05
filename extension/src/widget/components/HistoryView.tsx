@@ -4,6 +4,27 @@ import { ConversationSummary } from '../../types.js';
 import { getBackendUrl, getClientId } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
 
+// Custom Open Trash Icon with tilted lid for two-click deletion confirmation
+const TrashOpenIcon: React.FC<{ size?: number; className?: string }> = ({ size = 13, className }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M4 5l14-2.5" />
+    <path d="M9.5 2.5l2.2-.4a1.5 1.5 0 0 1 1.7 1.2l.2 1" />
+    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+    <line x1="10" y1="11" x2="10" y2="17" />
+    <line x1="14" y1="11" x2="14" y2="17" />
+  </svg>
+);
+
 interface HistoryViewProps {
   onSelectConversation: (id: string) => void;
   onStartNewChat: () => void;
@@ -20,7 +41,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
+  const confirmTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimeoutRef.current) {
+        window.clearTimeout(confirmTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const fetchConversations = async (query = '') => {
     try {
@@ -74,14 +105,31 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     fetchConversations('');
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteClick = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    try {
-      const backendUrl = await getBackendUrl();
-      await bgFetch(`${backendUrl}/conversations/${id}`, { method: 'DELETE' });
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-    } catch (err) {
-      console.warn('[HistoryView] Failed to delete conversation:', err);
+    if (confirmDeleteId === id) {
+      // Second click: execute deletion
+      if (confirmTimeoutRef.current) {
+        window.clearTimeout(confirmTimeoutRef.current);
+        confirmTimeoutRef.current = null;
+      }
+      setConfirmDeleteId(null);
+      try {
+        const backendUrl = await getBackendUrl();
+        await bgFetch(`${backendUrl}/conversations/${id}`, { method: 'DELETE' });
+        setConversations((prev) => prev.filter((c) => c.id !== id));
+      } catch (err) {
+        console.warn('[HistoryView] Failed to delete conversation:', err);
+      }
+    } else {
+      // First click: open lid and turn red, 4-second timeout to revert
+      if (confirmTimeoutRef.current) {
+        window.clearTimeout(confirmTimeoutRef.current);
+      }
+      setConfirmDeleteId(id);
+      confirmTimeoutRef.current = window.setTimeout(() => {
+        setConfirmDeleteId((curr) => (curr === id ? null : curr));
+      }, 4000);
     }
   };
 
@@ -174,9 +222,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       </div>
 
       {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '13px', padding: '16px 0' }}>
-          <RefreshCw size={14} className="spin" style={{ animation: 'spin 1.2s linear infinite' }} />
-          <span>Loading past conversations...</span>
+        <div className="saka-history-skeleton-list">
+          {[75, 58, 82, 65].map((width, idx) => (
+            <div key={idx} className="saka-skeleton-card">
+              <div className="saka-skeleton-line saka-skeleton-title" style={{ width: `${width}%` }} />
+              <div className="saka-skeleton-line saka-skeleton-meta" />
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div
@@ -302,11 +354,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
                     <button
                       type="button"
-                      className="saka-btn-icon"
-                      onClick={(e) => handleDelete(e, conv.id)}
-                      title="Delete thread"
+                      className={`saka-btn-icon saka-history-delete-btn ${confirmDeleteId === conv.id ? 'confirming' : ''}`}
+                      onClick={(e) => handleDeleteClick(e, conv.id)}
+                      title={confirmDeleteId === conv.id ? 'Click again to delete' : 'Delete thread'}
+                      aria-label={confirmDeleteId === conv.id ? 'Confirm deletion' : 'Delete thread'}
                     >
-                      <Trash2 size={13} />
+                      {confirmDeleteId === conv.id ? <TrashOpenIcon size={13} /> : <Trash2 size={13} />}
                     </button>
                   </div>
                 ))}

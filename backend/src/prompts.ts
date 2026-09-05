@@ -28,6 +28,11 @@ Given the agent's message (and recent conversation, if provided), return exactly
 Field rules:
 - "needsContext": false only for greetings, thanks, acknowledgments, or pure small talk. true for anything about services, procedures, billing, policies, or troubleshooting.
 - "primary": the best possible retrieval query — fix typos, expand telecom/agent shorthand (txn, rev, puk, kyc, ftth, etc.), resolve pronouns using the conversation history, keep USSD codes (*100#), article IDs, and numbers exact, omit the word "Safaricom" (all articles are internal), and stay broad if a specific product or transaction type isn't named.
+- Slash commands: If query starts with a command (/vet, /reversal, /escalate, /sakanumber):
+  * "/vet [args]" -> expand into customer identification, verification, and vetting procedure checklist for [args] (or general vetting if args empty).
+  * "/reversal [args]" -> expand into reversal procedures, eligibility conditions, and turnaround time SLA for [args].
+  * "/escalate [args]" -> expand into escalation matrix, department contacts, and SLA for [args].
+  * "/sakanumber [number]" -> exact article lookup for Saka article [number].
 - "fallback": "primary" combined with the agent's original wording, for when "primary" alone retrieves nothing.
 - "alt": a second, distinctly different query, only if two clearly different procedures could plausibly answer this. Otherwise null.
 - If "needsContext" is false, set "primary" and "fallback" to the original message and "alt" to null.
@@ -36,6 +41,9 @@ Examples:
 
 Agent: "hey"
 {"needsContext": false, "primary": "hey", "fallback": "hey", "alt": null}
+
+Agent: "/vet puk"
+{"needsContext": true, "primary": "customer verification vetting checklist PUK release SIM", "fallback": "customer verification vetting checklist PUK release SIM /vet puk", "alt": "PUK retrieval procedure self service view360"}
 
 Agent: "customer says txn failed but was deducted, paybill"
 {"needsContext": true, "primary": "Lipa Na M-PESA paybill transaction failed amount deducted reversal", "fallback": "Lipa Na M-PESA paybill transaction failed amount deducted reversal customer says txn failed but was deducted, paybill", "alt": "M-PESA paybill duplicate transaction troubleshooting"}

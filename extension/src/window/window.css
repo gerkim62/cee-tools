@@ -179,27 +179,6 @@ body, html {
   border-radius: 4px;
 }
 
-.saka-header-back-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--saka-surface-card);
-  border: 1px solid var(--saka-border-medium);
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--saka-ink-primary);
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-
-.saka-header-back-btn:hover {
-  background: var(--saka-green-tint);
-  border-color: var(--saka-green-primary);
-  color: var(--saka-green-deep);
-}
-
 .saka-workstation-header-right {
   display: flex;
   align-items: center;
@@ -337,8 +316,8 @@ body, html {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  max-width: 900px;
   width: 100%;
+  max-width: 1360px;
   margin: 0 auto;
 }
 
@@ -514,6 +493,20 @@ body, html {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.saka-inspector-meta-row .saka-popover-num {
+  flex-shrink: 0;
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+  border: 1px solid var(--saka-green-pill-border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  line-height: 1.25;
 }
 
 .saka-inspector-status {

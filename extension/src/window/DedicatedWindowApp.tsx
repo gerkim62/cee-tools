@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Bot,
   Plus,
-  ArrowLeft,
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
@@ -33,10 +32,14 @@ export const DedicatedWindowApp: React.FC = () => {
   const [allAnswerCitations, setAllAnswerCitations] = useState<Citation[]>([]);
   const [isPinned, setIsPinned] = useState(false);
 
-  // Check query params on mount
+  // Check query params on mount & remember open mode (tab vs window)
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
+      const isTab = params.get('mode') === 'tab';
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({ saka_last_open_mode: isTab ? 'tab' : 'window' }).catch(() => {});
+      }
       const initialConvId = params.get('conversationId');
       if (initialConvId) {
         chat.loadConversation(initialConvId);
@@ -84,18 +87,6 @@ export const DedicatedWindowApp: React.FC = () => {
     }
   }, [chat.conversationId]);
 
-  // Handle returning back to SakaHub page
-  const handleBackToPage = () => {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-      chrome.runtime.sendMessage({ type: 'FOCUS_SAKAHUB_PAGE' }, () => {
-        // If this is a standalone window popup, close it
-        const isTab = window.location.search.includes('mode=tab');
-        if (!isTab) {
-          window.close();
-        }
-      });
-    }
-  };
 
   // Citation hover & click handlers for the inspector
   const handleHoverCitation = (citation: Citation, _targetRect: DOMRect) => {
@@ -152,16 +143,6 @@ export const DedicatedWindowApp: React.FC = () => {
             <span className="saka-workstation-name">Ask Saka</span>
             <span className="saka-workstation-badge">Workstation</span>
           </div>
-
-          <button
-            type="button"
-            className="saka-header-back-btn"
-            onClick={handleBackToPage}
-            title="Return focus to your SakaHub tab and re-open the in-page widget"
-          >
-            <ArrowLeft size={13} />
-            <span>Back to SakaHub</span>
-          </button>
         </div>
 
         <div className="saka-workstation-header-right">
