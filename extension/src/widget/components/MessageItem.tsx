@@ -27,6 +27,7 @@ interface MessageItemProps {
   onEditUserMessage?: (messageId: string, newContent: string) => void;
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
+  onClickCitation?: (citation: Citation, allCitations: Citation[]) => void;
   onSendMessage?: (text: string) => void;
 }
 
@@ -56,6 +57,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   onEditUserMessage,
   onHoverCitation,
   onLeaveCitation,
+  onClickCitation,
   onSendMessage,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -141,7 +143,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
     const citeNum = parseInt(target.getAttribute('data-cite-num') || '0', 10);
     const citation = message.citations?.[citeNum - 1];
-    if (citation?.urlWithTextFragment) {
+    if (!citation) return;
+
+    if (onClickCitation) {
+      e.stopPropagation();
+      onClickCitation(citation, message.citations || []);
+      return;
+    }
+
+    if (citation.urlWithTextFragment) {
       // Store pending quote highlight for SakaHub SPA content script to locate on mount
       if (citation.quote && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         chrome.storage.local.set({

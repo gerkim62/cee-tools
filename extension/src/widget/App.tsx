@@ -63,18 +63,25 @@ export const App: React.FC = () => {
     }
   }, [isOpen]);
 
-  // Listen for toolbar toggle message
+  // Listen for toolbar toggle & expand messages
   useEffect(() => {
     const handleMessage = (msg: ExtensionMessage | { type: string }) => {
       if (msg.type === 'TOGGLE_WIDGET') {
         setIsOpen((prev) => !prev);
+      } else if (msg.type === 'EXPAND_WIDGET') {
+        setIsOpen(true);
+        if ('conversationId' in msg && typeof msg.conversationId === 'string' && msg.conversationId) {
+          if (chat.conversationId !== msg.conversationId) {
+            chat.loadConversation(msg.conversationId);
+          }
+        }
       }
     };
     chrome.runtime.onMessage.addListener(handleMessage);
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
     };
-  }, []);
+  }, [chat]);
 
   // Hierarchical Escape key handler:
   // 1. Dismiss citation preview hovercard if visible
@@ -106,6 +113,21 @@ export const App: React.FC = () => {
     if (badgeDraggable.hasMoved()) return;
     setIsOpen((prev) => !prev);
     setIsMenuOpen(false);
+  };
+
+  const handleOpenPopout = (mode: 'window' | 'tab') => {
+    const type = mode === 'tab' ? 'OPEN_FULL_TAB' : 'OPEN_DEDICATED_WINDOW';
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage(
+        {
+          type,
+          conversationId: chat.conversationId || undefined,
+        },
+        () => {
+          setIsOpen(false);
+        }
+      );
+    }
   };
 
   const handleStartNewChat = () => {
@@ -209,6 +231,7 @@ export const App: React.FC = () => {
             onNewChat={handleStartNewChat}
             onToggleMenu={() => setIsMenuOpen((prev) => !prev)}
             onClose={() => setIsOpen(false)}
+            onOpenPopout={handleOpenPopout}
             isMenuOpen={isMenuOpen}
             currentViewTitle={getViewTitle()}
             lastSyncedAt={syncState.lastSyncedAt}

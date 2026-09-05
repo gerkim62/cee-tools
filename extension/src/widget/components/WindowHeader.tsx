@@ -1,11 +1,13 @@
-import React from 'react';
-import { Bot, Plus, ChevronDown, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bot, Plus, ChevronDown, X, Maximize2, ExternalLink, Check } from 'lucide-react';
+import { PopoutMode } from '../../types.js';
 
 interface WindowHeaderProps {
   onMouseDown: (e: React.MouseEvent) => void;
   onNewChat: () => void;
   onToggleMenu: () => void;
   onClose: () => void;
+  onOpenPopout?: (mode: PopoutMode) => void;
   isMenuOpen: boolean;
   currentViewTitle: string;
   lastSyncedAt?: string | null;
@@ -32,11 +34,62 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
   onNewChat,
   onToggleMenu,
   onClose,
+  onOpenPopout,
   isMenuOpen,
   currentViewTitle,
   lastSyncedAt,
 }) => {
   const syncLabel = formatSyncTime(lastSyncedAt);
+  const [preferredMode, setPreferredMode] = useState<PopoutMode>('window');
+  const [isPopoutMenuOpen, setIsPopoutMenuOpen] = useState(false);
+  const popoutContainerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['preferred_popout_mode'], (res) => {
+        if (res.preferred_popout_mode === 'tab' || res.preferred_popout_mode === 'window') {
+          setPreferredMode(res.preferred_popout_mode);
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isPopoutMenuOpen) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      const path = e.composedPath ? e.composedPath() : [];
+      if (
+        popoutContainerRef.current &&
+        !path.includes(popoutContainerRef.current) &&
+        (e.target instanceof Node ? !popoutContainerRef.current.contains(e.target) : true)
+      ) {
+        setIsPopoutMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsPopoutMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPopoutMenuOpen]);
+
+  const handleSelectMode = (mode: PopoutMode) => {
+    setPreferredMode(mode);
+    setIsPopoutMenuOpen(false);
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ preferred_popout_mode: mode }).catch(() => {});
+    }
+    onOpenPopout?.(mode);
+  };
 
   return (
     <header className="saka-header" onMouseDown={onMouseDown}>
@@ -58,6 +111,71 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
       </div>
 
       <div className="saka-header-actions" onMouseDown={(e) => e.stopPropagation()}>
+        {/* Dedicated Pop-out Split Control with Memory */}
+        {onOpenPopout && (
+          <div className="saka-popout-split-container" ref={popoutContainerRef}>
+            <div className="saka-popout-split-group">
+              <button
+                type="button"
+                className="saka-btn-icon saka-popout-main-btn"
+                onClick={() => onOpenPopout(preferredMode)}
+                title={
+                  preferredMode === 'tab'
+                    ? 'Open in Full Browser Tab'
+                    : 'Open in Dedicated Desktop Window'
+                }
+                aria-label="Pop out chat"
+              >
+                {preferredMode === 'tab' ? <ExternalLink size={14} /> : <Maximize2 size={14} />}
+              </button>
+
+              <button
+                type="button"
+                className={`saka-btn-icon saka-popout-chevron-btn ${isPopoutMenuOpen ? 'active' : ''}`}
+                onClick={() => setIsPopoutMenuOpen(!isPopoutMenuOpen)}
+                title="Pop-out options (Window or Tab)"
+                aria-label="Pop-out options"
+              >
+                <ChevronDown size={11} />
+              </button>
+            </div>
+
+            {isPopoutMenuOpen && (
+              <div className="saka-popout-menu-dropdown" onMouseDown={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className={`saka-popout-menu-item ${preferredMode === 'window' ? 'selected' : ''}`}
+                  onClick={() => handleSelectMode('window')}
+                >
+                  <Maximize2 size={13} color="var(--saka-green-deep)" />
+                  <div className="saka-popout-item-text">
+                    <span className="saka-popout-item-title">Dedicated Window</span>
+                    <span className="saka-popout-item-desc">Standalone desktop popup</span>
+                  </div>
+                  {preferredMode === 'window' && (
+                    <Check size={13} color="var(--saka-green-primary)" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className={`saka-popout-menu-item ${preferredMode === 'tab' ? 'selected' : ''}`}
+                  onClick={() => handleSelectMode('tab')}
+                >
+                  <ExternalLink size={13} color="var(--saka-green-deep)" />
+                  <div className="saka-popout-item-text">
+                    <span className="saka-popout-item-title">Full Browser Tab</span>
+                    <span className="saka-popout-item-desc">Widescreen tab in Chrome</span>
+                  </div>
+                  {preferredMode === 'tab' && (
+                    <Check size={13} color="var(--saka-green-primary)" />
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           className="saka-btn-icon"

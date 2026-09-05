@@ -6,6 +6,40 @@ import {
 } from './types.js';
 
 let isSyncInProgress = false;
+let lastSakaHubTabId: number | null = null;
+let activeWorkstationWindowId: number | null = null;
+let activeWorkstationTabId: number | null = null;
+let activeWorkstationConversationId: string | null = null;
+
+function reopenBrowserConversation(): void {
+  const targetTabId = lastSakaHubTabId;
+  if (typeof targetTabId === 'number') {
+    chrome.tabs.get(targetTabId).then(async (tab) => {
+      if (tab.windowId) {
+        await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+      }
+      await chrome.tabs.update(targetTabId, { active: true }).catch(() => {});
+      chrome.tabs.sendMessage(targetTabId, {
+        type: 'EXPAND_WIDGET',
+        conversationId: activeWorkstationConversationId ?? undefined,
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+}
+
+chrome.windows.onRemoved.addListener((windowId) => {
+  if (windowId === activeWorkstationWindowId) {
+    activeWorkstationWindowId = null;
+    reopenBrowserConversation();
+  }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === activeWorkstationTabId) {
+    activeWorkstationTabId = null;
+    reopenBrowserConversation();
+  }
+});
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[Background] Ask Saka ready.');
@@ -125,6 +159,82 @@ chrome.runtime.onMessage.addListener(
     if (message.type === 'GET_SYNC_STATE') {
       sendResponse({ isSyncInProgress });
       return false;
+    }
+
+    if (message.type === 'OPEN_DEDICATED_WINDOW') {
+      if (_sender.tab?.id) {
+        lastSakaHubTabId = _sender.tab.id;
+      }
+      const conversationId = message.conversationId;
+      if (conversationId) {
+        activeWorkstationConversationId = conversationId;
+      }
+      chrome.storage.local.get(['saka_window_bounds']).then(async (stored) => {
+        const bounds = stored.saka_window_bounds || { width: 1200, height: 800 };
+        const query = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : '';
+        const url = chrome.runtime.getURL(`window.html${query}`);
+
+        if (activeWorkstationWindowId) {
+          try {
+            const existingWin = await chrome.windows.get(activeWorkstationWindowId);
+            if (existingWin) {
+              await chrome.windows.update(activeWorkstationWindowId, { focused: true });
+              const tabs = await chrome.tabs.query({ windowId: activeWorkstationWindowId });
+              if (tabs[0]?.id) {
+                await chrome.tabs.update(tabs[0].id, { url });
+              }
+              sendResponse({ success: true, windowId: activeWorkstationWindowId });
+              return;
+            }
+          } catch {
+            activeWorkstationWindowId = null;
+          }
+        }
+
+        const win = await chrome.windows.create({
+          url,
+          type: 'popup',
+          width: Math.max(900, bounds.width || 1200),
+          height: Math.max(650, bounds.height || 800),
+          left: bounds.left,
+          top: bounds.top,
+          focused: true,
+        });
+        activeWorkstationWindowId = win.id ?? null;
+        sendResponse({ success: true, windowId: win.id });
+      });
+      return true;
+    }
+
+    if (message.type === 'OPEN_FULL_TAB') {
+      if (_sender.tab?.id) {
+        lastSakaHubTabId = _sender.tab.id;
+      }
+      const conversationId = message.conversationId;
+      if (conversationId) {
+        activeWorkstationConversationId = conversationId;
+      }
+      const query = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}&mode=tab` : '?mode=tab';
+      const url = chrome.runtime.getURL(`window.html${query}`);
+      chrome.tabs.create({ url, active: true }).then((tab) => {
+        activeWorkstationTabId = tab.id ?? null;
+        sendResponse({ success: true, tabId: tab.id });
+      });
+      return true;
+    }
+
+    if (message.type === 'UPDATE_ACTIVE_CONVERSATION') {
+      if (message.conversationId) {
+        activeWorkstationConversationId = message.conversationId;
+      }
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.type === 'FOCUS_SAKAHUB_PAGE') {
+      reopenBrowserConversation();
+      sendResponse({ success: true });
+      return true;
     }
   }
 );

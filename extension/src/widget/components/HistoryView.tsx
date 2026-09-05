@@ -7,11 +7,13 @@ import { bgFetch } from '../../scripts/bg-fetch.js';
 interface HistoryViewProps {
   onSelectConversation: (id: string) => void;
   onStartNewChat: () => void;
+  hideHeader?: boolean;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
   onSelectConversation,
   onStartNewChat,
+  hideHeader = false,
 }) => {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,17 +136,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
   return (
     <div className="saka-view-container">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-        <h3 className="saka-view-title">Conversation History</h3>
-        <button
-          type="button"
-          className="saka-btn-primary"
-          style={{ padding: '4px 10px', fontSize: '11.5px', borderRadius: '6px' }}
-          onClick={onStartNewChat}
-        >
-          + New Chat
-        </button>
-      </div>
+      {!hideHeader && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <h3 className="saka-view-title">Conversation History</h3>
+          <button
+            type="button"
+            className="saka-btn-primary"
+            style={{ padding: '4px 10px', fontSize: '11.5px', borderRadius: '6px' }}
+            onClick={onStartNewChat}
+          >
+            + New Chat
+          </button>
+        </div>
+      )}
 
       {/* Zero-Credit Instant Search Bar */}
       <div className="saka-history-search-bar">

@@ -5,7 +5,6 @@ import {
   isSakaHubAuthError,
   isSakaHubNoTabError,
   SakaHubAuthError,
-  SakaHubNoTabError,
 } from './sakahub-api.js';
 import { cleanWordHtmlToMarkdown } from './turndown-cleaner.js';
 import {
@@ -512,12 +511,15 @@ export async function performSmartSync(
     } else if (isSakaHubAuthError(err)) {
       errorCode = 'AUTH_REQUIRED';
       userFriendlyMsg = 'Please open SakaHub in your browser and it will automatically pick up.';
-    } else if (err instanceof BackendLockedError || (err instanceof Error && (err as any).code === 'BACKEND_LOCKED')) {
+    } else if (
+      err instanceof BackendLockedError ||
+      (err instanceof Error && 'code' in err && Reflect.get(err, 'code') === 'BACKEND_LOCKED')
+    ) {
       errorCode = 'BACKEND_LOCKED';
       userFriendlyMsg = err.message || 'Could not acquire sync lock. Another sync is active.';
     } else if (
       err instanceof BackendUnreachableError ||
-      (err instanceof Error && (err as any).code === 'BACKEND_UNREACHABLE') ||
+      (err instanceof Error && 'code' in err && Reflect.get(err, 'code') === 'BACKEND_UNREACHABLE') ||
       (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) ||
       (err instanceof Error && (err.message.includes('ECONNREFUSED') || err.message.includes('Failed to reach backend')))
     ) {

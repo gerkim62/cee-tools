@@ -172,6 +172,15 @@ export interface ChatMessage {
 
 export type WidgetView = 'chat' | 'history' | 'sync' | 'settings';
 
+export type PopoutMode = 'window' | 'tab';
+
+export interface WindowBounds {
+  width: number;
+  height: number;
+  left?: number;
+  top?: number;
+}
+
 export type ExtensionMessage =
   | { type: 'CHECK_STALENESS' }
   | { type: 'START_SYNC'; mode?: 'smart' | 'deep' }
@@ -180,7 +189,12 @@ export type ExtensionMessage =
   | { type: 'SYNC_COMPLETED'; result: unknown }
   | { type: 'SYNC_ERROR'; error: string }
   | { type: 'BG_FETCH'; url: string; options?: RequestInit }
-  | { type: 'SAKAHUB_RELAY_FETCH'; url: string; options?: { headers?: Record<string, string> } };
+  | { type: 'SAKAHUB_RELAY_FETCH'; url: string; options?: { headers?: Record<string, string> } }
+  | { type: 'OPEN_DEDICATED_WINDOW'; conversationId?: string }
+  | { type: 'OPEN_FULL_TAB'; conversationId?: string }
+  | { type: 'FOCUS_SAKAHUB_PAGE' }
+  | { type: 'UPDATE_ACTIVE_CONVERSATION'; conversationId?: string }
+  | { type: 'EXPAND_WIDGET'; conversationId?: string };
 
 export interface SakaHubRelayFetchResponse {
   success: boolean;

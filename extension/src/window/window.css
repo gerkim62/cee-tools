@@ -1,0 +1,613 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700;900&display=swap');
+
+:root {
+  font-family: 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #242623;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
+  /* Safaricom Brand Tokens */
+  --saka-font-main: 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --saka-font-heading: 'ProximaNova-Bold', 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --saka-font-semibold: 'ProximaNova-Semibold', 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --saka-green-primary: #2CB34A;
+  --saka-green-hover: #259E3F;
+  --saka-green-deep: #146732;
+  --saka-green-deeper: #0E4823;
+  --saka-green-surface: #F6FAF7;
+  --saka-green-tint: #E8F5EC;
+  --saka-green-pill-border: #D2E8D8;
+
+  --saka-red-official: #DE1E23;
+  --saka-red-surface: #FDF2F2;
+  --saka-red-border: #FCD4D4;
+  --saka-red-text: #991B1B;
+
+  --saka-amber-official: #D97706;
+  --saka-amber-surface: #FFFBEB;
+  --saka-amber-border: #FDE68A;
+  --saka-amber-text: #92400E;
+
+  --saka-blue-sync: #2563EB;
+
+  --saka-surface-window: #FFFFFF;
+  --saka-surface-header: #FFFFFF;
+  --saka-surface-body: #F7FAF8;
+  --saka-surface-card: #FFFFFF;
+  --saka-surface-input: #FFFFFF;
+  --saka-surface-sidebar: #F9FBF9;
+
+  --saka-ink-primary: #242623;
+  --saka-ink-title: #1C2420;
+  --saka-ink-secondary: #58655E;
+  --saka-ink-muted: #85938B;
+
+  --saka-border-subtle: #E2E8E4;
+  --saka-border-medium: #D5DFD8;
+  --saka-border-focus: #2CB34A;
+
+  --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.12);
+  --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #E6EDE8;
+
+    --saka-green-surface: #122418;
+    --saka-green-tint: #163620;
+    --saka-green-pill-border: #1E4D2C;
+    --saka-green-deep: #4ADE80;
+    --saka-green-deeper: #22C55E;
+
+    --saka-red-surface: #2A1213;
+    --saka-red-border: #4D1A1C;
+    --saka-red-text: #F87171;
+
+    --saka-amber-surface: #281C0C;
+    --saka-amber-border: #4A3314;
+    --saka-amber-text: #FBBF24;
+
+    --saka-surface-window: #121714;
+    --saka-surface-header: #161D18;
+    --saka-surface-body: #0D120F;
+    --saka-surface-card: #18221C;
+    --saka-surface-input: #161D18;
+    --saka-surface-sidebar: #141A16;
+
+    --saka-ink-primary: #E6EDE8;
+    --saka-ink-title: #FFFFFF;
+    --saka-ink-secondary: #97A69D;
+    --saka-ink-muted: #6B7B71;
+
+    --saka-border-subtle: #222E26;
+    --saka-border-medium: #2B3B31;
+    --saka-border-focus: #2CB34A;
+
+    --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.6);
+    --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+}
+
+body, html {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--saka-surface-body);
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.saka-workstation-container {
+  width: 100%;
+  height: 100vh;
+  min-height: 100vh;
+  max-height: 100vh;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ========================================================
+   Top Navigation Bar
+   ======================================================== */
+.saka-workstation-header {
+  height: 52px;
+  background: var(--saka-surface-header);
+  border-bottom: 1px solid var(--saka-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.saka-workstation-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.saka-workstation-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saka-workstation-name {
+  font-family: var(--saka-font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--saka-ink-title);
+  letter-spacing: -0.01em;
+}
+
+.saka-workstation-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+  color: var(--saka-green-deep);
+  border-radius: 4px;
+}
+
+.saka-header-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--saka-surface-card);
+  border: 1px solid var(--saka-border-medium);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--saka-ink-primary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.saka-header-back-btn:hover {
+  background: var(--saka-green-tint);
+  border-color: var(--saka-green-primary);
+  color: var(--saka-green-deep);
+}
+
+.saka-workstation-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ========================================================
+   3-Pane Workstation Container
+   ======================================================== */
+.saka-workstation-main {
+  flex: 1;
+  height: calc(100vh - 52px);
+  min-height: 0;
+  max-height: calc(100vh - 52px);
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ----------------------------------------------------
+   Left Sidebar: History & Nav
+   ---------------------------------------------------- */
+.saka-workstation-sidebar {
+  width: 280px;
+  height: 100%;
+  min-height: 0;
+  background: var(--saka-surface-sidebar);
+  border-right: 1px solid var(--saka-border-subtle);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width 0.2s ease, margin-left 0.2s ease;
+  overflow: hidden;
+}
+
+.saka-workstation-sidebar.collapsed {
+  margin-left: -280px;
+}
+
+.saka-sidebar-header {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--saka-border-subtle);
+}
+
+.saka-sidebar-newchat-btn {
+  flex: 1;
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.saka-sidebar-newchat-btn:hover {
+  background: var(--saka-green-hover);
+}
+
+.saka-sidebar-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.saka-sidebar-content .saka-view-container {
+  padding: 10px 12px;
+  background: transparent;
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.saka-sidebar-content .saka-history-card {
+  padding: 9px 11px;
+}
+
+.saka-sidebar-footer {
+  padding: 10px 14px;
+  border-top: 1px solid var(--saka-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--saka-surface-header);
+}
+
+.saka-sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--saka-ink-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.12s ease;
+}
+
+.saka-sidebar-nav-item:hover, .saka-sidebar-nav-item.active {
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+}
+
+/* ----------------------------------------------------
+   Center Pane: Main Chat Area
+   ---------------------------------------------------- */
+.saka-workstation-center {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--saka-surface-body);
+  position: relative;
+}
+
+.saka-workstation-chat-wrapper {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.saka-workstation-chat-wrapper .saka-chat-container {
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--saka-border-subtle);
+  border-right: 1px solid var(--saka-border-subtle);
+  background: var(--saka-surface-body);
+}
+
+.saka-workstation-chat-wrapper .saka-messages-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 28px;
+  gap: 16px;
+}
+
+.saka-workstation-chat-wrapper .saka-input-bar {
+  flex-shrink: 0;
+  padding: 12px 24px 16px;
+}
+
+/* ----------------------------------------------------
+   Right Pane: Citation Inspector
+   ---------------------------------------------------- */
+.saka-workstation-inspector {
+  width: 380px;
+  height: 100%;
+  min-height: 0;
+  background: var(--saka-surface-card);
+  border-left: 1px solid var(--saka-border-subtle);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width 0.2s ease, margin-right 0.2s ease;
+  overflow: hidden;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.03);
+}
+
+.saka-workstation-inspector.collapsed {
+  margin-right: -380px;
+}
+
+.saka-inspector-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--saka-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.saka-inspector-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--saka-font-semibold);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--saka-ink-title);
+}
+
+.saka-inspector-badge-pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+  border: 1px solid var(--saka-green-pill-border);
+}
+
+.saka-inspector-badge-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--saka-amber-surface);
+  color: var(--saka-amber-text);
+  border: 1px solid var(--saka-amber-border);
+}
+
+.saka-inspector-tabs {
+  padding: 8px 14px;
+  background: var(--saka-surface-body);
+  border-bottom: 1px solid var(--saka-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saka-inspector-tabs-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--saka-ink-secondary);
+}
+
+.saka-inspector-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.saka-inspector-tab-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--saka-surface-card);
+  border: 1px solid var(--saka-border-medium);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--saka-ink-primary);
+  transition: all 0.12s ease;
+}
+
+.saka-inspector-tab-pill:hover {
+  border-color: var(--saka-green-primary);
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+}
+
+.saka-inspector-tab-pill.active {
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
+  border-color: var(--saka-green-primary);
+}
+
+.saka-inspector-tab-pill.active .saka-inspector-tab-num {
+  color: #FFFFFF;
+}
+
+.saka-inspector-tab-num {
+  font-weight: 700;
+  color: var(--saka-green-deep);
+}
+
+.saka-inspector-tab-name {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saka-inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.saka-inspector-article-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saka-inspector-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saka-inspector-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--saka-green-deep);
+  font-weight: 600;
+}
+
+.saka-inspector-article-title {
+  font-family: var(--saka-font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--saka-ink-title);
+  line-height: 1.35;
+}
+
+.saka-inspector-section-crumb {
+  font-size: 12px;
+  color: var(--saka-ink-secondary);
+}
+
+.saka-inspector-section-crumb span {
+  font-weight: 600;
+}
+
+.saka-inspector-quote-box {
+  background: var(--saka-green-surface);
+  border: 1px solid var(--saka-green-pill-border);
+  border-left: 4px solid var(--saka-green-primary);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saka-inspector-quote-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--saka-green-deep);
+}
+
+.saka-inspector-quote-content {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--saka-ink-primary);
+  font-style: italic;
+}
+
+.saka-inspector-actions {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.saka-inspector-open-btn {
+  width: 100%;
+}
+
+/* Empty Inspector State */
+.saka-inspector-empty-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 24px;
+  gap: 12px;
+  color: var(--saka-ink-secondary);
+}
+
+.saka-inspector-empty-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--saka-green-surface);
+  color: var(--saka-green-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.saka-inspector-empty-body h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--saka-ink-title);
+}
+
+.saka-inspector-empty-body p {
+  font-size: 12px;
+  line-height: 1.45;
+}

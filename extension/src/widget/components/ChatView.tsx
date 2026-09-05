@@ -20,6 +20,7 @@ interface ChatViewProps {
   onEditUserMessage?: (messageId: string, newContent: string) => void;
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
+  onClickCitation?: (citation: Citation, allCitations: Citation[]) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -37,6 +38,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onEditUserMessage,
   onHoverCitation,
   onLeaveCitation,
+  onClickCitation,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef(false);
@@ -165,6 +167,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               onEditUserMessage={onEditUserMessage}
               onHoverCitation={onHoverCitation}
               onLeaveCitation={onLeaveCitation}
+              onClickCitation={onClickCitation}
               onSendMessage={onSendMessage}
             />
           ))

@@ -297,7 +297,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         {
           role: 'system',
           content:
-            `You are "Ask Saka", the AI copilot for Safaricom Customer Experience Executives (CEE agents) on active customer calls.\n` +
+            `You are "Ask Saka", the AI assistant for Safaricom Customer Experience Executives (CEE agents) on active customer calls.\n` +
             `This message is a greeting or small talk, not a knowledge question — respond warmly and briefly (1-3 sentences).\n` +
             `Let the agent know you're ready to help with SakaHub procedures (e.g. Lipa Na M-PESA reversals, View360 vetting, SIM swaps, Pochi la Biashara, data bundles).\n` +
             `Never state a specific fee, SLA, code, or step in a greeting — wait for the agent's actual question before giving any factual detail.`,

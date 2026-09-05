@@ -157,11 +157,17 @@ export class SakaHubNoTabError extends Error {
 }
 
 export function isSakaHubAuthError(err: unknown): err is SakaHubAuthError {
-  return err instanceof SakaHubAuthError || (err instanceof Error && (err as any).code === 'AUTH_REQUIRED');
+  return (
+    err instanceof SakaHubAuthError ||
+    (err instanceof Error && 'code' in err && Reflect.get(err, 'code') === 'AUTH_REQUIRED')
+  );
 }
 
 export function isSakaHubNoTabError(err: unknown): err is SakaHubNoTabError {
-  return err instanceof SakaHubNoTabError || (err instanceof Error && (err as any).code === 'NO_SAKAHUB_TAB');
+  return (
+    err instanceof SakaHubNoTabError ||
+    (err instanceof Error && 'code' in err && Reflect.get(err, 'code') === 'NO_SAKAHUB_TAB')
+  );
 }
 
 const SAKAHUB_TAB_URL_PATTERN = 'https://sakahub.safaricom.co.ke/*';
