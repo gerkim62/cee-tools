@@ -184,36 +184,50 @@
 }
 
 /* Auto-Hiding 4px Adaptive Scrollbars */
-* {
+*, textarea, input {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
   transition: scrollbar-color 0.2s ease;
 }
 
-*:hover {
+*:hover, textarea:hover, input:hover {
   scrollbar-color: var(--saka-scrollbar-thumb) transparent;
 }
 
-::-webkit-scrollbar {
+::-webkit-scrollbar,
+*::-webkit-scrollbar,
+textarea::-webkit-scrollbar,
+input::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track,
+input::-webkit-scrollbar-track {
+  background: transparent !important;
 }
 
-::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb,
+input::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 999px;
   transition: background 0.2s ease;
 }
 
-*:hover::-webkit-scrollbar-thumb {
+*:hover::-webkit-scrollbar-thumb,
+textarea:hover::-webkit-scrollbar-thumb,
+input:hover::-webkit-scrollbar-thumb {
   background: var(--saka-scrollbar-thumb);
 }
 
-::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover,
+textarea::-webkit-scrollbar-thumb:hover,
+input::-webkit-scrollbar-thumb:hover {
   background: var(--saka-scrollbar-thumb-hover) !important;
 }
 

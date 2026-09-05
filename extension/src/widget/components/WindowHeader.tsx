@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Plus, X, MoreVertical, Sun, Moon, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
+import { GripHorizontal, Plus, X, MoreVertical, Sun, Moon, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
 import { PopoutMode } from '../../types.js';
 import { useTheme } from '../hooks/useTheme.js';
 
@@ -96,19 +96,16 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
   return (
     <header className="saka-header" onMouseDown={onMouseDown}>
       <div className="saka-header-left">
-        <div className="saka-brand-logo" title="Ask Saka Procedural Assistant">
-          <Bot size={15} strokeWidth={2.2} />
-        </div>
-        <div className="saka-title-row">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className="saka-title-text">Ask Saka</span>
-            {syncLabel && (
-              <span className="saka-sync-badge-header">
-                {syncLabel}
-              </span>
-            )}
-          </div>
-          <span className="saka-subtitle-text">{currentViewTitle}</span>
+        <div className="saka-header-drag-zone" title="Drag to reposition window">
+          <GripHorizontal size={14} className="saka-header-drag-icon" />
+          <span className="saka-header-drag-text">
+            {currentViewTitle && currentViewTitle !== 'Assistant' ? currentViewTitle : 'Drag'}
+          </span>
+          {syncLabel && (
+            <span className="saka-sync-badge-header">
+              {syncLabel}
+            </span>
+          )}
         </div>
       </div>
 

@@ -209,6 +209,55 @@ button, input, select, textarea {
 }
 
 /* ========================================================
+   Auto-Hiding 4px Adaptive Thin Scrollbars Everywhere
+   ======================================================== */
+*, *::before, *::after, textarea, input {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*:hover, textarea:hover, input:hover {
+  scrollbar-color: var(--saka-scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar,
+*::-webkit-scrollbar,
+textarea::-webkit-scrollbar,
+input::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track,
+input::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb,
+input::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+*:hover::-webkit-scrollbar-thumb,
+textarea:hover::-webkit-scrollbar-thumb,
+input:hover::-webkit-scrollbar-thumb {
+  background: var(--saka-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover,
+textarea::-webkit-scrollbar-thumb:hover,
+input::-webkit-scrollbar-thumb:hover {
+  background: var(--saka-scrollbar-thumb-hover) !important;
+}
+
+/* ========================================================
    Floating Collapsed Badge / Launcher
    ======================================================== */
 .saka-floating-badge {
@@ -277,28 +326,53 @@ button, input, select, textarea {
   animation: saka-fade-in 0.3s ease-out;
 }
 
-.saka-floating-drag-hint {
+/* Drag Helper Pointer Tooltip (points directly to the header drag zone) */
+.saka-drag-pointer-tooltip {
   position: absolute;
-  top: 52px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 48px;
+  left: 14px;
+  z-index: 60;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: rgba(20, 24, 21, 0.90);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #E2ECE5;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  z-index: 50;
+  flex-direction: column;
+  align-items: flex-start;
   pointer-events: auto;
   user-select: none;
   animation: saka-fade-in 0.25s ease-out;
+}
+
+.saka-drag-pointer-arrow {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid rgba(20, 24, 21, 0.92);
+  margin-left: 16px;
+}
+
+[data-theme="light"] .saka-drag-pointer-arrow {
+  border-bottom-color: rgba(30, 36, 32, 0.92);
+}
+
+.saka-drag-pointer-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  background: rgba(20, 24, 21, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #E2ECE5;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .saka-drag-pointer-body {
+  background: rgba(30, 36, 32, 0.92);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .saka-drag-hint-icon {
@@ -419,50 +493,50 @@ button, input, select, textarea {
 .saka-header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
-.saka-brand-logo {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: rgba(44, 179, 74, 0.1);
-  border: 1px solid rgba(44, 179, 74, 0.25);
-  display: flex;
+/* Header Dedicated Drag Zone Handle */
+.saka-header-drag-zone {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  color: var(--saka-green-primary);
-  flex-shrink: 0;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--saka-ink-muted);
+  cursor: grab;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
-[data-theme="dark"] .saka-brand-logo {
-  background: rgba(44, 179, 74, 0.14);
-  border-color: rgba(44, 179, 74, 0.3);
-  color: #34D399;
-}
-
-.saka-title-row {
-  display: flex;
-  flex-direction: column;
-}
-
-.saka-title-text {
-  font-family: var(--saka-font-heading);
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--saka-ink-title);
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-
-.saka-subtitle-text {
-  font-size: 11px;
+.saka-header:hover .saka-header-drag-zone {
   color: var(--saka-ink-secondary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  line-height: 1.2;
+}
+
+.saka-header-drag-zone:hover {
+  background: var(--saka-surface-card);
+  border-color: var(--saka-border-subtle);
+  color: var(--saka-ink-primary);
+}
+
+.saka-header-drag-icon {
+  color: var(--saka-ink-muted);
+  flex-shrink: 0;
+}
+
+.saka-header-drag-zone:hover .saka-header-drag-icon {
+  color: var(--saka-green-primary);
+}
+
+.saka-header-drag-text {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: inherit;
 }
 
 .saka-sync-badge-header {
@@ -474,6 +548,7 @@ button, input, select, textarea {
   border-radius: 4px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .saka-header-actions {
@@ -1970,6 +2045,25 @@ button, input, select, textarea {
   margin: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--saka-scrollbar-thumb) transparent;
+}
+
+.saka-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.saka-textarea::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.saka-textarea::-webkit-scrollbar-thumb {
+  background: var(--saka-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.saka-textarea::-webkit-scrollbar-thumb:hover {
+  background: var(--saka-scrollbar-thumb-hover) !important;
 }
 
 .saka-textarea::placeholder {

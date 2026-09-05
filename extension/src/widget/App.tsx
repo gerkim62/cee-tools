@@ -264,23 +264,26 @@ export const App: React.FC = () => {
           />
 
           {!hasDraggedWindow && (
-            <div className="saka-floating-drag-hint">
-              <GripHorizontal size={13} className="saka-drag-hint-icon" />
-              <span>Drag to reposition</span>
-              <button
-                type="button"
-                className="saka-floating-drag-close"
-                onClick={() => {
-                  setHasDraggedWindow(true);
-                  try {
-                    chrome.storage.local.set({ saka_has_dragged_window: true }).catch(() => {});
-                  } catch {}
-                }}
-                title="Dismiss hint"
-                aria-label="Dismiss hint"
-              >
-                <X size={10} />
-              </button>
+            <div className="saka-drag-pointer-tooltip">
+              <div className="saka-drag-pointer-arrow" />
+              <div className="saka-drag-pointer-body">
+                <GripHorizontal size={13} className="saka-drag-hint-icon" />
+                <span>Drag here to move if hiding your view</span>
+                <button
+                  type="button"
+                  className="saka-floating-drag-close"
+                  onClick={() => {
+                    setHasDraggedWindow(true);
+                    try {
+                      chrome.storage.local.set({ saka_has_dragged_window: true }).catch(() => {});
+                    } catch {}
+                  }}
+                  title="Dismiss hint"
+                  aria-label="Dismiss hint"
+                >
+                  <X size={10} />
+                </button>
+              </div>
             </div>
           )}
 
