@@ -173,7 +173,7 @@ export const App: React.FC = () => {
       case 'settings':
         return 'Settings';
       default:
-        return 'AI Copilot';
+        return 'Assistant';
     }
   };
 

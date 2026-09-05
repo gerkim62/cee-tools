@@ -45,7 +45,7 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
       title={badgeTitle}
       role="button"
       tabIndex={0}
-      aria-label="Ask Saka AI Copilot"
+      aria-label="Ask Saka"
     >
       {isSyncing && (
         <svg className="saka-progress-ring" viewBox="0 0 56 56">

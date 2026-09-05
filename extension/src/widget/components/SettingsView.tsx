@@ -87,7 +87,7 @@ export const SettingsView: React.FC = () => {
             }
           }}
         >
-          <option value="chat">Ask Saka Copilot (Chat)</option>
+          <option value="chat">Ask Saka (Chat)</option>
           <option value="history">Conversation History</option>
           <option value="sync">Knowledge Base Sync</option>
         </select>

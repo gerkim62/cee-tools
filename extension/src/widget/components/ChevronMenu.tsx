@@ -16,7 +16,7 @@ export const ChevronMenu: React.FC<ChevronMenuProps> = ({
   const menuItems: { view: WidgetView; label: string; icon: React.ReactNode }[] = [
     {
       view: 'chat',
-      label: 'Ask Saka Copilot',
+      label: 'Ask Saka (Chat)',
       icon: <MessageSquare size={16} />,
     },
     {

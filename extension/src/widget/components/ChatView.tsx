@@ -135,7 +135,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             <div className="saka-empty-icon">
               <Bot size={28} />
             </div>
-            <h3 className="saka-empty-title">Ask Saka Copilot</h3>
+            <h3 className="saka-empty-title">Ask Saka</h3>
             <p className="saka-empty-desc">
               Get immediate, verified procedural checklists from Safaricom SakaHub knowledge base.
             </p>

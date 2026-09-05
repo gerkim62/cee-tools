@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Ask Saka - Safaricom Knowledge Assistant",
   "version": "1.0.1",
-  "description": "Intelligent RAG copilot widget and real-time synchronizer for Safaricom SakaHub knowledge base.",
+  "description": "Intelligent RAG assistant widget and real-time synchronizer for Safaricom SakaHub knowledge base.",
   "permissions": [
     "storage",
     "tabs"
