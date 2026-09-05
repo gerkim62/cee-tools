@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { X, GripHorizontal } from 'lucide-react';
 import { WidgetView, ExtensionMessage, Citation } from '../types.js';
 import { useDraggable } from './hooks/useDraggable.js';
 import { useSyncState } from './hooks/useSyncState.js';
@@ -264,12 +264,12 @@ export const App: React.FC = () => {
           />
 
           {!hasDraggedWindow && (
-            <div className="saka-window-drag-hint">
-              <span>💡 Drag header to move if hiding your view</span>
+            <div className="saka-floating-drag-hint">
+              <GripHorizontal size={13} className="saka-drag-hint-icon" />
+              <span>Drag to reposition</span>
               <button
                 type="button"
-                className="saka-btn-icon"
-                style={{ width: '18px', height: '18px', padding: 0 }}
+                className="saka-floating-drag-close"
                 onClick={() => {
                   setHasDraggedWindow(true);
                   try {
@@ -279,7 +279,7 @@ export const App: React.FC = () => {
                 title="Dismiss hint"
                 aria-label="Dismiss hint"
               >
-                <X size={12} />
+                <X size={10} />
               </button>
             </div>
           )}

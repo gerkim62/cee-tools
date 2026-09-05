@@ -164,17 +164,6 @@ export const DedicatedWindowApp: React.FC = () => {
         </div>
 
         <div className="saka-workstation-header-right">
-          {/* Toggle Inspector Button */}
-          <button
-            type="button"
-            className={`saka-btn-icon ${isInspectorOpen ? 'active' : ''}`}
-            onClick={() => setIsInspectorOpen(!isInspectorOpen)}
-            title={isInspectorOpen ? 'Collapse Source Inspector' : 'Expand Source Inspector'}
-            aria-label="Toggle Source Inspector"
-          >
-            {isInspectorOpen ? <PanelRightClose size={17} /> : <PanelRightOpen size={17} />}
-          </button>
-
           {/* Theme Quick Toggle */}
           <button
             type="button"
@@ -186,15 +175,15 @@ export const DedicatedWindowApp: React.FC = () => {
             {theme.isDark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
-          {/* Settings shortcut */}
+          {/* Reveal / Toggle Inspector Button on Far Right */}
           <button
             type="button"
-            className={`saka-btn-icon ${currentView === 'settings' ? 'active' : ''}`}
-            onClick={() => setCurrentView(currentView === 'settings' ? 'chat' : 'settings')}
-            title="Settings & Preferences"
-            aria-label="Settings"
+            className={`saka-btn-icon ${isInspectorOpen ? 'active' : ''}`}
+            onClick={() => setIsInspectorOpen(!isInspectorOpen)}
+            title={isInspectorOpen ? 'Collapse Source Inspector' : 'Reveal Source Inspector'}
+            aria-label="Toggle Source Inspector"
           >
-            <Settings size={17} />
+            {isInspectorOpen ? <PanelRightClose size={17} /> : <PanelRightOpen size={17} />}
           </button>
         </div>
       </header>

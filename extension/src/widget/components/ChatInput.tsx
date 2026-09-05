@@ -55,7 +55,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTri
       setText('');
       setActiveCommand(null);
       setIsMenuDismissed(false);
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = '32px';
       textareaRef.current.focus();
     }
   }, [focusTrigger]);
@@ -80,7 +80,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTri
     setText('');
     setIsMenuDismissed(true);
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = '32px';
       textareaRef.current.focus();
     }
   };
@@ -146,7 +146,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTri
     setActiveCommand(null);
     setIsMenuDismissed(false);
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = '32px';
     }
   };
 
@@ -157,10 +157,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTri
       setIsMenuDismissed(false);
     }
 
-    // Auto-resize
+    // Auto-resize with minimum height of 32px (matching 1-line vertical center)
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
+      const newHeight = Math.max(32, Math.min(textareaRef.current.scrollHeight, 120));
+      textareaRef.current.style.height = `${newHeight}px`;
     }
   };
 

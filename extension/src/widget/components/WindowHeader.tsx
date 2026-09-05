@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Plus, Minus, MoreVertical, Sun, Moon, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
+import { Bot, Plus, X, MoreVertical, Sun, Moon, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
 import { PopoutMode } from '../../types.js';
 import { useTheme } from '../hooks/useTheme.js';
 
@@ -96,8 +96,8 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
   return (
     <header className="saka-header" onMouseDown={onMouseDown}>
       <div className="saka-header-left">
-        <div className="saka-brand-logo">
-          <Bot size={16} strokeWidth={2.4} />
+        <div className="saka-brand-logo" title="Ask Saka Procedural Assistant">
+          <Bot size={15} strokeWidth={2.2} />
         </div>
         <div className="saka-title-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -113,7 +113,21 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
       </div>
 
       <div className="saka-header-actions" onMouseDown={(e) => e.stopPropagation()}>
-        {/* Dedicated Pop-out Split Control with Memory */}
+        {/* Prominent & Clear 'New Chat' Pill Button */}
+        <button
+          type="button"
+          className="saka-header-newchat-pill"
+          onClick={onNewChat}
+          title="Start New Chat (Clear current conversation)"
+          aria-label="New Chat"
+        >
+          <Plus size={13} />
+          <span>New</span>
+        </button>
+
+        <div className="saka-header-divider" />
+
+        {/* Dedicated Pop-out Split Control */}
         {onOpenPopout && (
           <div className="saka-popout-split-container" ref={popoutContainerRef}>
             <div className="saka-popout-split-group">
@@ -128,7 +142,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
                 }
                 aria-label="Pop out chat"
               >
-                {preferredMode === 'tab' ? <ExternalLink size={14} /> : <Maximize2 size={14} />}
+                {preferredMode === 'tab' ? <ExternalLink size={13} /> : <Maximize2 size={13} />}
               </button>
 
               <button
@@ -186,19 +200,10 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           aria-label="Toggle Theme"
         >
-          {isDark ? <Sun size={15} /> : <Moon size={15} />}
+          {isDark ? <Sun size={14} /> : <Moon size={14} />}
         </button>
 
-        <button
-          type="button"
-          className="saka-btn-icon"
-          onClick={onNewChat}
-          title="Start New Chat (Clear current conversation)"
-          aria-label="Start New Chat"
-        >
-          <Plus size={17} />
-        </button>
-
+        {/* Navigation Menu Button */}
         <button
           type="button"
           className={`saka-btn-icon ${isMenuOpen ? 'active' : ''}`}
@@ -206,17 +211,18 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           title="Navigation Menu (History, Knowledge Sync, Settings)"
           aria-label="Menu"
         >
-          <MoreVertical size={16} />
+          <MoreVertical size={14} />
         </button>
 
+        {/* Close Widget Button */}
         <button
           type="button"
-          className="saka-btn-icon"
+          className="saka-btn-icon saka-btn-close"
           onClick={onClose}
-          title="Minimize Widget (Dock to Floating Badge)"
-          aria-label="Minimize"
+          title="Close Widget (Dock to Floating Badge)"
+          aria-label="Close"
         >
-          <Minus size={16} />
+          <X size={15} />
         </button>
       </div>
     </header>

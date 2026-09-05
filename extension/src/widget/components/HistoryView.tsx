@@ -193,41 +193,51 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
   return (
     <div className="saka-view-container">
-      {!hideHeader && <h3 className="saka-view-title">Conversation History</h3>}
-
-      {/* Side-by-side search + [+] New Chat row */}
-      <div className="saka-history-controls-row">
-        <div className="saka-history-search-bar">
-          <Search size={14} color="var(--saka-ink-muted, #85938B)" />
-          <input
-            type="text"
-            className="saka-history-search-input"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-          />
-          {searching && <RefreshCw size={13} className="saka-spin" />}
-          {searchQuery && !searching && (
-            <button
-              type="button"
-              className="saka-btn-icon"
-              onClick={handleClearSearch}
-              title="Clear search"
-            >
-              <X size={13} />
-            </button>
-          )}
+      {!hideHeader && (
+        <div style={{ marginBottom: '10px' }}>
+          <button
+            type="button"
+            className="saka-btn-primary"
+            style={{
+              width: '100%',
+              padding: '9px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+            }}
+            onClick={onStartNewChat}
+          >
+            <Plus size={16} />
+            <span>New Conversation</span>
+          </button>
         </div>
+      )}
 
-        <button
-          type="button"
-          className="saka-history-newchat-btn"
-          onClick={onStartNewChat}
-          title="Start New Conversation"
-          aria-label="New Conversation"
-        >
-          <Plus size={16} />
-        </button>
+      {/* Full-width Instant Search Bar */}
+      <div className="saka-history-search-bar" style={{ marginBottom: '12px' }}>
+        <Search size={14} color="var(--saka-ink-muted, #85938B)" />
+        <input
+          type="text"
+          className="saka-history-search-input"
+          placeholder="Search conversations..."
+          value={searchQuery}
+          onChange={handleSearchChange}
+        />
+        {searching && <RefreshCw size={13} className="saka-spin" />}
+        {searchQuery && !searching && (
+          <button
+            type="button"
+            className="saka-btn-icon"
+            onClick={handleClearSearch}
+            title="Clear search"
+          >
+            <X size={13} />
+          </button>
+        )}
       </div>
 
       {loading ? (
