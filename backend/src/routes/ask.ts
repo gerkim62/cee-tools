@@ -312,7 +312,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         model: config.OPENROUTER_CHAT_MODEL,
       })) {
         naturalReply += token;
-        sendEvent('token', { token });
+        sendEvent('token', { delta: token, token });
       }
 
       const conversationalSteps: ExecutionStep[] = [

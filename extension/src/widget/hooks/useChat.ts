@@ -91,7 +91,7 @@ export function useChat() {
     if (portRef.current) {
       try {
         portRef.current.disconnect();
-      } catch {}
+      } catch { }
       portRef.current = null;
     }
     setConversationId(null);
@@ -316,7 +316,8 @@ export function useChat() {
             setAllMessages((prev) =>
               prev.map((m) => {
                 if (m.id !== assistantMsgId) return m;
-                const newRaw = m.content + msg.delta;
+                const delta = (msg).delta ?? (msg as any).token ?? '';
+                const newRaw = m.content + delta;
                 return { ...m, content: maskStreamTags(newRaw) };
               })
             );
@@ -362,7 +363,7 @@ export function useChat() {
             setIsStreaming(false);
             try {
               port.disconnect();
-            } catch {}
+            } catch { }
             portRef.current = null;
           } else if (msg.type === 'error') {
             hasReceivedDone = true;
@@ -371,17 +372,17 @@ export function useChat() {
               prev.map((m) =>
                 m.id === assistantMsgId
                   ? {
-                      ...m,
-                      content: friendly,
-                      isStreaming: false,
-                    }
+                    ...m,
+                    content: friendly,
+                    isStreaming: false,
+                  }
                   : m
               )
             );
             setIsStreaming(false);
             try {
               port.disconnect();
-            } catch {}
+            } catch { }
             portRef.current = null;
           }
         });
@@ -393,12 +394,12 @@ export function useChat() {
               prev.map((m) =>
                 m.id === assistantMsgId
                   ? {
-                      ...m,
-                      content: m.content
-                        ? `${m.content}\n\n⚠️ *(Response was interrupted due to a temporary connection issue. Click Retry below to regenerate.)*`
-                        : `⚠️ **Connection Interrupted**\n\nThe connection was closed before completing your response. Click Retry below to resubmit.\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${rawMsg}</pre></details>`,
-                      isStreaming: false,
-                    }
+                    ...m,
+                    content: m.content
+                      ? `${m.content}\n\n⚠️ *(Response was interrupted due to a temporary connection issue. Click Retry below to regenerate.)*`
+                      : `⚠️ **Connection Interrupted**\n\nThe connection was closed before completing your response. Click Retry below to resubmit.\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${rawMsg}</pre></details>`,
+                    isStreaming: false,
+                  }
                   : m
               )
             );
@@ -421,10 +422,10 @@ export function useChat() {
           prev.map((m) =>
             m.id === assistantMsgId
               ? {
-                  ...m,
-                  content: `❌ **Connection error**: ${msg}`,
-                  isStreaming: false,
-                }
+                ...m,
+                content: `❌ **Connection error**: ${msg}`,
+                isStreaming: false,
+              }
               : m
           )
         );

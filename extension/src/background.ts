@@ -234,7 +234,8 @@ chrome.runtime.onConnect.addListener((port) => {
                     step: data.step,
                   });
                 } else if (currentEvent === 'token') {
-                  port.postMessage({ type: 'token', delta: data.delta });
+                  const delta = typeof data.delta === 'string' ? data.delta : (typeof data.token === 'string' ? data.token : '');
+                  port.postMessage({ type: 'token', delta });
                 } else if (currentEvent === 'citations') {
                   port.postMessage({ type: 'citations', citations: data.citations });
                 } else if (currentEvent === 'done') {
