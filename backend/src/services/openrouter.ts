@@ -237,6 +237,7 @@ export interface ChatCompletionOptions {
   responseFormat?: { type: string };
   temperature?: number;
   model?: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -267,6 +268,7 @@ export async function chatCompletion(
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(body),
+      signal: options.signal,
     },
     isOpenRouterChatResponse,
     'OpenRouter Chat'
@@ -293,6 +295,7 @@ export async function* chatCompletionStream(
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(body),
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -310,6 +313,13 @@ export async function* chatCompletionStream(
 
   try {
     while (true) {
+      if (options.signal?.aborted) {
+        try {
+          await reader.cancel();
+        } catch {}
+        break;
+      }
+
       const { done, value } = await reader.read();
       if (done) break;
 

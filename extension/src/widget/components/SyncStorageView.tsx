@@ -38,9 +38,8 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
         throw new Error(`Server returned HTTP ${res.status}`);
       }
       setStatus(res.data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`Cannot reach backend: ${msg}`);
+    } catch {
+      setError('Unable to connect right now. Please check your network connection.');
     } finally {
       setLoading(false);
     }
@@ -66,24 +65,21 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
 
   return (
     <div className="saka-view-container">
-      <h3 className="saka-view-title">Knowledge Base Sync</h3>
+      <h3 className="saka-view-title">Update AI</h3>
+      <p style={{ fontSize: '12px', color: 'var(--saka-ink-secondary, #58655E)', marginTop: '-4px', marginBottom: '14px', lineHeight: 1.4 }}>
+        Fetches the latest SakaHub articles so answers stay accurate.
+      </p>
 
       {/* Error state */}
       {error && (
         <div className="saka-alert-card saka-alert-error">
           <div className="saka-alert-header">
             <AlertCircle size={16} />
-            <span>Sync Service Unavailable</span>
+            <span>Update Service Unavailable</span>
           </div>
           <p className="saka-alert-desc">
-            Unable to check knowledge base sync status right now.
+            {error}
           </p>
-          <details className="saka-alert-details">
-            <summary style={{ cursor: 'pointer' }}>Technical details</summary>
-            <div className="saka-alert-code">
-              {error}
-            </div>
-          </details>
           <button
             type="button"
             className="saka-btn-secondary"
@@ -95,7 +91,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
         </div>
       )}
 
-      {/* Sync Error Box if sync failed */}
+      {/* Error Box if update failed */}
       {!isSyncing && syncProgress?.stage === 'error' && !dismissedError && (() => {
         const isSakaConnection =
           syncProgress.errorCode === 'AUTH_REQUIRED' ||
@@ -121,7 +117,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
               </div>
 
               <p className="saka-alert-desc">
-                {syncProgress.message || 'Please open SakaHub in your browser and it will automatically pick up.'}
+                {syncProgress.message || 'Please open SakaHub in your browser to update AI content.'}
               </p>
 
               <a
@@ -153,7 +149,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div className="saka-alert-header">
                 <AlertCircle size={15} style={{ flexShrink: 0 }} />
-                <span>Sync Failed</span>
+                <span>Update Failed</span>
               </div>
               <button
                 type="button"
@@ -170,33 +166,33 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
         );
       })()}
 
-      {/* Single Unified Sync Status Card */}
+      {/* Unified Status Card */}
       <div className="saka-stats-card saka-sync-overview-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span className="saka-sync-status-title">
             {isSyncing
-              ? 'Synchronizing Knowledge Base'
+              ? 'Updating Ask Saka...'
               : status?.totalIndexed === 0
-                ? 'Knowledge Base Empty'
-                : 'Knowledge Base Synchronized'}
+                ? 'No Articles Loaded Yet'
+                : 'AI Knowledge Current'}
           </span>
           {isSyncing ? (
             <span className="saka-percentage-pill">{pct}%</span>
           ) : status?.totalIndexed === 0 ? (
             <span className="saka-status-pill saka-status-warning">
-              Not Synced
+              Needs Update
             </span>
           ) : (
             <span className="saka-status-pill saka-status-ready">
-              Ready
+              Up to Date
             </span>
           )}
         </div>
 
         {isSyncing && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
             <p className="saka-sync-status-msg">
-              {syncProgress?.message || 'Probing SakaHub articles...'}
+              {syncProgress?.message || 'Checking SakaHub articles...'}
             </p>
             <div className="saka-sync-progress-track">
               <div
@@ -208,11 +204,11 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
         )}
       </div>
 
-      {/* 2-Metric Cards (KISS) */}
+      {/* 2-Metric Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <div className="saka-stats-card saka-stat-metric-card">
           <span className="saka-stat-metric-label">
-            Indexed Articles
+            Articles Available
           </span>
           <span className="saka-stat-metric-val">
             {status?.totalIndexed ?? (loading ? '...' : '0')}
@@ -221,7 +217,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
 
         <div className="saka-stats-card saka-stat-metric-card">
           <span className="saka-stat-metric-label">
-            Last Synced
+            Last Updated
           </span>
           {(() => {
             const effectiveSyncTime = lastSyncedAt || status?.maxLastUpdated;
@@ -239,17 +235,17 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
                 className="saka-btn-check-status"
                 onClick={fetchStats}
                 disabled={loading}
-                title="Query server for sync status"
+                title="Check latest status"
               >
                 <RefreshCw size={11} className={loading ? 'saka-spin' : ''} />
-                <span>{loading ? 'Checking...' : 'Check Server Status'}</span>
+                <span>{loading ? 'Checking...' : 'Check Status'}</span>
               </button>
             );
           })()}
         </div>
       </div>
 
-      {/* Action Buttons (No refresh icons!) */}
+      {/* Action Buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
         <button
           type="button"
@@ -258,7 +254,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
           disabled={isSyncing}
           style={{ padding: '12px', fontSize: '13.5px', opacity: isSyncing ? 0.75 : 1 }}
         >
-          <span>{isSyncing ? `Synchronizing (${pct}%)...` : 'Sync Knowledge Base'}</span>
+          <span>{isSyncing ? `Updating (${pct}%)...` : 'Check for Saka updates'}</span>
         </button>
 
         <button
@@ -267,10 +263,10 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
           onClick={() => onTriggerSync('deep')}
           disabled={isSyncing}
           style={{ padding: '8px 12px', fontSize: '12px' }}
-          title="Reconcile all 7 pages to check for any deleted articles"
+          title="Scans all SakaHub articles to verify every guide"
         >
           <ShieldCheck size={14} />
-          <span>Deep Full Reconciliation</span>
+          <span>Full Scan</span>
         </button>
       </div>
     </div>

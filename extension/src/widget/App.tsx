@@ -15,8 +15,11 @@ import { HistoryView } from './components/HistoryView.js';
 import { SyncStorageView } from './components/SyncStorageView.js';
 import { SettingsView } from './components/SettingsView.js';
 import { CitationHoverCard } from './components/CitationHoverCard.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { ToastProvider, useToast } from './context/ToastContext.js';
 
-export const App: React.FC = () => {
+const AppInner: React.FC = () => {
+  const toast = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [currentView, setCurrentView] = useState<WidgetView>('chat');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -194,6 +197,24 @@ export const App: React.FC = () => {
     setIsMenuOpen(false);
   };
 
+  const handleCompactConversation = async () => {
+    const res = await chat.compactCurrentConversation();
+    if (res.success) {
+      toast.success('Conversation summarized into new thread');
+    } else if (res.error) {
+      toast.error(`Compaction failed: ${res.error}`);
+    }
+  };
+
+  const handleRestoreConversation = async () => {
+    const res = await chat.restoreConversation();
+    if (res.success) {
+      toast.success('Conversation restored');
+    } else if (res.error) {
+      toast.error(`Restore failed: ${res.error}`);
+    }
+  };
+
   const handleSelectHistoryConversation = (id: string) => {
     chat.loadConversation(id);
     setCurrentView('chat');
@@ -249,9 +270,9 @@ export const App: React.FC = () => {
       case 'history':
         return 'History';
       case 'sync':
-        return 'Sync & Storage';
+        return 'Update AI';
       case 'settings':
-        return 'Settings';
+        return 'Preferences';
       default:
         return 'Assistant';
     }
@@ -369,14 +390,22 @@ export const App: React.FC = () => {
               statusLog={chat.statusLog}
               isStreaming={chat.isStreaming}
               isLoadingConversation={chat.isLoadingConversation}
+              conversationLoadError={chat.conversationLoadError}
+              onRetryLoadConversation={() => {
+                if (chat.conversationId) {
+                  chat.loadConversation(chat.conversationId);
+                }
+              }}
+              onStopStreaming={chat.stopGeneration}
               isDeleted={chat.isDeleted}
-              onRestoreConversation={chat.restoreConversation}
+              isRestoring={chat.isRestoring}
+              onRestoreConversation={handleRestoreConversation}
               onStartNewChat={handleStartNewChat}
               focusTrigger={chat.focusTrigger}
               conversationTitle={chat.conversationTitle}
               isCompacted={chat.isCompacted}
               isCompacting={chat.isCompacting}
-              onCompactConversation={chat.compactCurrentConversation}
+              onCompactConversation={handleCompactConversation}
               onSendMessage={chat.sendMessage}
               getBranchInfo={chat.getBranchInfo}
               onSwitchBranch={chat.switchBranch}
@@ -429,5 +458,15 @@ export const App: React.FC = () => {
         />
       )}
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <ErrorBoundary fallbackTitle="Ask Saka Error">
+      <ToastProvider>
+        <AppInner />
+      </ToastProvider>
+    </ErrorBoundary>
   );
 };

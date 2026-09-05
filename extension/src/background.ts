@@ -423,7 +423,9 @@ chrome.runtime.onConnect.addListener((port) => {
                   });
                 } else if (currentEvent === 'error') {
                   const errMsg = 'message' in data && typeof data.message === 'string' ? data.message : 'Unknown error';
-                  port.postMessage({ type: 'error', message: errMsg });
+                  const errCode = 'code' in data && typeof data.code === 'string' ? data.code : undefined;
+                  const errDetails = 'details' in data && typeof data.details === 'string' ? data.details : undefined;
+                  port.postMessage({ type: 'error', message: errMsg, code: errCode, details: errDetails });
                 }
               } catch {}
             }
@@ -432,7 +434,7 @@ chrome.runtime.onConnect.addListener((port) => {
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
         const msg = err instanceof Error ? err.message : String(err);
-        port.postMessage({ type: 'error', message: msg });
+        port.postMessage({ type: 'error', message: msg, code: 'CONNECTION_ERROR' });
       }
     }
   });

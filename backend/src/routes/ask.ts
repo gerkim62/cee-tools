@@ -154,14 +154,36 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
   };
 
   let requestDedupeKey: string | null = null;
+  const abortController = new AbortController();
+  let keepAliveTimer: NodeJS.Timeout | null = null;
+  let isDone = false;
+  let isCancelled = false;
+  let isTimedOut = false;
+  let answerText = '';
+  let activeConversationId: string | null = null;
+  const assistantMessageId = crypto.randomUUID();
+
+  if (isStream) {
+    keepAliveTimer = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(': ping\n\n');
+      }
+    }, 15000);
+  }
+
+  const timeoutTimer = setTimeout(() => {
+    isTimedOut = true;
+    abortController.abort(new Error('UPSTREAM_TIMEOUT'));
+  }, 45000);
 
   try {
     const { question, conversationId, clientId, parentId, retryUserMessageId } = req.body;
+    activeConversationId = conversationId || null;
     const isRetry = Boolean(retryUserMessageId);
     const userMessageId = retryUserMessageId || crypto.randomUUID();
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       if (isStream) {
-        sendEvent('error', { message: 'Question is required' });
+        sendEvent('error', { code: 'INVALID_REQUEST', message: 'Question is required' });
         res.end();
       } else {
         res.status(400).json({ error: 'Question is required' });
@@ -177,7 +199,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     if (activeAskRequests.has(requestDedupeKey)) {
       const busyMsg = 'A matching query is currently being processed. Please wait for completion.';
       if (isStream) {
-        sendEvent('error', { message: busyMsg });
+        sendEvent('error', { code: 'DUPLICATE_REQUEST', message: busyMsg });
         res.end();
       } else {
         res.status(429).json({ error: busyMsg });
@@ -186,10 +208,42 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     }
     activeAskRequests.add(requestDedupeKey);
 
+    req.on('close', async () => {
+      if (!isDone) {
+        isCancelled = true;
+        console.log(`[Ask] ⏹ Client disconnected/aborted request: "${trimmedQuestion.slice(0, 40)}..."`);
+        abortController.abort();
+        if (requestDedupeKey) {
+          activeAskRequests.delete(requestDedupeKey);
+        }
+        if (answerText.trim().length > 0 && activeConversationId) {
+          try {
+            const stoppedText = `${answerText.trim()}\n\n*(Generation stopped by user)*`;
+            await query(
+              `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, NOW())
+               ON CONFLICT (id) DO UPDATE SET content = $5`,
+              [
+                assistantMessageId,
+                activeConversationId,
+                userMessageId,
+                'assistant',
+                stoppedText,
+                JSON.stringify({ citations: [], executionSteps: [] }),
+              ]
+            );
+            await query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [activeConversationId]);
+            console.log(`[Ask] 💾 Persisted partial turn (${stoppedText.length} chars) for cancelled query.`);
+          } catch (pErr) {
+            console.warn('[Ask] Warning saving partial turn on abort:', pErr);
+          }
+        }
+      }
+    });
+
     console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}" (streaming: ${isStream}, convId: ${conversationId || 'none'}, parentId: ${parentId || 'none'}, isRetry: ${isRetry})`);
 
     // Manage conversation thread and history
-    let activeConversationId: string | null = conversationId || null;
     let previousTurnsContext = '';
 
     if (clientId || conversationId) {
@@ -313,16 +367,19 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       for await (const token of chatCompletionStream(conversationalMessages, {
         temperature: 0.7,
         model: config.OPENROUTER_CHAT_MODEL,
+        signal: abortController.signal,
       })) {
         naturalReply += token;
+        answerText = naturalReply;
         sendEvent('token', { delta: token, token });
       }
 
+      isDone = true;
       const conversationalSteps: ExecutionStep[] = [
         { label: 'Intent', detail: 'Conversational message — responding directly' },
       ];
 
-      const conversationalAssistantId = crypto.randomUUID();
+      const conversationalAssistantId = assistantMessageId;
       sendEvent('done', {
         answer: naturalReply,
         citations: [],
@@ -628,11 +685,12 @@ ${s.content}
 
     const effectiveSystemPrompt = ASK_SAKA_SYSTEM_PROMPT + channelContext;
 
-    let answerText = '';
     for await (const token of chatCompletionStream([
       { role: 'system', content: effectiveSystemPrompt },
       { role: 'user', content: userMessage },
-    ])) {
+    ], {
+      signal: abortController.signal,
+    })) {
       answerText += token;
       if (isStream) {
         sendEvent('token', { delta: token });
@@ -787,13 +845,13 @@ ${s.content}
       }
     }
 
-    const assistantMessageId = crypto.randomUUID();
     // Save assistant message to conversation history in DB
     if (activeConversationId) {
       try {
         await query(
           `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())
+           ON CONFLICT (id) DO UPDATE SET content = $5`,
           [
             assistantMessageId,
             activeConversationId,
@@ -838,6 +896,7 @@ ${s.content}
       parentId: userMessageId,
     };
 
+    isDone = true;
     if (isStream) {
       sendEvent('citations', { citations });
       sendEvent('done', responsePayload);
@@ -847,14 +906,40 @@ ${s.content}
     }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
+    if (isCancelled || (error instanceof Error && error.name === 'AbortError' && !isTimedOut)) {
+      console.log('[Ask] ⏹ Query successfully aborted upon client disconnect.');
+      return;
+    }
     console.error('[Ask Router Error] Error processing query:', error);
+
+    let errorCode = 'SERVICE_UNAVAILABLE';
+    let userFriendlyMsg = msg;
+
+    if (isTimedOut || msg.includes('UPSTREAM_TIMEOUT')) {
+      errorCode = 'UPSTREAM_TIMEOUT';
+      userFriendlyMsg = 'Answer generation timed out after 45 seconds. Click Retry below to regenerate.';
+    } else if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+      errorCode = 'RATE_LIMIT_EXCEEDED';
+      userFriendlyMsg = 'Knowledge service is currently experiencing high load. Please try again in a few moments.';
+    } else if (
+      msg.includes('401') ||
+      msg.includes('402') ||
+      msg.toLowerCase().includes('credit') ||
+      msg.toLowerCase().includes('quota')
+    ) {
+      errorCode = 'INSUFFICIENT_QUOTA';
+      userFriendlyMsg = 'Knowledge service quota exceeded. Please contact system administrator.';
+    }
+
     if (isStream) {
-      sendEvent('error', { message: msg });
+      sendEvent('error', { code: errorCode, message: userFriendlyMsg, details: msg });
       res.end();
     } else {
-      res.status(500).json({ error: 'Failed to process question', message: msg });
+      res.status(500).json({ error: userFriendlyMsg, code: errorCode, details: msg });
     }
   } finally {
+    clearTimeout(timeoutTimer);
+    if (keepAliveTimer) clearInterval(keepAliveTimer);
     if (requestDedupeKey) {
       activeAskRequests.delete(requestDedupeKey);
     }

@@ -33,7 +33,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
             <span>
               {syncProgress?.errorCode === 'BACKEND_UNREACHABLE'
                 ? 'Knowledge service is temporarily unreachable.'
-                : syncProgress?.message || 'Unable to complete sync. Active knowledge base is in use.'}
+                : syncProgress?.message || 'Unable to complete update right now.'}
             </span>
           </div>
 
@@ -64,8 +64,8 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
   }
 
   const message = isSyncing
-    ? syncProgress?.message || 'Synchronizing SakaHub...'
-    : staleReason || 'New articles detected on SakaHub.';
+    ? syncProgress?.message || 'Updating AI with SakaHub articles...'
+    : staleReason || 'New SakaHub updates available.';
 
   return (
     <div className="saka-sync-banner">
@@ -86,7 +86,7 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
             style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '5px' }}
             onClick={onSyncNow}
           >
-            Sync Now
+            Update Now
           </button>
         )}
       </div>

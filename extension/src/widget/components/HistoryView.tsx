@@ -3,6 +3,7 @@ import { Search, X, Plus, MessageSquarePlus, AlertCircle, RefreshCw, Lock } from
 import { ConversationSummary } from '../../types.js';
 import { getBackendUrl, getClientId } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
+import { useToast } from '../context/ToastContext.js';
 
 // Official Lucide Trash-2 SVG with CSS-animated opening lid for two-click deletion
 const AnimatedTrashIcon: React.FC<{ isOpen: boolean; size?: number; className?: string }> = ({
@@ -51,12 +52,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   refreshTrigger,
   onDeleteConversation,
 }) => {
+  const toast = useToast();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const searchTimeoutRef = useRef<number | null>(null);
   const confirmTimeoutRef = useRef<number | null>(null);
 
@@ -129,21 +132,51 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const handleDeleteClick = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (confirmDeleteId === id) {
+      if (deletingId) return;
       // Second click: execute deletion
       if (confirmTimeoutRef.current) {
         window.clearTimeout(confirmTimeoutRef.current);
         confirmTimeoutRef.current = null;
       }
       setConfirmDeleteId(null);
+      setDeletingId(id);
+      const targetConv = conversations.find((c) => c.id === id);
       try {
         const backendUrl = await getBackendUrl();
-        await bgFetch(`${backendUrl}/conversations/${id}`, { method: 'DELETE' });
+        const res = await bgFetch(`${backendUrl}/conversations/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setConversations((prev) => prev.filter((c) => c.id !== id));
         onDeleteConversation?.(id);
+
+        toast.success('Conversation deleted', {
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              try {
+                const rRes = await bgFetch(`${backendUrl}/conversations/${id}/restore`, { method: 'POST' });
+                if (!rRes.ok) throw new Error(`HTTP ${rRes.status}`);
+                if (targetConv) {
+                  setConversations((prev) => [targetConv, ...prev]);
+                } else {
+                  fetchConversations(searchQuery);
+                }
+                toast.success('Conversation restored');
+              } catch (rErr) {
+                const rMsg = rErr instanceof Error ? rErr.message : String(rErr);
+                toast.error(`Failed to restore conversation: ${rMsg}`);
+              }
+            },
+          },
+        });
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         console.warn('[HistoryView] Failed to delete conversation:', err);
+        toast.error(`Failed to delete conversation: ${msg}`);
+      } finally {
+        setDeletingId(null);
       }
     } else {
+      if (deletingId) return;
       // First click: open lid and turn red, 4-second timeout to revert
       if (confirmTimeoutRef.current) {
         window.clearTimeout(confirmTimeoutRef.current);
@@ -365,9 +398,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                           {conv.title}
                         </span>
                         {conv.isCompacted && (
-                          <span className="saka-badge-compacted" title="Compacted & locked thread">
+                          <span className="saka-badge-compacted" title="Summarized & closed thread">
                             <Lock size={9} style={{ display: 'inline', marginRight: '2px', verticalAlign: 'middle' }} />
-                            Compacted
+                            Summarized
                           </span>
                         )}
                       </div>
@@ -386,12 +419,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
                     <button
                       type="button"
-                      className={`saka-btn-icon saka-history-delete-btn ${confirmDeleteId === conv.id ? 'confirming' : ''}`}
+                      className={`saka-btn-icon saka-history-delete-btn ${confirmDeleteId === conv.id ? 'confirming' : ''} ${deletingId === conv.id ? 'deleting' : ''}`}
                       onClick={(e) => handleDeleteClick(e, conv.id)}
-                      title={confirmDeleteId === conv.id ? 'Click again to confirm delete' : 'Delete conversation'}
+                      disabled={deletingId === conv.id}
+                      title={deletingId === conv.id ? 'Deleting...' : confirmDeleteId === conv.id ? 'Click again to confirm delete' : 'Delete conversation'}
                       aria-label={confirmDeleteId === conv.id ? 'Confirm deletion' : 'Delete conversation'}
                     >
-                      <AnimatedTrashIcon isOpen={confirmDeleteId === conv.id} size={14} />
+                      {deletingId === conv.id ? (
+                        <RefreshCw size={13} className="saka-spin" color="var(--saka-red-official, #DE1E23)" />
+                      ) : (
+                        <AnimatedTrashIcon isOpen={confirmDeleteId === conv.id} size={14} />
+                      )}
                     </button>
                   </div>
                 ))}

@@ -21,8 +21,12 @@ import { SyncStorageView } from '../widget/components/SyncStorageView.js';
 import { SettingsView } from '../widget/components/SettingsView.js';
 import { CitationInspectorPane } from './components/CitationInspectorPane.js';
 import { Citation, WidgetView } from '../types.js';
+import { SyncBanner } from '../widget/components/SyncBanner.js';
+import { ErrorBoundary } from '../widget/components/ErrorBoundary.js';
+import { ToastProvider, useToast } from '../widget/context/ToastContext.js';
 
-export const DedicatedWindowApp: React.FC = () => {
+const DedicatedWindowAppInner: React.FC = () => {
+  const toast = useToast();
   const chat = useChat();
   const syncState = useSyncState();
   const theme = useTheme();
@@ -140,6 +144,24 @@ export const DedicatedWindowApp: React.FC = () => {
     setIsPinned(false);
   };
 
+  const handleCompactConversation = async () => {
+    const res = await chat.compactCurrentConversation();
+    if (res.success) {
+      toast.success('Conversation summarized into new thread');
+    } else if (res.error) {
+      toast.error(`Compaction failed: ${res.error}`);
+    }
+  };
+
+  const handleRestoreConversation = async () => {
+    const res = await chat.restoreConversation();
+    if (res.success) {
+      toast.success('Conversation restored');
+    } else if (res.error) {
+      toast.error(`Restore failed: ${res.error}`);
+    }
+  };
+
   const handleSelectHistoryConversation = (convId: string) => {
     chat.loadConversation(convId);
     setCurrentView('chat');
@@ -247,17 +269,17 @@ export const DedicatedWindowApp: React.FC = () => {
               type="button"
               className={`saka-sidebar-nav-item ${currentView === 'sync' ? 'active' : ''}`}
               onClick={() => setCurrentView('sync')}
-              title="Knowledge Base Sync"
+              title="Update AI"
             >
               <RefreshCw size={14} />
-              <span>Sync</span>
+              <span>Update AI</span>
             </button>
 
             <button
               type="button"
               className={`saka-sidebar-nav-item ${currentView === 'settings' ? 'active' : ''}`}
               onClick={() => setCurrentView('settings')}
-              title="Extension Settings"
+              title="Preferences"
             >
               <Settings size={14} />
               <span>Preferences</span>
@@ -267,6 +289,17 @@ export const DedicatedWindowApp: React.FC = () => {
 
         {/* Center Main Workspace: Active Chat Stream or Tool View */}
         <section className="saka-workstation-center">
+          {currentView !== 'sync' && (
+            <SyncBanner
+              isSyncing={syncState.isSyncing}
+              isStale={syncState.isStale}
+              staleReason={syncState.staleReason}
+              syncProgress={syncState.syncProgress}
+              onSyncNow={() => syncState.triggerSync('smart')}
+              onDismissError={syncState.dismissSyncError}
+            />
+          )}
+
           <div className="saka-workstation-chat-wrapper">
             {currentView === 'chat' && (
               <ChatView
@@ -274,11 +307,18 @@ export const DedicatedWindowApp: React.FC = () => {
                 statusLog={chat.statusLog}
                 isStreaming={chat.isStreaming}
                 isLoadingConversation={chat.isLoadingConversation}
+                conversationLoadError={chat.conversationLoadError}
+                onRetryLoadConversation={() => {
+                  if (chat.conversationId) {
+                    chat.loadConversation(chat.conversationId);
+                  }
+                }}
+                onStopStreaming={chat.stopGeneration}
                 focusTrigger={chat.focusTrigger}
                 conversationTitle={chat.conversationTitle}
                 isCompacted={chat.isCompacted}
                 isCompacting={chat.isCompacting}
-                onCompactConversation={chat.compactCurrentConversation}
+                onCompactConversation={handleCompactConversation}
                 onSendMessage={chat.sendMessage}
                 getBranchInfo={chat.getBranchInfo}
                 onSwitchBranch={chat.switchBranch}
@@ -288,7 +328,8 @@ export const DedicatedWindowApp: React.FC = () => {
                 onLeaveCitation={handleLeaveCitation}
                 onClickCitation={handleClickCitation}
                 isDeleted={chat.isDeleted}
-                onRestoreConversation={chat.restoreConversation}
+                isRestoring={chat.isRestoring}
+                onRestoreConversation={handleRestoreConversation}
                 onStartNewChat={handleNewChat}
               />
             )}
@@ -326,5 +367,15 @@ export const DedicatedWindowApp: React.FC = () => {
         </div>
       </main>
     </div>
+  );
+};
+
+export const DedicatedWindowApp: React.FC = () => {
+  return (
+    <ErrorBoundary fallbackTitle="Ask Saka Workstation Error">
+      <ToastProvider>
+        <DedicatedWindowAppInner />
+      </ToastProvider>
+    </ErrorBoundary>
   );
 };

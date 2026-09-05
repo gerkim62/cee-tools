@@ -73,8 +73,10 @@ export function useChat() {
   const [conversationSummary, setConversationSummary] = useState<string | null>(null);
   const [isCompacting, setIsCompacting] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [conversationLoadError, setConversationLoadError] = useState<string | null>(null);
   const [focusTrigger, setFocusTrigger] = useState(0);
   const [isDeleted, setIsDeleted] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   // All messages in the conversation tree
@@ -103,6 +105,7 @@ export function useChat() {
     setIsCompacted(false);
     setConversationSummary(null);
     setIsDeleted(false);
+    setConversationLoadError(null);
     setAllMessages([]);
     setActiveLeafId(null);
     setStatusLog([]);
@@ -121,15 +124,22 @@ export function useChat() {
     setHistoryRefreshTrigger((prev) => prev + 1);
   }, [conversationId]);
 
-  const restoreConversation = useCallback(async () => {
-    if (!conversationId) return;
+  const restoreConversation = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (!conversationId) return { success: false, error: 'No active conversation' };
+    setIsRestoring(true);
     try {
       const backendUrl = await getBackendUrl();
-      await bgFetch(`${backendUrl}/conversations/${conversationId}/restore`, { method: 'POST' });
+      const res = await bgFetch(`${backendUrl}/conversations/${conversationId}/restore`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
       setIsDeleted(false);
       setHistoryRefreshTrigger((prev) => prev + 1);
+      return { success: true };
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.warn('[useChat] Failed to restore conversation:', err);
+      return { success: false, error: msg };
+    } finally {
+      setIsRestoring(false);
     }
   }, [conversationId]);
 
@@ -143,6 +153,7 @@ export function useChat() {
     }
     setIsDeleted(false);
     setIsLoadingConversation(true);
+    setConversationLoadError(null);
     try {
       const backendUrl = await getBackendUrl();
       const res = await bgFetch<{ conversation: ConversationSummary; messages: ChatMessage[] }>(
@@ -187,17 +198,22 @@ export function useChat() {
         setActiveLeafId(null);
       }
 
+      setConversationLoadError(null);
       setStatusLog([]);
       setIsStreaming(false);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('[useChat] Failed loading conversation via background:', err);
+      setConversationLoadError(msg || 'Unable to connect to conversation service');
     } finally {
       setIsLoadingConversation(false);
     }
   }, []);
 
-  const compactCurrentConversation = useCallback(async () => {
-    if (!conversationId || isCompacting || isStreaming) return;
+  const compactCurrentConversation = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (!conversationId || isCompacting || isStreaming) {
+      return { success: false, error: 'Cannot summarize at this time' };
+    }
     setIsCompacting(true);
     try {
       const backendUrl = await getBackendUrl();
@@ -215,12 +231,43 @@ export function useChat() {
       if (data?.newConversation?.id) {
         await loadConversation(data.newConversation.id);
       }
+      return { success: true };
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('[useChat] Compaction failed:', err);
+      return { success: false, error: msg };
     } finally {
       setIsCompacting(false);
     }
   }, [conversationId, isCompacting, isStreaming, loadConversation]);
+
+  const stopGeneration = useCallback(() => {
+    if (portRef.current) {
+      try {
+        portRef.current.disconnect();
+      } catch {}
+      portRef.current = null;
+    }
+
+    setAllMessages((prev) =>
+      prev.map((m) => {
+        if (m.isStreaming) {
+          const content = m.content
+            ? `${m.content}\n\n*(Generation stopped by user)*`
+            : '*(Response generation stopped)*';
+          return {
+            ...m,
+            content,
+            isStreaming: false,
+          };
+        }
+        return m;
+      })
+    );
+
+    setIsStreaming(false);
+    setStatusLog([]);
+  }, []);
 
   /**
    * Calculates branch info for a given message
@@ -343,8 +390,26 @@ export function useChat() {
         const port = chrome.runtime.connect({ name: 'ASK_STREAM' });
         portRef.current = port;
 
-        const formatFriendlyError = (rawErr: string) => {
-          return `⚠️ **Ask Saka Service Unavailable**\n\nWe were unable to connect to the knowledge service to answer your question right now. Please try again in a few moments.\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${rawErr}</pre></details>`;
+        const formatFriendlyError = (rawErr: string, code?: string, details?: string) => {
+          let title = '⚠️ **Ask Saka Service Unavailable**';
+          let body = 'We were unable to connect to the knowledge service to answer your question right now. Please try again in a few moments.';
+
+          if (code === 'RATE_LIMIT_EXCEEDED') {
+            title = '⏳ **Service High Demand**';
+            body = 'Ask Saka is currently handling a surge in requests. Please click Retry below in a moment.';
+          } else if (code === 'UPSTREAM_TIMEOUT') {
+            title = '⏱️ **Request Timed Out**';
+            body = 'Knowledge synthesis took longer than 45 seconds to generate an answer. Click Retry below to regenerate.';
+          } else if (code === 'INSUFFICIENT_QUOTA') {
+            title = '🔒 **Service Quota Exceeded**';
+            body = 'Knowledge service quota limit reached. Please contact your system administrator.';
+          } else if (code === 'DUPLICATE_REQUEST') {
+            title = '⚡ **Duplicate Query in Progress**';
+            body = 'A matching query is currently being processed. Please wait a moment before sending.';
+          }
+
+          const techText = details || rawErr;
+          return `${title}\n\n${body}\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${techText}</pre></details>`;
         };
 
         port.onMessage.addListener((msg: AskStreamServerMessage) => {
@@ -432,7 +497,7 @@ export function useChat() {
             portRef.current = null;
           } else if (msg.type === 'error') {
             hasReceivedDone = true;
-            const friendly = formatFriendlyError(msg.message);
+            const friendly = formatFriendlyError(msg.message, msg.code, msg.details);
             setAllMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantMsgId
@@ -441,7 +506,7 @@ export function useChat() {
                     content: friendly,
                     isStreaming: false,
                     isError: true,
-                    errorCode: 'SERVICE_UNAVAILABLE',
+                    errorCode: msg.code || 'SERVICE_UNAVAILABLE',
                   }
                   : m
               )
@@ -560,12 +625,15 @@ export function useChat() {
     statusLog,
     isStreaming,
     isLoadingConversation,
+    conversationLoadError,
     focusTrigger,
     isDeleted,
+    isRestoring,
     historyRefreshTrigger,
     markConversationDeleted,
     restoreConversation,
     sendMessage,
+    stopGeneration,
     startNewChat,
     loadConversation,
     switchBranch,

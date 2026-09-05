@@ -124,11 +124,11 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           className="saka-channel-pill"
           onClick={handleToggleChannel}
           onMouseDown={(e) => e.stopPropagation()}
-          title={`Active Mode: ${channel === 'care_center' ? 'CEE / Care Center (Phone support, remote vetting)' : 'Retail Shop (In-store physical verification)'}. Click to switch.`}
-          aria-label="Toggle agent channel"
+          title={`Role: ${channel === 'care_center' ? 'Call Center' : 'Retail'}. Click to switch.`}
+          aria-label="Toggle role"
         >
           {channel === 'care_center' ? <Headphones size={11} /> : <Store size={11} />}
-          <span>{channel === 'care_center' ? 'CEE' : 'Retail'}</span>
+          <span>{channel === 'care_center' ? 'Call Center' : 'Retail'}</span>
         </button>
 
         {syncLabel && (
@@ -206,7 +206,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           type="button"
           className={`saka-btn-icon ${isMenuOpen ? 'active' : ''}`}
           onClick={onToggleMenu}
-          title="Navigation Menu (History, Knowledge Sync, Settings, Theme)"
+          title="Menu (History, Update AI, Preferences)"
           aria-label="Menu"
         >
           <MoreVertical size={14} />
@@ -217,8 +217,8 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           type="button"
           className="saka-btn-icon saka-btn-close"
           onClick={onClose}
-          title="Close Widget (Dock to Floating Badge)"
-          aria-label="Close"
+          title="Minimize"
+          aria-label="Minimize"
         >
           <X size={15} />
         </button>

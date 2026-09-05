@@ -167,7 +167,15 @@ export interface ChatMessage {
   createdAt: string;
   isStreaming?: boolean;
   isError?: boolean;
-  errorCode?: 'SERVICE_UNAVAILABLE' | 'CONNECTION_INTERRUPTED' | 'UNKNOWN';
+  errorCode?:
+    | 'SERVICE_UNAVAILABLE'
+    | 'CONNECTION_INTERRUPTED'
+    | 'UPSTREAM_TIMEOUT'
+    | 'RATE_LIMIT_EXCEEDED'
+    | 'INSUFFICIENT_QUOTA'
+    | 'DUPLICATE_REQUEST'
+    | 'UNKNOWN'
+    | string;
 }
 
 export type WidgetView = 'chat' | 'history' | 'sync' | 'settings';
@@ -190,6 +198,7 @@ export type ExtensionMessage =
   | { type: 'SYNC_ERROR'; error: string }
   | { type: 'BG_FETCH'; url: string; options?: RequestInit }
   | { type: 'SAKAHUB_RELAY_FETCH'; url: string; options?: { headers?: Record<string, string> } }
+  | { type: 'CHECK_SAKAHUB_SESSION'; force?: boolean }
   | { type: 'OPEN_DEDICATED_WINDOW'; conversationId?: string }
   | { type: 'OPEN_FULL_TAB'; conversationId?: string }
   | { type: 'FOCUS_SAKAHUB_PAGE' }
@@ -234,6 +243,6 @@ export type AskStreamServerMessage =
       userMessageId?: string;
       parentId?: string | null;
     }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; code?: string; details?: string };
 
 

@@ -10,6 +10,9 @@ interface ChatViewProps {
   statusLog: string[];
   isStreaming: boolean;
   isLoadingConversation?: boolean;
+  conversationLoadError?: string | null;
+  onRetryLoadConversation?: () => void;
+  onStopStreaming?: () => void;
   focusTrigger?: number;
   conversationTitle?: string | null;
   isCompacted?: boolean;
@@ -24,6 +27,7 @@ interface ChatViewProps {
   onLeaveCitation?: () => void;
   onClickCitation?: (citation: Citation, allCitations: Citation[]) => void;
   isDeleted?: boolean;
+  isRestoring?: boolean;
   onRestoreConversation?: () => void;
   onStartNewChat?: () => void;
 }
@@ -33,6 +37,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   statusLog,
   isStreaming,
   isLoadingConversation = false,
+  conversationLoadError,
+  onRetryLoadConversation,
+  onStopStreaming,
   focusTrigger,
   conversationTitle,
   isCompacted = false,
@@ -47,6 +54,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onLeaveCitation,
   onClickCitation,
   isDeleted = false,
+  isRestoring = false,
   onRestoreConversation,
   onStartNewChat,
 }) => {
@@ -123,17 +131,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
               className="saka-compact-btn"
               onClick={onCompactConversation}
               disabled={isCompacting || isStreaming}
-              title="Summarize key points, lock this thread, and start a fresh continued chat"
+              title="Summarize key points and start a fresh continued chat"
             >
               {isCompacting ? (
                 <>
                   <RefreshCw size={11} className="spin" style={{ animation: 'spin 1.2s linear infinite' }} />
-                  <span>Compacting...</span>
+                  <span>Summarizing...</span>
                 </>
               ) : (
                 <>
                   <Minimize2 size={11} />
-                  <span>Compact</span>
+                  <span>Summarize</span>
                 </>
               )}
             </button>
@@ -143,7 +151,47 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* Messages Scroll Container */}
       <div className="saka-messages-scroll" ref={scrollRef} onScroll={handleScroll}>
-        {isLoadingConversation ? (
+        {conversationLoadError ? (
+          <div className="saka-chat-recovery-container">
+            <div className="saka-alert-card saka-alert-error" style={{ margin: 'auto 0', maxWidth: '380px' }}>
+              <div className="saka-alert-header">
+                <AlertCircle size={16} />
+                <span>Unable to Load Conversation</span>
+              </div>
+              <p className="saka-alert-desc">
+                We could not retrieve this conversation from the knowledge service.
+              </p>
+              <details className="saka-alert-details">
+                <summary style={{ cursor: 'pointer' }}>Technical details</summary>
+                <div className="saka-alert-code">{conversationLoadError}</div>
+              </details>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                {onRetryLoadConversation && (
+                  <button
+                    type="button"
+                    className="saka-btn-secondary"
+                    style={{ padding: '5px 12px', fontSize: '12px' }}
+                    onClick={onRetryLoadConversation}
+                  >
+                    <RotateCcw size={12} />
+                    <span>Retry Loading</span>
+                  </button>
+                )}
+                {onStartNewChat && (
+                  <button
+                    type="button"
+                    className="saka-btn-primary"
+                    style={{ padding: '5px 14px', fontSize: '12px' }}
+                    onClick={onStartNewChat}
+                  >
+                    <Plus size={12} />
+                    <span>New Chat</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : isLoadingConversation ? (
           <div className="saka-skeleton-container" aria-label="Loading conversation history">
             <div className="saka-skeleton-bubble assistant">
               <div className="saka-skeleton-header">
@@ -227,43 +275,52 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* Deleted or Compacted banner vs ChatInput */}
       {isDeleted ? (
-        <div className="saka-deleted-lock-banner">
-          <div className="saka-deleted-lock-text">
-            <AlertCircle size={15} color="var(--saka-amber-official)" />
-            <span>This conversation has been deleted.</span>
-          </div>
-          <div className="saka-deleted-lock-actions">
-            {onRestoreConversation && (
-              <button
-                type="button"
-                className="saka-btn-secondary saka-btn-restore"
-                onClick={onRestoreConversation}
-                title="Restore this conversation"
-              >
-                <RotateCcw size={12} />
-                <span>Restore</span>
-              </button>
-            )}
-            {onStartNewChat && (
-              <button
-                type="button"
-                className="saka-btn-primary saka-btn-newchat-deleted"
-                onClick={onStartNewChat}
-                title="Start a fresh conversation"
-              >
-                <Plus size={12} />
-                <span>New Chat</span>
-              </button>
-            )}
+        <div className="saka-deleted-pill-wrapper">
+          <div className="saka-deleted-pill-banner">
+            <div className="saka-deleted-pill-left">
+              <AlertCircle size={14} className="saka-deleted-pill-icon" />
+              <span>This conversation has been deleted.</span>
+            </div>
+            <div className="saka-deleted-pill-actions">
+              {onRestoreConversation && (
+                <button
+                  type="button"
+                  className="saka-btn-restore-pill"
+                  onClick={onRestoreConversation}
+                  disabled={isRestoring}
+                  title="Restore this conversation"
+                >
+                  <RotateCcw size={12} className={isRestoring ? 'saka-spin' : ''} />
+                  <span>{isRestoring ? 'Restoring...' : 'Restore'}</span>
+                </button>
+              )}
+              {onStartNewChat && (
+                <button
+                  type="button"
+                  className="saka-btn-newchat-pill"
+                  onClick={onStartNewChat}
+                  title="Start a fresh conversation"
+                >
+                  <Plus size={12} />
+                  <span>New Chat</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       ) : isCompacted ? (
         <div className="saka-compacted-lock-banner">
           <Lock size={13} />
-          <span>This conversation has been compacted and locked as read-only.</span>
+          <span>This conversation was summarized and closed.</span>
         </div>
       ) : (
-        <ChatInput onSend={onSendMessage} disabled={isStreaming} focusTrigger={focusTrigger} />
+        <ChatInput
+          onSend={onSendMessage}
+          disabled={isStreaming}
+          focusTrigger={focusTrigger}
+          isStreaming={isStreaming}
+          onStop={onStopStreaming}
+        />
       )}
     </div>
   );

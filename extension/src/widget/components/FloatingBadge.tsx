@@ -35,7 +35,7 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
     : 'status-ok';
 
   const badgeTitle = isSyncing
-    ? `Ask Saka (Syncing ${progressPct}%...)`
+    ? `Ask Saka (Updating AI ${progressPct}%...)`
     : isStale
     ? 'Ask Saka (SakaHub updates available - click to open)'
     : 'Ask Saka (Ready - click to chat)';

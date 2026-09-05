@@ -400,7 +400,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
               <div className="saka-execution-toggle-left">
                 <Compass size={13} className="saka-execution-icon" />
                 <span>
-                  Query Analysis & Sources ({steps.length} {steps.length === 1 ? 'step' : 'steps'})
+                  How this was answered ({steps.length} {steps.length === 1 ? 'step' : 'steps'})
                 </span>
               </div>
               {isExecutionExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}

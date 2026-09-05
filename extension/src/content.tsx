@@ -2,10 +2,102 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './widget/App.js';
 import widgetCss from './widget/widget.css?inline';
-import { ExtensionMessage } from './types.js';
+import { ExtensionMessage, AgentChannel } from './types.js';
 
-// Relay fetch listener: executes inside the page origin so session cookies attach normally
+interface SakaUserSession {
+  user?: {
+    name?: string;
+    email?: string;
+    jobTitle?: string;
+    department?: string;
+    [key: string]: unknown;
+  };
+  accessToken?: string;
+  expires?: string;
+}
+
+function isSakaUserSession(data: unknown): data is SakaUserSession {
+  return typeof data === 'object' && data !== null && 'user' in data;
+}
+
+/**
+ * Item 1: Auto-detect agent role (CEE vs Retail) from SakaHub session
+ * Runs ONLY when executing inside the SakaHub origin.
+ * Fetches /api/auth/session once, stores the result, and does not re-fetch unless forced.
+ */
+async function checkSakaSession(force = false): Promise<{ authed: boolean; channel?: AgentChannel; name?: string; department?: string; message?: string }> {
+  if (typeof window === 'undefined' || !window.location.hostname.includes('sakahub.safaricom.co.ke')) {
+    return { authed: false, message: 'Not on SakaHub page' };
+  }
+
+  if (!force && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    const stored = await chrome.storage.local.get(['saka_role_detected', 'saka_agent_channel']);
+    if (stored.saka_role_detected) {
+      return { authed: true, channel: stored.saka_agent_channel };
+    }
+  }
+
+  try {
+    const response = await fetch('/api/auth/session', {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!response.ok) {
+      return { authed: false, message: `HTTP ${response.status}` };
+    }
+
+    const data: unknown = await response.json();
+    if (!isSakaUserSession(data) || !data.user) {
+      return { authed: false, message: 'Open SakaHub to connect' };
+    }
+
+    const dept = String(data.user.department || '').toLowerCase();
+    const jobTitle = String(data.user.jobTitle || '').toLowerCase();
+
+    const isRetail =
+      dept.includes('retail') ||
+      dept.includes('shop') ||
+      dept.includes('franchise') ||
+      dept.includes('store') ||
+      jobTitle.includes('retail') ||
+      jobTitle.includes('shop') ||
+      jobTitle.includes('franchise');
+
+    const detectedChannel: AgentChannel = isRetail ? 'retail' : 'care_center';
+
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      await chrome.storage.local.set({
+        saka_agent_channel: detectedChannel,
+        saka_role_detected: true,
+        saka_user_department: data.user.department || '',
+        saka_user_roles: data.user.roles || [],
+        saka_user_job_title: data.user.jobTitle || '',
+      });
+    }
+
+    return {
+      authed: true,
+      channel: detectedChannel,
+      department: data.user.department,
+    };
+  } catch (err) {
+    return { authed: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Relay fetch listener & session check listener
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+  if (message.type === 'CHECK_SAKAHUB_SESSION') {
+    (async () => {
+      const result = await checkSakaSession(Boolean(message.force));
+      sendResponse(result);
+    })();
+    return true;
+  }
+
   if (message.type === 'SAKAHUB_RELAY_FETCH') {
     (async () => {
       try {
@@ -249,10 +341,12 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     initAskSakaWidget();
     initSakaQuoteHighlighter();
+    checkSakaSession(false).catch(() => {});
   });
 } else {
   initAskSakaWidget();
   initSakaQuoteHighlighter();
+  checkSakaSession(false).catch(() => {});
 }
 
 // Support in-page hash changes for SPA citation navigation

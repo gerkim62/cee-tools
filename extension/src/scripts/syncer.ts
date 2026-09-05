@@ -196,7 +196,7 @@ export async function performSmartSync(
 
   notify({
     stage: 'probing',
-    message: 'Checking SakaHub & backend status...',
+    message: 'Checking SakaHub for updates...',
     progressPercent: 5,
   });
 
@@ -206,7 +206,7 @@ export async function performSmartSync(
   // Step 2: Acquire backend lock
   notify({
     stage: 'locking',
-    message: 'Acquiring sync lock on backend...',
+    message: 'Connecting to update service...',
     progressPercent: 10,
   });
 
@@ -221,7 +221,7 @@ export async function performSmartSync(
     const errMsg =
       typeof errJson === 'object' && errJson !== null && 'message' in errJson
         ? String(errJson.message)
-        : 'Could not acquire sync lock. Another sync is active.';
+        : 'Update service is currently busy. Please try again shortly.';
     throw new BackendLockedError(errMsg);
   }
 
@@ -229,7 +229,7 @@ export async function performSmartSync(
     // Step 3: Fetch known versions from backend
     notify({
       stage: 'scraping',
-      message: 'Fetching known article versions from backend...',
+      message: 'Comparing with current AI knowledge...',
       progressPercent: 15,
     });
 
@@ -269,7 +269,7 @@ export async function performSmartSync(
       // Full page sweep across all pages (page size 152)
       notify({
         stage: 'scraping',
-        message: 'Sweeping all SakaHub articles for complete reconciliation...',
+        message: 'Scanning all SakaHub articles...',
         progressPercent: 20,
       });
 
@@ -283,7 +283,7 @@ export async function performSmartSync(
         await sleep(250);
         notify({
           stage: 'scraping',
-          message: `Sweeping SakaHub: page ${p + 1} of ${totalPages}...`,
+          message: `Checking SakaHub: page ${p + 1} of ${totalPages}...`,
           progressPercent: Math.round(20 + ((p + 1) / totalPages) * 35),
         });
         const pageData = await fetchSakaHubPage(p, 152);
@@ -314,7 +314,7 @@ export async function performSmartSync(
       // Early-Exit Waterfall: Paging stops as soon as an article's updatedAt <= backendMaxDateMs
       notify({
         stage: 'scraping',
-        message: 'Checking newest SakaHub articles (early-exit mode)...',
+        message: 'Checking recent SakaHub updates...',
         progressPercent: 25,
       });
 
@@ -350,7 +350,7 @@ export async function performSmartSync(
           await sleep(200);
           notify({
             stage: 'scraping',
-            message: `Inspecting page ${pageIndex + 1} for changed articles...`,
+            message: `Reading page ${pageIndex + 1} for updates...`,
             progressPercent: Math.min(55, 25 + pageIndex * 10),
           });
         }
@@ -366,7 +366,7 @@ export async function performSmartSync(
         throw new SakaHubAuthError();
       }
 
-      const upToDateMsg = 'Knowledge base is completely up to date. No changes needed.';
+      const upToDateMsg = 'Ask Saka is completely up to date. No changes needed.';
       notify({
         stage: 'completed',
         message: upToDateMsg,
@@ -391,7 +391,7 @@ export async function performSmartSync(
     // Step 5: Clean Word HTML to Markdown & Batch Ingestion to /reindex
     notify({
       stage: 'cleaning',
-      message: `Preparing ${changedArticles.length} changed articles and ${deletedIds.length} deletions...`,
+      message: `Preparing ${changedArticles.length} updated articles...`,
       progressPercent: 60,
     });
 
@@ -435,7 +435,7 @@ export async function performSmartSync(
       const pct = Math.min(99, Math.round(65 + (uploadedChanged / Math.max(1, changedArticles.length)) * 32));
       notify({
         stage: 'uploading',
-        message: `Indexed batch ${batchNum} of ~${totalBatchesEstimated} (${uploadedChanged}/${changedArticles.length} articles)...`,
+        message: `Updating AI: batch ${batchNum} of ${totalBatchesEstimated} (${uploadedChanged}/${changedArticles.length} articles)...`,
         progressPercent: pct,
         processedCount: uploadedChanged,
         totalCount: changedArticles.length,
@@ -474,7 +474,7 @@ export async function performSmartSync(
       body: JSON.stringify({ clientId }),
     }).catch(() => { });
 
-    const summaryMsg = `Sync complete: ${addedCount} added, ${updatedCount} updated, ${deletedIds.length} deleted.`;
+    const summaryMsg = `Update complete: ${addedCount + updatedCount} articles updated in Ask Saka.`;
     notify({
       stage: 'completed',
       message: summaryMsg,
@@ -526,7 +526,7 @@ export async function performSmartSync(
       errorCode = 'BACKEND_UNREACHABLE';
       userFriendlyMsg = 'Knowledge service is temporarily unreachable.';
     } else {
-      userFriendlyMsg = `Sync failed: ${rawErrorMsg}`;
+      userFriendlyMsg = `Update failed: ${rawErrorMsg}`;
     }
 
     notify({

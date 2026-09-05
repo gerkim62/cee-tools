@@ -19,22 +19,22 @@ export const ChevronMenu: React.FC<ChevronMenuProps> = ({
   const menuItems: { view: WidgetView; label: string; icon: React.ReactNode }[] = [
     {
       view: 'chat',
-      label: 'Ask Saka (Chat)',
+      label: 'Ask Saka',
       icon: <MessageSquare size={16} />,
     },
     {
       view: 'history',
-      label: 'Conversation History',
+      label: 'History',
       icon: <Clock size={16} />,
     },
     {
       view: 'sync',
-      label: 'Sync & Storage',
+      label: 'Update AI',
       icon: <RefreshCw size={16} />,
     },
     {
       view: 'settings',
-      label: 'Extension Settings',
+      label: 'Preferences',
       icon: <Settings size={16} />,
     },
   ];

@@ -494,19 +494,23 @@ body, html {
    Right Pane: Citation Inspector
    ---------------------------------------------------- */
 .saka-inspector-container {
-  display: flex;
+  width: 380px;
   height: 100%;
   min-height: 0;
-  transition: width 0.2s ease;
+  display: flex;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: margin-right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .saka-inspector-container.collapsed {
-  width: 0;
-  overflow: hidden;
+  margin-right: -380px;
+  pointer-events: none;
 }
 
 .saka-workstation-inspector {
   width: 380px;
+  min-width: 380px;
   height: 100%;
   min-height: 0;
   background: var(--saka-surface-card);
@@ -514,16 +518,12 @@ body, html {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width 0.2s ease, margin-right 0.2s ease, opacity 0.2s ease;
   overflow: hidden;
   box-shadow: -4px 0 16px rgba(0, 0, 0, 0.03);
 }
 
 .saka-workstation-inspector.collapsed,
 .saka-inspector-container.collapsed .saka-workstation-inspector {
-  margin-right: -380px;
-  width: 0;
-  opacity: 0;
   pointer-events: none;
 }
 
@@ -814,5 +814,95 @@ body, html {
     z-index: 100;
     box-shadow: 8px 0 24px rgba(0, 0, 0, 0.15);
   }
+}
+
+/* Deleted Conversation Pill Banner */
+.saka-deleted-pill-wrapper {
+  padding: 10px 14px 12px;
+  background: var(--saka-surface-input);
+  border-top: 1px solid var(--saka-border-subtle);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.saka-deleted-pill-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 9999px;
+  padding: 6px 10px 6px 14px;
+  max-width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.saka-deleted-pill-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--saka-ink-primary);
+  white-space: nowrap;
+}
+
+.saka-deleted-pill-icon {
+  color: var(--saka-amber-official, #f59e0b);
+  flex-shrink: 0;
+}
+
+.saka-deleted-pill-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.saka-btn-restore-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--saka-surface-card);
+  color: var(--saka-ink-primary);
+  border: 1px solid var(--saka-border-medium);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.saka-btn-restore-pill:hover:not(:disabled) {
+  background: var(--saka-surface-hover);
+  border-color: var(--saka-border-subtle);
+}
+
+.saka-btn-restore-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.saka-btn-newchat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: #2CB34A;
+  color: #ffffff;
+  border: 1px solid #2CB34A;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.saka-btn-newchat-pill:hover {
+  background: #249e3f;
+  border-color: #249e3f;
 }
 

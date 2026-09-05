@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Terminal, X } from 'lucide-react';
+import { Send, Terminal, X, Square } from 'lucide-react';
 
 interface SlashCommand {
   command: string;
@@ -39,9 +39,17 @@ interface ChatInputProps {
   onSend: (message: string) => void;
   disabled: boolean;
   focusTrigger?: number;
+  isStreaming?: boolean;
+  onStop?: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTrigger }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({
+  onSend,
+  disabled,
+  focusTrigger,
+  isStreaming,
+  onStop,
+}) => {
   const [text, setText] = useState('');
   const [activeCommand, setActiveCommand] = useState<SlashCommand | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -102,7 +110,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTri
         applyCommand(filteredCommands[selectedIndex]);
         return;
       }
-      if (e.key === 'Escape') {
+    }
+
+    if (e.key === 'Escape') {
+      if (isStreaming && onStop) {
+        e.preventDefault();
+        onStop();
+        return;
+      }
+      if (isSlashActive) {
         e.preventDefault();
         setIsMenuDismissed(true);
         return;
@@ -231,15 +247,28 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTri
           onKeyDown={handleKeyDown}
           disabled={disabled}
         />
-        <button
-          type="button"
-          className="saka-btn-send"
-          onClick={handleSubmit}
-          disabled={disabled || (!text.trim() && !activeCommand)}
-          title="Send query (Enter)"
-        >
-          <Send size={15} />
-        </button>
+        {isStreaming ? (
+          <button
+            type="button"
+            className="saka-btn-send saka-btn-stop"
+            onClick={onStop}
+            title="Stop generating (Esc)"
+            aria-label="Stop generating"
+          >
+            <Square size={13} fill="currentColor" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="saka-btn-send"
+            onClick={handleSubmit}
+            disabled={disabled || (!text.trim() && !activeCommand)}
+            title="Send query (Enter)"
+            aria-label="Send query"
+          >
+            <Send size={15} />
+          </button>
+        )}
       </div>
     </footer>
   );

@@ -2135,6 +2135,96 @@ input::-webkit-scrollbar-thumb:hover {
   border-radius: 4px;
 }
 
+/* Deleted Conversation Pill Banner */
+.saka-deleted-pill-wrapper {
+  padding: 10px 14px 12px;
+  background: var(--saka-surface-input);
+  border-top: 1px solid var(--saka-border-subtle);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.saka-deleted-pill-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 9999px;
+  padding: 6px 10px 6px 14px;
+  max-width: 100%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.saka-deleted-pill-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--saka-ink-primary);
+  white-space: nowrap;
+}
+
+.saka-deleted-pill-icon {
+  color: var(--saka-amber-official, #f59e0b);
+  flex-shrink: 0;
+}
+
+.saka-deleted-pill-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.saka-btn-restore-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--saka-surface-card);
+  color: var(--saka-ink-primary);
+  border: 1px solid var(--saka-border-medium);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.saka-btn-restore-pill:hover:not(:disabled) {
+  background: var(--saka-surface-hover);
+  border-color: var(--saka-border-subtle);
+}
+
+.saka-btn-restore-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.saka-btn-newchat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: #2CB34A;
+  color: #ffffff;
+  border: 1px solid #2CB34A;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.saka-btn-newchat-pill:hover {
+  background: #249e3f;
+  border-color: #249e3f;
+}
+
 /* Chat Input Bar */
 .saka-input-bar {
   padding: 10px 14px 12px;
@@ -2735,4 +2825,239 @@ input::-webkit-scrollbar-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* ========================================================
+   Toast Notification Viewport & Animations
+   ======================================================== */
+.saka-toast-viewport {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: 2147483647;
+  pointer-events: none;
+  max-width: 90%;
+  width: max-content;
+}
+
+.saka-toast {
+  pointer-events: auto;
+  min-width: 240px;
+  max-width: 380px;
+  background: rgba(22, 28, 24, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.45), 0 2px 8px -2px rgba(0, 0, 0, 0.25);
+  border-radius: 9999px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f1f5f9;
+  font-size: 12.5px;
+  font-weight: 500;
+  animation: sakaToastSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+@keyframes sakaToastSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.saka-toast-success {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 10px 28px -6px rgba(16, 185, 129, 0.25), 0 2px 8px -2px rgba(0, 0, 0, 0.25);
+}
+
+.saka-toast-error {
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 10px 28px -6px rgba(239, 68, 68, 0.25), 0 2px 8px -2px rgba(0, 0, 0, 0.25);
+}
+
+.saka-toast-info {
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.saka-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.saka-toast-message {
+  flex: 1;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.saka-toast-action-btn {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.saka-toast-action-btn:hover {
+  background: rgba(16, 185, 129, 0.3);
+  transform: scale(1.02);
+}
+
+.saka-toast-action-btn:active {
+  transform: scale(0.98);
+}
+
+.saka-toast-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.saka-toast-close-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Stop Generation Button in ChatInput */
+.saka-btn-stop {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35) !important;
+  transition: background 0.15s ease, transform 0.1s ease !important;
+}
+
+.saka-btn-stop:hover {
+  background: #dc2626 !important;
+  transform: scale(1.04) !important;
+}
+
+.saka-btn-stop:active {
+  transform: scale(0.96) !important;
+}
+
+/* Inline Conversation Recovery State in ChatView */
+.saka-chat-recovery-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  height: 100%;
+}
+
+/* React Error Boundary Fallback Screen */
+.saka-error-boundary-screen {
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--saka-surface-body);
+  box-sizing: border-box;
+}
+
+.saka-error-boundary-card {
+  max-width: 380px;
+  width: 100%;
+  background: var(--saka-surface-card);
+  border: 1px solid var(--saka-red-border, rgba(239, 68, 68, 0.3));
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: var(--saka-shadow-window);
+}
+
+.saka-error-boundary-icon-wrapper {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--saka-red-surface, rgba(239, 68, 68, 0.12));
+  border: 1px solid var(--saka-red-border, rgba(239, 68, 68, 0.25));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--saka-red-official, #ef4444);
+  margin-bottom: 12px;
+}
+
+.saka-error-boundary-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--saka-ink-title);
+  margin: 0 0 6px 0;
+}
+
+.saka-error-boundary-desc {
+  font-size: 12.5px;
+  color: var(--saka-ink-secondary);
+  line-height: 1.45;
+  margin: 0 0 14px 0;
+}
+
+.saka-error-boundary-details {
+  width: 100%;
+  text-align: left;
+  font-size: 11px;
+  color: var(--saka-ink-muted);
+  margin-bottom: 16px;
+}
+
+.saka-error-boundary-details summary {
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+
+.saka-error-boundary-stack {
+  margin-top: 6px;
+  font-family: monospace;
+  font-size: 10.5px;
+  color: var(--saka-ink-secondary);
+  background: rgba(0, 0, 0, 0.06);
+  padding: 8px;
+  border-radius: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.saka-error-boundary-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
 }
