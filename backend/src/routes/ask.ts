@@ -679,7 +679,7 @@ ${s.content}
     const historyBlock = previousTurnsContext
       ? `Previous Conversation Context (for continuity):\n${previousTurnsContext}\n\n`
       : '';
-    const userMessage = `${historyBlock}Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}\n\nProvide the direct factual answer or sequential action checklist based strictly on the retrieved SakaHub sources above (do not use external or stale prompt examples):`;
+    const userMessage = `${historyBlock}Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}`;
 
     // 4. Drafting answer... (Real streaming token-by-token from OpenRouter)
     sendEvent('status', { message: CEE_STATUS_MESSAGES.DRAFTING });
@@ -817,7 +817,7 @@ ${s.content}
             const titleRes = await chatCompletion([
               {
                 role: 'system',
-                content: 'Generate a concise, professional 3-5 word title for this customer support query (e.g. "Paybill Reversal Guidelines", "View360 SIM Swap Vetting", "Pochi la Biashara Features", "Data Bundle Amnesty"). Respond ONLY with the 3-5 words title, no punctuation, quotes, or markdown.'
+                content: 'Generate a concise 3-5 word title for this customer support query (e.g. "Paybill Reversal Guidelines", "View360 SIM Swap Vetting"). Return only the title without quotes or markdown.'
               },
               { role: 'user', content: trimmedQuestion }
             ], {
