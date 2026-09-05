@@ -10,7 +10,8 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["chrome"]
   },
   "include": ["src/**/*"]
 }

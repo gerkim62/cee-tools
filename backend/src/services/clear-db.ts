@@ -1,6 +1,6 @@
 import { pool } from '../db.js';
 import { config } from '../config.js';
-import { qdrantClient, getModelCollectionName, initQdrant } from './qdrant.js';
+import { qdrantClient, initQdrant } from './qdrant.js';
 
 /**
  * Completely clears all articles and locks from PostgreSQL and wipes the Qdrant collection.
@@ -64,7 +64,6 @@ export async function clearAllDatabase(): Promise<{
   }
 
   // 2. Reset Qdrant Collection
-  const modelColl = getModelCollectionName(config.QDRANT_COLLECTION_BASE, config.OPENROUTER_EMBED_MODEL);
   try {
     const collRes = await qdrantClient.getCollections();
     for (const coll of collRes.collections) {

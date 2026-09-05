@@ -2,7 +2,6 @@ import {
   SakaArticleRaw,
   SakaNormalizedArticle,
   ProbeResult,
-  SakaFetchResponse,
   SakaHubRelayFetchResponse,
 } from '../types.js';
 
@@ -11,6 +10,15 @@ const MAX_PAGE_SIZE = 152;
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function isSakaArticleRaw(item: unknown): item is SakaArticleRaw {
+  if (typeof item !== 'object' || item === null) return false;
+  return 'id' in item && typeof item.id === 'string';
+}
+
+function isSakaHubRelayFetchResponse(val: unknown): val is SakaHubRelayFetchResponse {
+  return typeof val === 'object' && val !== null && 'success' in val && typeof val.success === 'boolean';
 }
 
 /**
@@ -78,32 +86,44 @@ export function extractArticlesFromResponse(data: unknown): {
 } {
   if (Array.isArray(data)) {
     return {
-      rawArticles: data as SakaArticleRaw[],
+      rawArticles: data.filter(isSakaArticleRaw),
       totalElements: data.length,
       totalPages: 1,
     };
   }
 
   if (typeof data === 'object' && data !== null) {
-    const obj = data as Record<string, unknown>;
-
     // Case 1: Wrapped in Spring Boot body envelope { body: { content: [...] } }
-    if (typeof obj.body === 'object' && obj.body !== null) {
-      const body = obj.body as Record<string, unknown>;
-      const content = Array.isArray(body.content) ? (body.content as SakaArticleRaw[]) : [];
+    if ('body' in data && typeof data.body === 'object' && data.body !== null) {
+      const body = data.body;
+      const content = 'content' in body && Array.isArray(body.content)
+        ? body.content.filter(isSakaArticleRaw)
+        : [];
+      const totalElements = 'totalElements' in body && typeof body.totalElements === 'number'
+        ? body.totalElements
+        : undefined;
+      const totalPages = 'totalPages' in body && typeof body.totalPages === 'number'
+        ? body.totalPages
+        : undefined;
       return {
         rawArticles: content,
-        totalElements: typeof body.totalElements === 'number' ? body.totalElements : undefined,
-        totalPages: typeof body.totalPages === 'number' ? body.totalPages : undefined,
+        totalElements,
+        totalPages,
       };
     }
 
     // Case 2: Direct envelope { content: [...], totalPages, totalElements }
-    if (Array.isArray(obj.content)) {
+    if ('content' in data && Array.isArray(data.content)) {
+      const totalElements = 'totalElements' in data && typeof data.totalElements === 'number'
+        ? data.totalElements
+        : undefined;
+      const totalPages = 'totalPages' in data && typeof data.totalPages === 'number'
+        ? data.totalPages
+        : undefined;
       return {
-        rawArticles: obj.content as SakaArticleRaw[],
-        totalElements: typeof obj.totalElements === 'number' ? obj.totalElements : undefined,
-        totalPages: typeof obj.totalPages === 'number' ? obj.totalPages : undefined,
+        rawArticles: data.content.filter(isSakaArticleRaw),
+        totalElements,
+        totalPages,
       };
     }
   }
@@ -150,11 +170,14 @@ async function relayFetchToSakaHubTab(
   let response: SakaHubRelayFetchResponse | undefined;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      response = (await chrome.tabs.sendMessage(tab.id, {
+      const msgRes: unknown = await chrome.tabs.sendMessage(tab.id, {
         type: 'SAKAHUB_RELAY_FETCH',
         url,
         options: { headers },
-      })) as SakaHubRelayFetchResponse;
+      });
+      if (isSakaHubRelayFetchResponse(msgRes)) {
+        response = msgRes;
+      }
       break;
     } catch (err) {
       if (attempt === 3) {
@@ -222,7 +245,7 @@ export function parseAndValidateSakaResponse(response: SakaHttpResult, text: str
     throw new Error(SAKAHUB_AUTH_ERROR);
   }
 
-  if (json && typeof json === 'object' && (json as any).message === 'User is not authenticated') {
+  if (json && typeof json === 'object' && 'message' in json && json.message === 'User is not authenticated') {
     throw new Error(SAKAHUB_AUTH_ERROR);
   }
 

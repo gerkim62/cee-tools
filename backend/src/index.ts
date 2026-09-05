@@ -10,18 +10,26 @@ if (typeof dns.setDefaultResultOrder === 'function') {
 }
 
 // Force family: 4 on all internal DNS lookups for undici, pg, and fetch
+type DnsCallback = (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family?: number) => void;
 const origLookup = dns.lookup;
-// @ts-expect-error - overriding internal lookup options
-dns.lookup = function (hostname: string, options: any, callback: any) {
+// @ts-expect-error - overriding internal lookup options for ipv4 fallback
+dns.lookup = function (
+  hostname: string,
+  options: dns.LookupOptions | number | DnsCallback,
+  callback?: DnsCallback
+) {
+  let finalOptions: dns.LookupOptions | number = { family: 4 };
+  let finalCallback = callback;
+
   if (typeof options === 'function') {
-    callback = options;
-    options = { family: 4 };
+    finalCallback = options;
+    finalOptions = { family: 4 };
   } else if (typeof options === 'number') {
-    options = { family: 4 };
-  } else if (options && typeof options === 'object') {
-    options.family = 4;
+    finalOptions = { family: 4 };
+  } else if (typeof options === 'object' && options !== null) {
+    finalOptions = { ...options, family: 4 };
   }
-  return (origLookup as any).call(dns, hostname, options, callback);
+  return Reflect.apply(origLookup, dns, [hostname, finalOptions, finalCallback]);
 };
 
 import express from 'express';
@@ -77,9 +85,11 @@ async function startServer(): Promise<void> {
     await initDb();
     console.log('✔ PostgreSQL connection and schema verified.');
   } catch (dbErr: unknown) {
-    const rawMsg = dbErr instanceof Error
-      ? (dbErr.message || (dbErr as any)?.code || String(dbErr))
-      : String(dbErr);
+    let rawMsg = String(dbErr);
+    if (dbErr instanceof Error) {
+      const code = 'code' in dbErr && typeof dbErr.code === 'string' ? dbErr.code : undefined;
+      rawMsg = dbErr.message || code || String(dbErr);
+    }
     const conciseMsg = rawMsg.split('\n')[0] || String(dbErr);
     console.error(`\n❌ [Database Error] Failed to connect to PostgreSQL: ${conciseMsg}`);
     console.error(`👉 Please verify that PostgreSQL is running and check DATABASE_URL in backend/.env\n`);
@@ -91,9 +101,11 @@ async function startServer(): Promise<void> {
     const collectionName = await initQdrant();
     console.log(`✔ Qdrant collection verified: ${collectionName}`);
   } catch (qdrantErr: unknown) {
-    const rawMsg = qdrantErr instanceof Error
-      ? (qdrantErr.message || (qdrantErr as any).code || String(qdrantErr))
-      : String(qdrantErr);
+    let rawMsg = String(qdrantErr);
+    if (qdrantErr instanceof Error) {
+      const code = 'code' in qdrantErr && typeof qdrantErr.code === 'string' ? qdrantErr.code : undefined;
+      rawMsg = qdrantErr.message || code || String(qdrantErr);
+    }
     const conciseMsg = rawMsg.split('\n')[0] || String(qdrantErr);
     console.error(`\n❌ [Qdrant Error] Failed to initialize Qdrant: ${conciseMsg}`);
     console.error(`👉 Please verify that Qdrant is running and check QDRANT_URL in backend/.env\n`);

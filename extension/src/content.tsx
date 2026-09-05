@@ -79,7 +79,7 @@ function initSakaQuoteHighlighter() {
     if (!rawText) return [];
     // Clean Word list markers, bullets (·, •, middle dot), numbering, and normalize whitespace
     const clean = rawText
-      .replace(/^[·•\u00b7\u2022\-\*\d\.\)\(\s]+/, '')
+      .replace(/^[·•\u00b7\u2022*.\d)(\s-]+/, '')
       .replace(/\s+/g, ' ')
       .trim();
     if (!clean) return [];

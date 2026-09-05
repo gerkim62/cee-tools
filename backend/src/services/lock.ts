@@ -12,14 +12,14 @@ export interface LockStatus {
 }
 
 export async function getLockStatus(): Promise<LockStatus> {
-  const res = await query(
+  const res = await query<{ client_id: string; acquired_at: string; expires_at: string }>(
     `SELECT client_id, acquired_at, expires_at 
      FROM sync_locks 
      WHERE lock_key = $1 AND expires_at > NOW()`,
     [LOCK_KEY]
   );
 
-  if (res.rowCount && res.rowCount > 0) {
+  if (res.rowCount && res.rowCount > 0 && res.rows[0]) {
     const row = res.rows[0];
     return {
       isLocked: true,
@@ -44,7 +44,7 @@ export async function acquireLock(clientId: string): Promise<{ acquired: boolean
   }
 
   const ttlMinutes = config.SYNC_LOCK_TTL_MINUTES;
-  const res = await query(
+  const res = await query<{ expires_at: string }>(
     `INSERT INTO sync_locks (lock_key, client_id, acquired_at, expires_at)
      VALUES ($1, $2, NOW(), NOW() + ($3 || ' minutes')::INTERVAL)
      ON CONFLICT (lock_key) DO UPDATE
@@ -55,9 +55,10 @@ export async function acquireLock(clientId: string): Promise<{ acquired: boolean
     [LOCK_KEY, clientId, ttlMinutes.toString()]
   );
 
+  const row = res.rows[0];
   return {
     acquired: true,
-    expiresAt: new Date(res.rows[0].expires_at),
+    expiresAt: row ? new Date(row.expires_at) : undefined,
   };
 }
 
@@ -66,7 +67,7 @@ export async function refreshLock(clientId?: string): Promise<{ refreshed: boole
   let sql = `UPDATE sync_locks 
              SET expires_at = NOW() + ($1 || ' minutes')::INTERVAL 
              WHERE lock_key = $2`;
-  const params: any[] = [ttlMinutes.toString(), LOCK_KEY];
+  const params: unknown[] = [ttlMinutes.toString(), LOCK_KEY];
 
   if (clientId) {
     sql += ` AND client_id = $3`;
@@ -75,11 +76,12 @@ export async function refreshLock(clientId?: string): Promise<{ refreshed: boole
 
   sql += ` RETURNING expires_at`;
 
-  const res = await query(sql, params);
-  if (res.rowCount && res.rowCount > 0) {
+  const res = await query<{ expires_at: string }>(sql, params);
+  const row = res.rows[0];
+  if (res.rowCount && res.rowCount > 0 && row) {
     return {
       refreshed: true,
-      expiresAt: new Date(res.rows[0].expires_at),
+      expiresAt: new Date(row.expires_at),
     };
   }
 
@@ -88,7 +90,7 @@ export async function refreshLock(clientId?: string): Promise<{ refreshed: boole
 
 export async function releaseLock(clientId?: string): Promise<boolean> {
   let sql = `DELETE FROM sync_locks WHERE lock_key = $1`;
-  const params: any[] = [LOCK_KEY];
+  const params: unknown[] = [LOCK_KEY];
 
   if (clientId) {
     sql += ` AND client_id = $2`;

@@ -65,7 +65,7 @@ function isOpenRouterEmbeddingResponse(val: unknown): val is OpenRouterEmbedding
     typeof val === 'object' &&
     val !== null &&
     'data' in val &&
-    Array.isArray((val as Record<string, unknown>).data)
+    Array.isArray(val.data)
   );
 }
 
@@ -74,7 +74,7 @@ function isOpenRouterChatResponse(val: unknown): val is OpenRouterChatResponse {
     typeof val === 'object' &&
     val !== null &&
     'choices' in val &&
-    Array.isArray((val as Record<string, unknown>).choices)
+    Array.isArray(val.choices)
   );
 }
 
@@ -322,17 +322,33 @@ export async function* chatCompletionStream(
         if (!trimmed || trimmed.startsWith(':')) continue; // Ignore SSE comments/keepalives
         if (trimmed === 'data: [DONE]') return;
 
-        if (trimmed.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(trimmed.slice(6));
-            const delta = data.choices?.[0]?.delta?.content;
-            if (delta) {
-              yield delta;
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(trimmed.slice(6));
+              if (
+                typeof data === 'object' &&
+                data !== null &&
+                'choices' in data &&
+                Array.isArray(data.choices) &&
+                data.choices.length > 0
+              ) {
+                const firstChoice = data.choices[0];
+                if (
+                  typeof firstChoice === 'object' &&
+                  firstChoice !== null &&
+                  'delta' in firstChoice &&
+                  typeof firstChoice.delta === 'object' &&
+                  firstChoice.delta !== null &&
+                  'content' in firstChoice.delta &&
+                  typeof firstChoice.delta.content === 'string'
+                ) {
+                  yield firstChoice.delta.content;
+                }
+              }
+            } catch {
+              // Ignore partial/unparseable chunks
             }
-          } catch {
-            // Ignore partial/unparseable chunks
           }
-        }
       }
     }
   } finally {

@@ -1,4 +1,4 @@
-import { MarkdownTextSplitter, RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { config } from '../config.js';
 import { RAG_CONSTANTS } from '../constants.js';
 
@@ -78,10 +78,10 @@ export function generateTextFragment(quote: string): string {
     .replace(/^[·•\u00b7\u2022]\s*/, '') // Middle dot or bullet
     .replace(/^[-–—]\s+/, '')            // Dash list marker
     .replace(/^\*\s+/, '')               // Markdown star bullet (space required, preserves *334#)
-    .replace(/^\d+[\.\)]\s+/, '')        // Numbered list: "1. " or "1) "
-    .replace(/^[a-zA-Z][\.\)]\s+/, '')   // Letter list: "a. " or "a) "
+    .replace(/^\d+[.)]\s+/, '')          // Numbered list: "1. " or "1) "
+    .replace(/^[a-zA-Z][.)]\s+/, '')     // Letter list: "a. " or "a) "
     .replace(/^\([a-zA-Z\d]+\)\s+/, '')  // Parenthesized list: "(1) " or "(a) "
-    .replace(/[\s·•\u00b7\u2022\-]+$/, '') // Trailing bullets or dashes
+    .replace(/[\s·•\u00b7\u2022-]+$/, '') // Trailing bullets or dashes
     .trim();
 
   const words = clean.split(' ').filter(Boolean);

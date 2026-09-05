@@ -3,6 +3,10 @@ import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders } fro
 import { WidgetView } from '../../types.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
 
+function isWidgetView(val: string): val is WidgetView {
+  return val === 'chat' || val === 'history' || val === 'sync' || val === 'settings';
+}
+
 export const SettingsView: React.FC = () => {
   const [backendUrl, setBackendUrl] = useState('http://localhost:3000');
   const [defaultView, setDefaultView] = useState<WidgetView>('chat');
@@ -28,14 +32,19 @@ export const SettingsView: React.FC = () => {
       const res = await bgFetch(`${trimmed}/health`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = res.data;
+      const serviceName =
+        typeof json === 'object' && json !== null && 'service' in json && typeof json.service === 'string'
+          ? json.service
+          : 'Knowledge service active';
       setTestResult({
         success: true,
-        message: `Connected: ${json?.service || 'Knowledge service active'}`,
+        message: `Connected: ${serviceName}`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       setTestResult({
         success: false,
-        message: `Connection failed: ${err.message || 'Service unreachable'}`,
+        message: `Connection failed: ${msg || 'Service unreachable'}`,
       });
     } finally {
       setTesting(false);
@@ -71,7 +80,12 @@ export const SettingsView: React.FC = () => {
         <select
           className="saka-select-input"
           value={defaultView}
-          onChange={(e) => setDefaultView(e.target.value as WidgetView)}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (isWidgetView(val)) {
+              setDefaultView(val);
+            }
+          }}
         >
           <option value="chat">Ask Saka Copilot (Chat)</option>
           <option value="history">Conversation History</option>

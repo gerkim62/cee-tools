@@ -66,6 +66,22 @@ function hashToken(token: string): number {
  * Builds a deterministic sparse TF vector for exact keyword/code matching in Qdrant BM25.
  * Captures alphanumeric terms, USSD codes (*334#), and procedural error codes (LPPP-0014).
  */
+export function isSakaChunkPayload(payload: unknown): payload is SakaChunkPayload {
+  if (typeof payload !== 'object' || payload === null) {
+    return false;
+  }
+  return (
+    'article_id' in payload &&
+    typeof payload.article_id === 'string' &&
+    'article_title' in payload &&
+    typeof payload.article_title === 'string' &&
+    'section_heading' in payload &&
+    typeof payload.section_heading === 'string' &&
+    'chunk_text' in payload &&
+    typeof payload.chunk_text === 'string'
+  );
+}
+
 export function buildSparseVector(text: string): SparseVector {
   const tokens = (text.toLowerCase().match(/[*#a-z0-9_-]+/g) || [])
     .map(t => t.trim())
@@ -84,7 +100,7 @@ export function buildSparseVector(text: string): SparseVector {
   const total = tokens.length;
   // Sort indices ascending as required by Qdrant sparse vectors
   const indices = Object.keys(tf).map(Number).sort((a, b) => a - b);
-  const values = indices.map(i => tf[i]! / total);
+  const values = indices.map(i => (tf[i] ?? 0) / total);
 
   return { indices, values };
 }
@@ -220,11 +236,15 @@ export async function queryPoints(
       with_payload: true,
     });
 
-    return (result.points || []).map((p: any) => ({
-      id: p.id,
-      score: p.score,
-      payload: p.payload as SakaChunkPayload | undefined,
-    }));
+    return (result.points || []).map((p) => {
+      const payload: SakaChunkPayload | undefined = isSakaChunkPayload(p.payload) ? p.payload : undefined;
+      const pointResult: QdrantQueryResult = {
+        id: p.id,
+        score: p.score,
+        payload,
+      };
+      return pointResult;
+    });
   });
 }
 

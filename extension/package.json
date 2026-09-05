@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build"
+    "build": "tsc && vite build",
+    "lint": "oxlint"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",
@@ -16,13 +17,15 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0-beta.28",
+    "@total-typescript/ts-reset": "^0.6.1",
     "@types/chrome": "^0.0.306",
     "@types/marked": "^6.0.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@types/turndown": "^5.0.6",
     "@vitejs/plugin-react": "^4.7.0",
-    "typescript": "^5.7.3",
+    "oxlint": "^1.81.0",
+    "typescript": "^7.0.2",
     "vite": "^5.4.14"
   }
 }

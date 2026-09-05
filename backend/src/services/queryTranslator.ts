@@ -16,16 +16,22 @@ export function parseTranslationResponse(raw: string, rawQuery: string): Transla
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       if (parsed && typeof parsed === 'object') {
-        const needsContext = parsed.needsContext !== false;
-        const primary = typeof parsed.primary === 'string' && parsed.primary.trim()
-          ? parsed.primary.trim()
-          : rawQuery;
-        const fallback = typeof parsed.fallback === 'string' && parsed.fallback.trim()
-          ? parsed.fallback.trim()
-          : `${primary} ${rawQuery}`.trim();
-        const alt = typeof parsed.alt === 'string' && parsed.alt.trim() && !/^none\.?$/i.test(parsed.alt.trim())
-          ? parsed.alt.trim()
-          : null;
+        const needsContext = 'needsContext' in parsed ? parsed.needsContext !== false : true;
+        const primary =
+          'primary' in parsed && typeof parsed.primary === 'string' && parsed.primary.trim()
+            ? parsed.primary.trim()
+            : rawQuery;
+        const fallback =
+          'fallback' in parsed && typeof parsed.fallback === 'string' && parsed.fallback.trim()
+            ? parsed.fallback.trim()
+            : `${primary} ${rawQuery}`.trim();
+        const alt =
+          'alt' in parsed &&
+          typeof parsed.alt === 'string' &&
+          parsed.alt.trim() &&
+          !/^none\.?$/i.test(parsed.alt.trim())
+            ? parsed.alt.trim()
+            : null;
 
         return { needsContext, primary, fallback, alt };
       }

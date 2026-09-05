@@ -23,11 +23,33 @@ export interface ConversationMessage {
   parentId?: string | null;
   role: 'user' | 'assistant';
   content: string;
-  citations?: any[];
+  citations?: unknown[];
   executionSteps?: Array<{ label: string; detail: string }>;
-  clarifyingQuestion?: any;
+  clarifyingQuestion?: unknown;
   suggestedFollowUps?: string[];
   createdAt: string;
+}
+
+interface ConversationDbRow {
+  id: string;
+  client_id: string;
+  title: string;
+  is_compacted: boolean;
+  summary: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+  message_count?: number;
+  snippet_match?: string | null;
+}
+
+interface MessageDbRow {
+  id: string;
+  conversation_id: string;
+  parent_id: string | null;
+  role: 'user' | 'assistant';
+  content: string;
+  citations: unknown;
+  created_at: string | Date;
 }
 
 function formatSnippet(content: string, queryText: string): string {
@@ -47,13 +69,13 @@ function formatSnippet(content: string, queryText: string): string {
  */
 conversationsRouter.get('/conversations', async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.query.clientId as string;
+    const clientId = typeof req.query.clientId === 'string' ? req.query.clientId : '';
     if (!clientId) {
       res.status(400).json({ error: 'clientId query parameter is required' });
       return;
     }
 
-    const result = await query(
+    const result = await query<ConversationDbRow>(
       `SELECT c.id, c.client_id, c.title, c.is_compacted, c.summary, c.created_at, c.updated_at,
               COUNT(m.id)::int AS message_count
        FROM conversations c
@@ -77,9 +99,10 @@ conversationsRouter.get('/conversations', async (req: Request, res: Response): P
     }));
 
     res.json({ conversations });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Conversations Router] Failed to list conversations:', error);
-    res.status(500).json({ error: 'Failed to retrieve conversations', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve conversations', message });
   }
 });
 
@@ -89,10 +112,12 @@ conversationsRouter.get('/conversations', async (req: Request, res: Response): P
  */
 conversationsRouter.get('/conversations/search', async (req: Request, res: Response): Promise<void> => {
   try {
-    const clientId = req.query.clientId as string;
-    const q = req.query.q as string;
-    const limit = Math.min(parseInt(req.query.limit as string || '30', 10), 100);
-    const offset = parseInt(req.query.offset as string || '0', 10);
+    const clientId = typeof req.query.clientId === 'string' ? req.query.clientId : '';
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    const limitParam = typeof req.query.limit === 'string' ? req.query.limit : '30';
+    const offsetParam = typeof req.query.offset === 'string' ? req.query.offset : '0';
+    const limit = Math.min(parseInt(limitParam, 10) || 30, 100);
+    const offset = parseInt(offsetParam, 10) || 0;
 
     if (!clientId) {
       res.status(400).json({ error: 'clientId query parameter is required' });
@@ -106,27 +131,13 @@ conversationsRouter.get('/conversations/search', async (req: Request, res: Respo
 
     const searchTerm = `%${q.trim()}%`;
 
-    const result = await query(
+    const result = await query<ConversationDbRow>(
       `SELECT c.id, c.client_id, c.title, c.is_compacted, c.summary, c.created_at, c.updated_at,
-              COUNT(DISTINCT m.id)::int AS message_count,
-              (
-                SELECT m2.content
-                FROM messages m2
-                WHERE m2.conversation_id = c.id
-                  AND m2.content ILIKE $2
-                ORDER BY m2.created_at ASC
-                LIMIT 1
-              ) AS snippet_match
+              COUNT(m.id)::int AS message_count,
+              MAX(CASE WHEN m.content ILIKE $2 THEN m.content ELSE NULL END) AS snippet_match
        FROM conversations c
        LEFT JOIN messages m ON m.conversation_id = c.id
-       WHERE c.client_id = $1
-         AND (
-           c.title ILIKE $2
-           OR EXISTS (
-             SELECT 1 FROM messages m3
-             WHERE m3.conversation_id = c.id AND m3.content ILIKE $2
-           )
-         )
+       WHERE c.client_id = $1 AND (c.title ILIKE $2 OR m.content ILIKE $2)
        GROUP BY c.id
        ORDER BY c.updated_at DESC
        LIMIT $3 OFFSET $4`,
@@ -146,9 +157,10 @@ conversationsRouter.get('/conversations/search', async (req: Request, res: Respo
     }));
 
     res.json({ conversations });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Conversations Search] Failed searching conversations:', error);
-    res.status(500).json({ error: 'Failed searching conversations', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed searching conversations', message });
   }
 });
 
@@ -159,19 +171,18 @@ conversationsRouter.get('/conversations/search', async (req: Request, res: Respo
 conversationsRouter.get('/conversations/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const convResult = await query(
+    const convResult = await query<ConversationDbRow>(
       `SELECT id, client_id, title, is_compacted, summary, created_at, updated_at FROM conversations WHERE id = $1`,
       [id]
     );
 
-    if (convResult.rows.length === 0) {
+    const conv = convResult.rows[0];
+    if (!conv) {
       res.status(404).json({ error: 'Conversation not found' });
       return;
     }
 
-    const conv = convResult.rows[0];
-
-    const messagesResult = await query(
+    const messagesResult = await query<MessageDbRow>(
       `SELECT id, conversation_id, parent_id, role, content, citations, created_at
        FROM messages
        WHERE conversation_id = $1
@@ -180,18 +191,37 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
     );
 
     const messages: ConversationMessage[] = messagesResult.rows.map((row) => {
-      let citations: any[] | undefined = undefined;
+      let citations: unknown[] | undefined = undefined;
       let executionSteps: Array<{ label: string; detail: string }> | undefined = undefined;
-      let clarifyingQuestion: any = undefined;
+      let clarifyingQuestion: unknown = undefined;
       let suggestedFollowUps: string[] | undefined = undefined;
 
       if (Array.isArray(row.citations)) {
         citations = row.citations;
       } else if (row.citations && typeof row.citations === 'object') {
-        citations = row.citations.citations || undefined;
-        executionSteps = row.citations.executionSteps || undefined;
-        clarifyingQuestion = row.citations.clarifyingQuestion || undefined;
-        suggestedFollowUps = row.citations.suggestedFollowUps || undefined;
+        const citObj = row.citations;
+        if ('citations' in citObj && Array.isArray(citObj.citations)) {
+          citations = citObj.citations;
+        }
+        if ('executionSteps' in citObj && Array.isArray(citObj.executionSteps)) {
+          executionSteps = citObj.executionSteps.filter(
+            (step): step is { label: string; detail: string } =>
+              typeof step === 'object' &&
+              step !== null &&
+              'label' in step &&
+              typeof step.label === 'string' &&
+              'detail' in step &&
+              typeof step.detail === 'string'
+          );
+        }
+        if ('clarifyingQuestion' in citObj) {
+          clarifyingQuestion = citObj.clarifyingQuestion;
+        }
+        if ('suggestedFollowUps' in citObj && Array.isArray(citObj.suggestedFollowUps)) {
+          suggestedFollowUps = citObj.suggestedFollowUps.filter(
+            (item): item is string => typeof item === 'string'
+          );
+        }
       }
 
       return {
@@ -220,9 +250,10 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
       },
       messages,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Conversations Router] Failed to fetch conversation:', error);
-    res.status(500).json({ error: 'Failed to retrieve conversation', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve conversation', message });
   }
 });
 
@@ -241,7 +272,7 @@ conversationsRouter.post('/conversations', async (req: Request, res: Response): 
     const id = crypto.randomUUID();
     const convTitle = (typeof title === 'string' && title.trim().length > 0) ? title.trim().slice(0, 80) : 'New Conversation';
 
-    const result = await query(
+    const result = await query<ConversationDbRow>(
       `INSERT INTO conversations (id, client_id, title, created_at, updated_at)
        VALUES ($1, $2, $3, NOW(), NOW())
        RETURNING id, client_id, title, is_compacted, summary, created_at, updated_at`,
@@ -249,6 +280,10 @@ conversationsRouter.post('/conversations', async (req: Request, res: Response): 
     );
 
     const row = result.rows[0];
+    if (!row) {
+      res.status(500).json({ error: 'Failed to create conversation' });
+      return;
+    }
     res.json({
       conversation: {
         id: row.id,
@@ -260,9 +295,10 @@ conversationsRouter.post('/conversations', async (req: Request, res: Response): 
         updatedAt: new Date(row.updated_at).toISOString(),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Conversations Router] Failed to create conversation:', error);
-    res.status(500).json({ error: 'Failed to create conversation', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to create conversation', message });
   }
 });
 
@@ -277,17 +313,17 @@ conversationsRouter.post('/conversations/:id/compact', async (req: Request, res:
   try {
     const { id } = req.params;
 
-    const convRes = await query(
+    const convRes = await query<{ id: string; client_id: string; title: string; is_compacted: boolean }>(
       `SELECT id, client_id, title, is_compacted FROM conversations WHERE id = $1`,
       [id]
     );
-    if (convRes.rows.length === 0) {
+    const oldConv = convRes.rows[0];
+    if (!oldConv) {
       res.status(404).json({ error: 'Conversation not found' });
       return;
     }
-    const oldConv = convRes.rows[0];
 
-    const msgsRes = await query(
+    const msgsRes = await query<{ role: string; content: string }>(
       `SELECT role, content FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC`,
       [id]
     );
@@ -357,9 +393,10 @@ Note: Rely strictly on the verified facts and actions documented in this convers
         updatedAt: new Date().toISOString(),
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Conversations Compact] Failed compacting conversation:', error);
-    res.status(500).json({ error: 'Failed compacting conversation', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed compacting conversation', message });
   }
 });
 
@@ -372,8 +409,9 @@ conversationsRouter.delete('/conversations/:id', async (req: Request, res: Respo
     const { id } = req.params;
     await query(`DELETE FROM conversations WHERE id = $1`, [id]);
     res.json({ success: true, message: 'Conversation deleted' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Conversations Router] Failed to delete conversation:', error);
-    res.status(500).json({ error: 'Failed to delete conversation', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to delete conversation', message });
   }
 });

@@ -64,8 +64,8 @@ function createTurndownService(): TurndownService {
   service.addRule('table', {
     filter: 'table',
     replacement: (_content, node) => {
-      if (node && node.nodeName === 'TABLE') {
-        return convertTableToMarkdown(node as HTMLTableElement);
+      if (typeof HTMLTableElement !== 'undefined' && node instanceof HTMLTableElement) {
+        return convertTableToMarkdown(node);
       }
       return _content;
     },
@@ -81,9 +81,8 @@ function createTurndownService(): TurndownService {
   service.addRule('images', {
     filter: 'img',
     replacement: (_content, node) => {
-      if (node && node.nodeName === 'IMG') {
-        const img = node as HTMLImageElement;
-        const alt = img.getAttribute('alt')?.trim();
+      if (typeof HTMLImageElement !== 'undefined' && node instanceof HTMLImageElement) {
+        const alt = node.getAttribute('alt')?.trim();
         return alt ? ` [Screenshot: ${alt}] ` : ' [Screenshot] ';
       }
       return ' [Screenshot] ';
@@ -92,7 +91,10 @@ function createTurndownService(): TurndownService {
 
   // Clean empty anchors
   service.addRule('cleanAnchors', {
-    filter: (node) => node.nodeName === 'A' && !(node as HTMLAnchorElement).getAttribute('href'),
+    filter: (node) =>
+      typeof HTMLAnchorElement !== 'undefined' &&
+      node instanceof HTMLAnchorElement &&
+      !node.getAttribute('href'),
     replacement: (content) => content,
   });
 
@@ -120,7 +122,8 @@ export function collapseTableBlankLines(md: string): string {
   let inTable = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
+    const line = lines[i];
+    if (line === undefined) continue;
     const trimmed = line.trim();
     const isPipeRow = trimmed.startsWith('|') && trimmed.endsWith('|');
 
@@ -130,7 +133,9 @@ export function collapseTableBlankLines(md: string): string {
     } else if (inTable && trimmed === '') {
       let nextIsPipe = false;
       for (let j = i + 1; j < lines.length; j++) {
-        const nextTrimmed = lines[j]!.trim();
+        const nextLine = lines[j];
+        if (nextLine === undefined) break;
+        const nextTrimmed = nextLine.trim();
         if (nextTrimmed === '') continue;
         if (nextTrimmed.startsWith('|') && nextTrimmed.endsWith('|')) {
           nextIsPipe = true;

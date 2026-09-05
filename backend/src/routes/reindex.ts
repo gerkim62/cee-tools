@@ -101,7 +101,10 @@ reindexRouter.post('/reindex', async (req: Request<{}, {}, ReindexBatchPayload>,
 
     // 3. Process changed/added articles with per-article error isolation
     for (let i = 0; i < changed.length; i++) {
-      const article = changed[i]!;
+      const article = changed[i];
+      if (!article) {
+        continue;
+      }
       const artStart = Date.now();
       const artIndexLabel = `[Reindex:Article ${i + 1}/${changed.length}]`;
 

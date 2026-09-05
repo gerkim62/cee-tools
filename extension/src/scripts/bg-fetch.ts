@@ -2,7 +2,7 @@
  * Executes a network fetch through the extension background service worker.
  * Bypasses host page Content Security Policy (CSP), mixed-content blocks, and CORS restrictions.
  */
-export async function bgFetch<T = any>(
+export async function bgFetch<T = unknown>(
   url: string,
   options?: RequestInit
 ): Promise<{ ok: boolean; status: number; data: T }> {
@@ -10,14 +10,21 @@ export async function bgFetch<T = any>(
     let serializedHeaders: Record<string, string> | undefined;
     if (options?.headers) {
       if (options.headers instanceof Headers) {
-        serializedHeaders = {};
+        const h: Record<string, string> = {};
         options.headers.forEach((val, key) => {
-          serializedHeaders![key] = val;
+          h[key] = val;
         });
+        serializedHeaders = h;
       } else if (Array.isArray(options.headers)) {
         serializedHeaders = Object.fromEntries(options.headers);
       } else {
-        serializedHeaders = options.headers as Record<string, string>;
+        const h: Record<string, string> = {};
+        for (const [key, value] of Object.entries(options.headers)) {
+          if (typeof value === 'string') {
+            h[key] = value;
+          }
+        }
+        serializedHeaders = h;
       }
     }
 

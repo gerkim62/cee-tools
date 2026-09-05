@@ -24,7 +24,7 @@ export const App: React.FC = () => {
     citation: Citation;
     position: { top: number; left: number; transform: string };
   } | null>(null);
-  const hoverTimeoutRef = useRef<any>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Dragging for collapsed badge
   const badgeDraggable = useDraggable({
@@ -48,8 +48,9 @@ export const App: React.FC = () => {
   useEffect(() => {
     try {
       chrome.storage.local.get(['defaultView'], (res) => {
-        if (res.defaultView) {
-          setCurrentView(res.defaultView as WidgetView);
+        const val = res.defaultView;
+        if (val === 'chat' || val === 'history' || val === 'sync' || val === 'settings') {
+          setCurrentView(val);
         }
       });
     } catch {}

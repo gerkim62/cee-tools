@@ -91,7 +91,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const renderedHtml = useMemo(() => {
     if (!message.content) return '';
     try {
-      let html = marked.parse(message.content, { async: false }) as string;
+      const parsed = marked.parse(message.content, { async: false });
+      let html = typeof parsed === 'string' ? parsed : '';
 
       // Normalize any [source 8], [Source 8], [src 8] variants
       html = html.replace(/\[\s*(?:source|src)?\s*(\d+(?:\s*,\s*(?:source|src)?\s*\d+)*)\s*\]/gi, '[$1]');
@@ -119,7 +120,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
   // Event delegation for citation clicks and hovers
   const handleContainerClick = (e: React.MouseEvent) => {
-    const target = (e.target as HTMLElement).closest('.saka-citation-tag') as HTMLElement | null;
+    const target = e.target instanceof Element ? e.target.closest('.saka-citation-tag') : null;
     if (!target) return;
 
     const citeNum = parseInt(target.getAttribute('data-cite-num') || '0', 10);
@@ -140,7 +141,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const handleContainerMouseOver = (e: React.MouseEvent) => {
-    const target = (e.target as HTMLElement).closest('.saka-citation-tag') as HTMLElement | null;
+    const target = e.target instanceof Element ? e.target.closest('.saka-citation-tag') : null;
     if (!target || !onHoverCitation) return;
 
     const citeNum = parseInt(target.getAttribute('data-cite-num') || '0', 10);
@@ -152,7 +153,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const handleContainerMouseOut = (e: React.MouseEvent) => {
-    const target = (e.target as HTMLElement).closest('.saka-citation-tag');
+    const target = e.target instanceof Element ? e.target.closest('.saka-citation-tag') : null;
     if (!target || !onLeaveCitation) return;
     onLeaveCitation();
   };

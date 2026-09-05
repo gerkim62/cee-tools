@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
-import { ChatMessage, AskStreamServerMessage } from '../../types.js';
+import { ChatMessage, AskStreamServerMessage, ConversationSummary } from '../../types.js';
 import { getBackendUrl, getClientId } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
 
@@ -107,7 +107,9 @@ export function useChat() {
   const loadConversation = useCallback(async (id: string) => {
     try {
       const backendUrl = await getBackendUrl();
-      const res = await bgFetch(`${backendUrl}/conversations/${id}`);
+      const res = await bgFetch<{ conversation: ConversationSummary; messages: ChatMessage[] }>(
+        `${backendUrl}/conversations/${id}`
+      );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = res.data;
 
@@ -116,8 +118,8 @@ export function useChat() {
       setIsCompacted(Boolean(data.conversation.isCompacted));
       setConversationSummary(data.conversation.summary || null);
 
-      const rawMsgs = data.messages || [];
-      const formattedMessages: ChatMessage[] = rawMsgs.map((m: any, idx: number) => ({
+      const rawMsgs = Array.isArray(data.messages) ? data.messages : [];
+      const formattedMessages: ChatMessage[] = rawMsgs.map((m: ChatMessage, idx: number) => ({
         id: m.id,
         // For legacy records without parentId, infer linear chain
         parentId: m.parentId !== undefined ? m.parentId : idx > 0 ? rawMsgs[idx - 1].id : null,
@@ -151,11 +153,17 @@ export function useChat() {
     setIsCompacting(true);
     try {
       const backendUrl = await getBackendUrl();
-      const res = await bgFetch(`${backendUrl}/conversations/${conversationId}/compact`, {
-        method: 'POST',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.data?.error || 'Compaction failed'}`);
+      const res = await bgFetch<{ newConversation?: { id: string }; error?: string }>(
+        `${backendUrl}/conversations/${conversationId}/compact`,
+        {
+          method: 'POST',
+        }
+      );
       const data = res.data;
+      if (!res.ok) {
+        const errMsg = data?.error || 'Compaction failed';
+        throw new Error(`HTTP ${res.status}: ${errMsg}`);
+      }
       if (data?.newConversation?.id) {
         await loadConversation(data.newConversation.id);
       }
@@ -299,15 +307,16 @@ export function useChat() {
               return [...prev, line];
             });
 
-            if (msg.label && msg.detail) {
+            const { label, detail } = msg;
+            if (label && detail) {
               setAllMessages((prev) =>
                 prev.map((m) => {
                   if (m.id !== assistantMsgId) return m;
                   const existing = m.executionSteps || [];
-                  const filtered = existing.filter((s) => s.label !== msg.label);
+                  const filtered = existing.filter((s) => s.label !== label);
                   return {
                     ...m,
-                    executionSteps: [...filtered, { label: msg.label!, detail: msg.detail! }],
+                    executionSteps: [...filtered, { label, detail }],
                   };
                 })
               );
@@ -316,7 +325,7 @@ export function useChat() {
             setAllMessages((prev) =>
               prev.map((m) => {
                 if (m.id !== assistantMsgId) return m;
-                const delta = (msg).delta ?? (msg as any).token ?? '';
+                const delta = msg.delta || msg.token || '';
                 const newRaw = m.content + delta;
                 return { ...m, content: maskStreamTags(newRaw) };
               })

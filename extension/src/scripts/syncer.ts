@@ -1,4 +1,4 @@
-import { probeSakaHub, fetchSakaHubPage, sleep, SAKAHUB_NO_TAB_ERROR } from './sakahub-api.js';
+import { probeSakaHub, fetchSakaHubPage, sleep } from './sakahub-api.js';
 import { cleanWordHtmlToMarkdown } from './turndown-cleaner.js';
 import {
   SakaNormalizedArticle,
@@ -43,7 +43,7 @@ function isBackendSyncStatus(data: unknown): data is BackendSyncStatus {
     typeof data === 'object' &&
     data !== null &&
     'totalIndexed' in data &&
-    typeof (data as Record<string, unknown>).totalIndexed === 'number'
+    typeof data.totalIndexed === 'number'
   );
 }
 
@@ -196,7 +196,7 @@ export async function performSmartSync(
     const errJson: unknown = await lockRes.json().catch(() => ({}));
     const errMsg =
       typeof errJson === 'object' && errJson !== null && 'message' in errJson
-        ? String((errJson as Record<string, unknown>).message)
+        ? String(errJson.message)
         : 'Could not acquire sync lock. Another sync is active.';
     throw new Error(errMsg);
   }
@@ -214,10 +214,14 @@ export async function performSmartSync(
       throw new Error(`Failed to fetch article versions: HTTP ${versionsRes.status}`);
     }
     const rawVersions: unknown = await versionsRes.json();
-    const backendVersions =
-      typeof rawVersions === 'object' && rawVersions !== null
-        ? (rawVersions as Record<string, string>)
-        : {};
+    const backendVersions: Record<string, string> = {};
+    if (typeof rawVersions === 'object' && rawVersions !== null) {
+      for (const [key, value] of Object.entries(rawVersions)) {
+        if (typeof value === 'string') {
+          backendVersions[key] = value;
+        }
+      }
+    }
 
     const backendIds = new Set(Object.keys(backendVersions));
     const backendMaxDateMs = probeStatus.maxBackendDate
@@ -394,7 +398,7 @@ export async function performSmartSync(
         const err: unknown = await res.json().catch(() => ({}));
         const errDetail =
           typeof err === 'object' && err !== null && 'message' in err
-            ? String((err as Record<string, unknown>).message)
+            ? String(err.message)
             : `Reindex batch failed with status ${res.status}`;
         throw new Error(errDetail);
       }

@@ -36,7 +36,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         url = `${backendUrl}/conversations/search?clientId=${encodeURIComponent(clientId)}&q=${encodeURIComponent(query.trim())}`;
       }
 
-      const res = await bgFetch(url);
+      const res = await bgFetch<{ conversations: ConversationSummary[] }>(url);
       if (!res.ok) {
         throw new Error(`Server returned HTTP ${res.status}`);
       }

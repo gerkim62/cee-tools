@@ -33,7 +33,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
       setLoading(true);
       setError(null);
       const backendUrl = await getBackendUrl();
-      const res = await bgFetch(`${backendUrl}/sync-status`);
+      const res = await bgFetch<BackendSyncStatus>(`${backendUrl}/sync-status`);
       if (!res.ok) {
         throw new Error(`Server returned HTTP ${res.status}`);
       }

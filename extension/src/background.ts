@@ -44,29 +44,6 @@ async function broadcastMessage(msg: ExtensionMessage): Promise<void> {
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
-async function runStalenessCheck(force: boolean = false): Promise<void> {
-  if (isSyncInProgress) return;
-  try {
-    const status = await checkStaleness(force);
-    if (status.isBehind) {
-      await updateBadge('SYNC', '#f59e0b');
-    } else {
-      await updateBadge('', '#10b981');
-    }
-    await broadcastMessage({
-      type: 'SYNC_PROGRESS',
-      progress: {
-        stage: status.isBehind ? 'probing' : 'idle',
-        message: status.isBehind ? 'New articles detected on SakaHub' : 'Knowledge base is up to date',
-        progressPercent: status.isBehind ? 0 : 100,
-        details: { isBehind: status.isBehind, reason: status.reason },
-      },
-    });
-  } catch (err) {
-    console.debug('[Background Staleness Check]', err);
-  }
-}
-
 // ----------------------------------------------------
 // Message Bus for One-off Requests & Proxy Fetch (Zero CORS)
 // ----------------------------------------------------
@@ -74,7 +51,7 @@ chrome.runtime.onMessage.addListener(
   (
     message: ExtensionMessage,
     _sender: chrome.runtime.MessageSender,
-    sendResponse: (response?: any) => void
+    sendResponse: (response?: unknown) => void
   ) => {
     if (message.type === 'BG_FETCH') {
       const { url, options } = message;
@@ -82,7 +59,7 @@ chrome.runtime.onMessage.addListener(
         .then(async (res) => {
           const ok = res.ok;
           const status = res.status;
-          let data: any = null;
+          let data: unknown = null;
           const contentType = res.headers.get('content-type') || '';
           if (contentType.includes('application/json')) {
             try {
@@ -190,9 +167,13 @@ chrome.runtime.onConnect.addListener((port) => {
 
         if (!res.ok) {
           const errJson = await res.json().catch(() => ({}));
+          const errMsg =
+            typeof errJson === 'object' && errJson !== null && 'message' in errJson && typeof errJson.message === 'string'
+              ? errJson.message
+              : `Server error (HTTP ${res.status})`;
           port.postMessage({
             type: 'error',
-            message: errJson.message || `Server error (HTTP ${res.status})`,
+            message: errMsg,
           });
           return;
         }
@@ -225,42 +206,53 @@ chrome.runtime.onConnect.addListener((port) => {
               const dataStr = trimmed.slice(5).trim();
               try {
                 const data = JSON.parse(dataStr);
+                if (typeof data !== 'object' || data === null) continue;
+
                 if (currentEvent === 'status') {
                   port.postMessage({
                     type: 'status',
-                    message: data.message,
-                    label: data.label,
-                    detail: data.detail,
-                    step: data.step,
+                    message: 'message' in data && typeof data.message === 'string' ? data.message : '',
+                    label: 'label' in data && typeof data.label === 'string' ? data.label : undefined,
+                    detail: 'detail' in data && typeof data.detail === 'string' ? data.detail : undefined,
+                    step: 'step' in data && typeof data.step === 'string' ? data.step : undefined,
                   });
                 } else if (currentEvent === 'token') {
-                  const delta = typeof data.delta === 'string' ? data.delta : (typeof data.token === 'string' ? data.token : '');
+                  const delta =
+                    'delta' in data && typeof data.delta === 'string'
+                      ? data.delta
+                      : 'token' in data && typeof data.token === 'string'
+                        ? data.token
+                        : '';
                   port.postMessage({ type: 'token', delta });
                 } else if (currentEvent === 'citations') {
-                  port.postMessage({ type: 'citations', citations: data.citations });
+                  port.postMessage({
+                    type: 'citations',
+                    citations: 'citations' in data && Array.isArray(data.citations) ? data.citations : [],
+                  });
                 } else if (currentEvent === 'done') {
                   port.postMessage({
                     type: 'done',
-                    answer: data.answer,
-                    citations: data.citations,
-                    conversationId: data.conversationId,
-                    conversationTitle: data.conversationTitle,
-                    executionSteps: data.executionSteps,
-                    clarifyingQuestion: data.clarifyingQuestion,
-                    suggestedFollowUps: data.suggestedFollowUps,
-                    messageId: data.messageId,
-                    userMessageId: data.userMessageId,
-                    parentId: data.parentId,
+                    answer: 'answer' in data && typeof data.answer === 'string' ? data.answer : undefined,
+                    citations: 'citations' in data && Array.isArray(data.citations) ? data.citations : undefined,
+                    conversationId: 'conversationId' in data && typeof data.conversationId === 'string' ? data.conversationId : undefined,
+                    conversationTitle: 'conversationTitle' in data && typeof data.conversationTitle === 'string' ? data.conversationTitle : undefined,
+                    executionSteps: 'executionSteps' in data && Array.isArray(data.executionSteps) ? data.executionSteps : undefined,
+                    clarifyingQuestion: 'clarifyingQuestion' in data && typeof data.clarifyingQuestion === 'object' && data.clarifyingQuestion !== null ? data.clarifyingQuestion : undefined,
+                    suggestedFollowUps: 'suggestedFollowUps' in data && Array.isArray(data.suggestedFollowUps) ? data.suggestedFollowUps : undefined,
+                    messageId: 'messageId' in data && typeof data.messageId === 'string' ? data.messageId : undefined,
+                    userMessageId: 'userMessageId' in data && typeof data.userMessageId === 'string' ? data.userMessageId : undefined,
+                    parentId: 'parentId' in data && typeof data.parentId === 'string' ? data.parentId : ('parentId' in data && data.parentId === null ? null : undefined),
                   });
                 } else if (currentEvent === 'error') {
-                  port.postMessage({ type: 'error', message: data.message });
+                  const errMsg = 'message' in data && typeof data.message === 'string' ? data.message : 'Unknown error';
+                  port.postMessage({ type: 'error', message: errMsg });
                 }
               } catch {}
             }
           }
         }
       } catch (err: unknown) {
-        if ((err as any)?.name === 'AbortError') return;
+        if (err instanceof Error && err.name === 'AbortError') return;
         const msg = err instanceof Error ? err.message : String(err);
         port.postMessage({ type: 'error', message: msg });
       }

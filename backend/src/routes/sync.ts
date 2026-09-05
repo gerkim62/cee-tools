@@ -11,7 +11,7 @@ export const syncRouter: Router = Router();
  */
 syncRouter.get('/sync-status', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const statsRes = await query(
+    const statsRes = await query<{ total_indexed: number; max_last_updated: string | Date | null }>(
       `SELECT COUNT(*)::int AS total_indexed, MAX(last_updated) AS max_last_updated FROM articles`
     );
 
@@ -25,9 +25,10 @@ syncRouter.get('/sync-status', async (_req: Request, res: Response): Promise<voi
       lockExpiresAt: lockStatus.expiresAt ? lockStatus.expiresAt.toISOString() : null,
       activeCollection: getActiveCollectionName(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Sync Router Error] Failed to get sync status:', error);
-    res.status(500).json({ error: 'Failed to retrieve sync status', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve sync status', message });
   }
 });
 
@@ -47,9 +48,10 @@ syncRouter.get('/articles/versions', async (_req: Request, res: Response): Promi
     }
 
     res.json(versions);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Sync Router Error] Failed to get article versions:', error);
-    res.status(500).json({ error: 'Failed to retrieve article versions', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to retrieve article versions', message });
   }
 });
 
@@ -82,9 +84,10 @@ syncRouter.post('/sync/lock', async (req: Request, res: Response): Promise<void>
       acquired: true,
       expiresAt: result.expiresAt ? result.expiresAt.toISOString() : null,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Sync Router Error] Failed to acquire lock:', error);
-    res.status(500).json({ error: 'Failed to acquire lock', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to acquire lock', message });
   }
 });
 
@@ -98,8 +101,9 @@ syncRouter.post('/sync/unlock', async (req: Request, res: Response): Promise<voi
     await releaseLock(clientId);
     console.log(`[Sync:Lock] 🔓 Sync lock released by client "${clientId || 'anon'}".`);
     res.json({ released: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Sync Router Error] Failed to release lock:', error);
-    res.status(500).json({ error: 'Failed to release lock', message: error.message });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to release lock', message });
   }
 });

@@ -3,7 +3,7 @@ import { Router, Request, Response } from 'express';
 import { config } from '../config.js';
 import { query } from '../db.js';
 import { embedTexts, rerankChunks, chatCompletionStream, chatCompletion, OpenRouterChatMessage } from '../services/openrouter.js';
-import { queryPoints, buildSparseVector, QdrantQueryResult, qdrantClient, getActiveCollectionName } from '../services/qdrant.js';
+import { queryPoints, buildSparseVector, QdrantQueryResult, qdrantClient, getActiveCollectionName, isSakaChunkPayload } from '../services/qdrant.js';
 import { generateTextFragment } from '../services/chunker.js';
 import { translateQuery } from '../services/queryTranslator.js';
 import { ASK_SAKA_SYSTEM_PROMPT } from '../prompts.js';
@@ -142,7 +142,9 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    (res as any).flushHeaders?.();
+    if ('flushHeaders' in res && typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
   }
 
   const sendEvent = (event: string, data: unknown) => {
@@ -233,7 +235,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
           let pastRows: Array<{ role: string; content: string }> = [];
           const effectiveAnchorId = isRetry ? userMessageId : parentId;
           if (effectiveAnchorId) {
-            const ancestorRes = await query(
+            const ancestorRes = await query<{ id: string; role: string; content: string }>(
               `WITH RECURSIVE ancestors AS (
                  SELECT id, parent_id, role, content, created_at, 1 AS depth
                  FROM messages
@@ -253,7 +255,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
               ? ancestorRes.rows.filter((r) => r.id !== userMessageId)
               : ancestorRes.rows;
           } else {
-            const pastMessagesRes = await query(
+            const pastMessagesRes = await query<{ role: string; content: string }>(
               `SELECT role, content FROM messages
                WHERE conversation_id = $1 AND role IN ('user', 'assistant') AND id != $2
                ORDER BY created_at DESC
@@ -416,7 +418,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     const exactArticleChunks: QdrantQueryResult[] = [];
     if (targetArticleNumber) {
       try {
-        const artRes = await query(
+        const artRes = await query<{ id: string; article_number: string; title: string }>(
           `SELECT id, article_number, title FROM articles WHERE article_number ILIKE $1 LIMIT 1`,
           [targetArticleNumber]
         );
@@ -437,7 +439,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
             exactArticleChunks.push({
               id: p.id,
               score: 100.0 - idx,
-              payload: p.payload as any,
+              payload: isSakaChunkPayload(p.payload) ? p.payload : undefined,
             });
           });
           console.log(`[Ask:3/6] 🎯 Injected ${exactArticleChunks.length} exact chunks for article ${targetArticleNumber}`);
@@ -498,7 +500,8 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         score *= 10.0; // Prioritize exact matching Saka article number
       }
       const flag = c.payload?.article_flag;
-      if (flag && SAKAHUB_CONSTANTS.BOOSTED_FLAGS.includes(flag as any)) {
+      const boostedFlags: readonly string[] = SAKAHUB_CONSTANTS.BOOSTED_FLAGS;
+      if (flag && boostedFlags.includes(flag)) {
         score *= config.ARTICLE_FLAG_BOOST;
       }
       return { ...c, score };
@@ -738,7 +741,7 @@ ${s.content}
     let generatedTitle: string | undefined = undefined;
     if (activeConversationId) {
       try {
-        const msgCountRes = await query(
+        const msgCountRes = await query<{ count: number }>(
           `SELECT COUNT(*)::int AS count FROM messages WHERE conversation_id = $1`,
           [activeConversationId]
         );

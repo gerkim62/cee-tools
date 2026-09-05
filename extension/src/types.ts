@@ -168,7 +168,7 @@ export type ExtensionMessage =
   | { type: 'SYNC_PROGRESS'; progress: SyncProgressUpdate }
   | { type: 'SYNC_COMPLETED'; result: unknown }
   | { type: 'SYNC_ERROR'; error: string }
-  | { type: 'BG_FETCH'; url: string; options?: any }
+  | { type: 'BG_FETCH'; url: string; options?: RequestInit }
   | { type: 'SAKAHUB_RELAY_FETCH'; url: string; options?: { headers?: Record<string, string> } };
 
 export interface SakaHubRelayFetchResponse {
@@ -191,7 +191,7 @@ export interface AskStreamClientMessage {
 
 export type AskStreamServerMessage =
   | { type: 'status'; message: string; label?: string; detail?: string; step?: string }
-  | { type: 'token'; delta: string }
+  | { type: 'token'; delta: string; token?: string }
   | { type: 'citations'; citations: Citation[] }
   | {
       type: 'done';
