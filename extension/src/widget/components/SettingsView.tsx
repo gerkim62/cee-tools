@@ -74,7 +74,7 @@ export const SettingsView: React.FC = () => {
       {/* CEE Experience Settings */}
       <div className="saka-form-group">
         <label className="saka-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Sliders size={14} color="#10b981" />
+          <Sliders size={14} color="#2CB34A" />
           <span>Default Screen on Click</span>
         </label>
         <select
@@ -91,50 +91,29 @@ export const SettingsView: React.FC = () => {
           <option value="history">Conversation History</option>
           <option value="sync">Knowledge Base Sync</option>
         </select>
-        <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+        <span style={{ fontSize: '11.5px', color: 'var(--saka-ink-secondary, #58655E)' }}>
           Choose which screen opens when you click the floating dock badge.
         </span>
       </div>
 
       {/* Collapsible Technical Details for IT/Admins */}
-      <div
-        style={{
-          marginTop: '6px',
-          background: 'rgba(15, 23, 42, 0.5)',
-          border: '1px solid rgba(148, 163, 184, 0.15)',
-          borderRadius: '10px',
-          overflow: 'hidden',
-        }}
-      >
+      <div className="saka-advanced-box">
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 12px',
-            background: 'transparent',
-            border: 'none',
-            color: '#94a3b8',
-            fontSize: '12px',
-            fontWeight: 500,
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
+          className="saka-advanced-toggle"
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Server size={14} color="#64748b" />
+            <Server size={14} color="var(--saka-ink-secondary, #58655E)" />
             <span>Technical Server Settings</span>
           </div>
           {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
         {showAdvanced && (
-          <div style={{ padding: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="saka-advanced-content">
             <div className="saka-form-group" style={{ marginBottom: 0 }}>
-              <label className="saka-label" style={{ fontSize: '11px', color: '#94a3b8' }}>Backend Service Endpoint</label>
+              <label className="saka-label" style={{ fontSize: '11px' }}>Backend Service Endpoint</label>
               <input
                 type="url"
                 className="saka-text-input"
@@ -143,7 +122,7 @@ export const SettingsView: React.FC = () => {
                 placeholder="Service endpoint URL"
                 style={{ fontFamily: 'monospace', fontSize: '11.5px' }}
               />
-              <span style={{ fontSize: '11px', color: '#64748b' }}>
+              <span style={{ fontSize: '11px', color: 'var(--saka-ink-muted, #85938B)' }}>
                 Configured endpoint for procedural AI synthesis.
               </span>
             </div>
@@ -168,9 +147,10 @@ export const SettingsView: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: testResult.success ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                  color: testResult.success ? '#34d399' : '#f87171',
-                  border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  background: testResult.success ? '#E8F5EC' : '#FDF2F2',
+                  color: testResult.success ? '#146732' : '#DE1E23',
+                  border: `1px solid ${testResult.success ? '#D2E8D8' : '#FCD4D4'}`,
+                  fontWeight: 500,
                 }}
               >
                 {testResult.success ? <Check size={13} /> : <AlertCircle size={13} />}

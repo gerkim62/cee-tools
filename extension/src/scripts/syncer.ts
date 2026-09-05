@@ -1,13 +1,38 @@
-import { probeSakaHub, fetchSakaHubPage, sleep } from './sakahub-api.js';
+import {
+  probeSakaHub,
+  fetchSakaHubPage,
+  sleep,
+  isSakaHubAuthError,
+  isSakaHubNoTabError,
+  SakaHubAuthError,
+  SakaHubNoTabError,
+} from './sakahub-api.js';
 import { cleanWordHtmlToMarkdown } from './turndown-cleaner.js';
 import {
   SakaNormalizedArticle,
   BackendSyncStatus,
   StalenessCheckResult,
   SyncProgressUpdate,
+  SyncErrorCode,
   ChangedArticlePayload,
   ReindexBatchRequest,
 } from '../types.js';
+
+export class BackendUnreachableError extends Error {
+  readonly code = 'BACKEND_UNREACHABLE' as const;
+  constructor(message = 'Knowledge service is temporarily unreachable.') {
+    super(message);
+    this.name = 'BackendUnreachableError';
+  }
+}
+
+export class BackendLockedError extends Error {
+  readonly code = 'BACKEND_LOCKED' as const;
+  constructor(message = 'Could not acquire sync lock. Another sync is active.') {
+    super(message);
+    this.name = 'BackendLockedError';
+  }
+}
 
 const DEFAULT_BACKEND_URL = 'http://localhost:3000';
 const MAX_BATCH_TEXT_CHARS = 1000000; // ~1 MB of clean Markdown text
@@ -198,7 +223,7 @@ export async function performSmartSync(
       typeof errJson === 'object' && errJson !== null && 'message' in errJson
         ? String(errJson.message)
         : 'Could not acquire sync lock. Another sync is active.';
-    throw new Error(errMsg);
+    throw new BackendLockedError(errMsg);
   }
 
   try {
@@ -339,7 +364,7 @@ export async function performSmartSync(
 
     if (changedArticles.length === 0 && deletedIds.length === 0) {
       if (probeStatus.backendCount === 0) {
-        throw new Error('Please open SakaHub in your browser and it will automatically pick up.');
+        throw new SakaHubAuthError();
       }
 
       const upToDateMsg = 'Knowledge base is completely up to date. No changes needed.';
@@ -475,27 +500,38 @@ export async function performSmartSync(
       message: summaryMsg,
     };
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
+    const rawErrorMsg = err instanceof Error ? err.message : String(err);
     console.error('[Syncer Error]', err);
 
-    const userFriendlyMsg =
-      errorMsg.includes('No open SakaHub tab') || errorMsg.includes('SAKAHUB_NO_TAB')
-        ? errorMsg
-        : errorMsg.includes('SAKAHUB_AUTH') ||
-          errorMsg.includes('401') ||
-          errorMsg.includes('redirect') ||
-          errorMsg.includes('portal') ||
-          errorMsg.includes('signed in') ||
-          errorMsg.includes('session') ||
-          errorMsg.includes('automatically pick') ||
-          errorMsg.includes('No articles could be read')
-          ? 'Please open SakaHub in your browser and it will automatically pick up.'
-          : `Sync failed: ${errorMsg}`;
+    let errorCode: SyncErrorCode = 'UNKNOWN_ERROR';
+    let userFriendlyMsg = rawErrorMsg;
+
+    if (isSakaHubNoTabError(err)) {
+      errorCode = 'NO_SAKAHUB_TAB';
+      userFriendlyMsg = err.message;
+    } else if (isSakaHubAuthError(err)) {
+      errorCode = 'AUTH_REQUIRED';
+      userFriendlyMsg = 'Please open SakaHub in your browser and it will automatically pick up.';
+    } else if (err instanceof BackendLockedError || (err instanceof Error && (err as any).code === 'BACKEND_LOCKED')) {
+      errorCode = 'BACKEND_LOCKED';
+      userFriendlyMsg = err.message || 'Could not acquire sync lock. Another sync is active.';
+    } else if (
+      err instanceof BackendUnreachableError ||
+      (err instanceof Error && (err as any).code === 'BACKEND_UNREACHABLE') ||
+      (err instanceof TypeError && err.message.toLowerCase().includes('fetch')) ||
+      (err instanceof Error && (err.message.includes('ECONNREFUSED') || err.message.includes('Failed to reach backend')))
+    ) {
+      errorCode = 'BACKEND_UNREACHABLE';
+      userFriendlyMsg = 'Knowledge service is temporarily unreachable.';
+    } else {
+      userFriendlyMsg = `Sync failed: ${rawErrorMsg}`;
+    }
 
     notify({
       stage: 'error',
       message: userFriendlyMsg,
       progressPercent: 0,
+      errorCode,
     });
 
     try {

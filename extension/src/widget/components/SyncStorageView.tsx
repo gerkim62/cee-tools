@@ -70,29 +70,17 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
 
       {/* Error state */}
       {error && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            borderRadius: '10px',
-            padding: '12px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            color: '#f87171',
-            fontSize: '12.5px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+        <div className="saka-alert-card saka-alert-error">
+          <div className="saka-alert-header">
             <AlertCircle size={16} />
             <span>Sync Service Unavailable</span>
           </div>
-          <p style={{ color: '#fca5a5', lineHeight: 1.4 }}>
+          <p className="saka-alert-desc">
             Unable to check knowledge base sync status right now.
           </p>
-          <details style={{ fontSize: '11px', color: '#94a3b8' }}>
+          <details className="saka-alert-details">
             <summary style={{ cursor: 'pointer' }}>Technical details</summary>
-            <div style={{ marginTop: '4px', fontFamily: 'monospace', color: '#cbd5e1', background: 'rgba(0,0,0,0.25)', padding: '4px 8px', borderRadius: '4px', wordBreak: 'break-all' }}>
+            <div className="saka-alert-code">
               {error}
             </div>
           </details>
@@ -110,31 +98,15 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
       {/* Sync Error Box if sync failed */}
       {!isSyncing && syncProgress?.stage === 'error' && !dismissedError && (() => {
         const isSakaConnection =
-          !syncProgress.message ||
-          syncProgress.message.includes('SakaHub') ||
-          syncProgress.message.includes('automatically pick') ||
-          syncProgress.message.includes('portal') ||
-          syncProgress.message.includes('session') ||
-          syncProgress.message.includes('SAKAHUB_AUTH') ||
-          syncProgress.message.includes('401') ||
-          syncProgress.message.includes('redirect');
+          syncProgress.errorCode === 'AUTH_REQUIRED' ||
+          syncProgress.errorCode === 'NO_SAKAHUB_TAB';
 
         if (isSakaConnection) {
           return (
-            <div
-              style={{
-                background: 'rgba(245, 158, 11, 0.08)',
-                border: '1px solid rgba(245, 158, 11, 0.28)',
-                borderRadius: '10px',
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}
-            >
+            <div className="saka-alert-card saka-alert-warning">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fcd34d', fontSize: '13px' }}>
-                  <Globe size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
+                <div className="saka-alert-header">
+                  <Globe size={16} style={{ flexShrink: 0 }} />
                   <span>Open SakaHub to Connect</span>
                 </div>
                 <button
@@ -148,7 +120,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
                 </button>
               </div>
 
-              <p style={{ margin: 0, color: '#cbd5e1', fontSize: '12px', lineHeight: 1.5 }}>
+              <p className="saka-alert-desc">
                 {syncProgress.message || 'Please open SakaHub in your browser and it will automatically pick up.'}
               </p>
 
@@ -162,9 +134,6 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
                   padding: '6px 14px',
                   fontSize: '12px',
                   borderRadius: '6px',
-                  background: '#f59e0b',
-                  color: '#0f172a',
-                  fontWeight: 600,
                   textDecoration: 'none',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -180,22 +149,10 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
         }
 
         return (
-          <div
-            style={{
-              background: 'rgba(239, 68, 68, 0.10)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '10px',
-              padding: '12px 14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
-              color: '#fca5a5',
-              fontSize: '12px',
-            }}
-          >
+          <div className="saka-alert-card saka-alert-error">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#fca5a5' }}>
-                <AlertCircle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+              <div className="saka-alert-header">
+                <AlertCircle size={15} style={{ flexShrink: 0 }} />
                 <span>Sync Failed</span>
               </div>
               <button
@@ -208,24 +165,15 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
                 <X size={13} />
               </button>
             </div>
-            <span style={{ lineHeight: 1.4 }}>{syncProgress.message}</span>
+            <span className="saka-alert-desc">{syncProgress.message}</span>
           </div>
         );
       })()}
 
       {/* Single Unified Sync Status Card */}
-      <div
-        className="saka-stats-card"
-        style={{
-          padding: '14px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          border: isSyncing ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-        }}
-      >
+      <div className="saka-stats-card saka-sync-overview-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9' }}>
+          <span className="saka-sync-status-title">
             {isSyncing
               ? 'Synchronizing Knowledge Base'
               : status?.totalIndexed === 0
@@ -235,29 +183,11 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
           {isSyncing ? (
             <span className="saka-percentage-pill">{pct}%</span>
           ) : status?.totalIndexed === 0 ? (
-            <span
-              style={{
-                fontSize: '11px',
-                color: '#f59e0b',
-                background: 'rgba(245, 158, 11, 0.15)',
-                padding: '2px 8px',
-                borderRadius: '10px',
-                fontWeight: 600,
-              }}
-            >
+            <span className="saka-status-pill saka-status-warning">
               Not Synced
             </span>
           ) : (
-            <span
-              style={{
-                fontSize: '11px',
-                color: '#10b981',
-                background: 'rgba(16, 185, 129, 0.15)',
-                padding: '2px 8px',
-                borderRadius: '10px',
-                fontWeight: 600,
-              }}
-            >
+            <span className="saka-status-pill saka-status-ready">
               Ready
             </span>
           )}
@@ -265,7 +195,7 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
 
         {isSyncing && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+            <p className="saka-sync-status-msg">
               {syncProgress?.message || 'Probing SakaHub articles...'}
             </p>
             <div className="saka-sync-progress-track">
@@ -280,20 +210,20 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
 
       {/* 2-Metric Cards (KISS) */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-        <div className="saka-stats-card" style={{ padding: '14px', textAlign: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div className="saka-stats-card saka-stat-metric-card">
+          <span className="saka-stat-metric-label">
             Indexed Articles
           </span>
-          <span style={{ fontSize: '24px', fontWeight: 700, color: '#10b981' }}>
+          <span className="saka-stat-metric-val">
             {status?.totalIndexed ?? (loading ? '...' : '0')}
           </span>
         </div>
 
-        <div className="saka-stats-card" style={{ padding: '14px', textAlign: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div className="saka-stats-card saka-stat-metric-card">
+          <span className="saka-stat-metric-label">
             Last Synced
           </span>
-          <span style={{ fontSize: '14.5px', fontWeight: 600, color: '#f1f5f9', marginTop: '6px' }}>
+          <span className="saka-stat-metric-time">
             {formatRelativeTime(lastSyncedAt)}
           </span>
         </div>

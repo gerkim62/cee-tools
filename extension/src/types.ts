@@ -64,10 +64,19 @@ export interface BackendSyncStatus {
   activeCollection?: string;
 }
 
+export type SyncErrorCode =
+  | 'AUTH_REQUIRED'         // User needs to log in to SakaHub
+  | 'NO_SAKAHUB_TAB'        // SakaHub tab not open
+  | 'BACKEND_UNREACHABLE'   // Local / remote knowledge service offline
+  | 'BACKEND_LOCKED'        // Sync lock held by another client
+  | 'FETCH_FAILED'          // Failed to fetch articles
+  | 'UNKNOWN_ERROR';        // General / unexpected error
+
 export interface SyncProgressUpdate {
   stage: 'idle' | 'probing' | 'locking' | 'scraping' | 'cleaning' | 'uploading' | 'completed' | 'error';
   message: string;
   progressPercent: number;
+  errorCode?: SyncErrorCode;
   processedCount?: number;
   totalCount?: number;
   currentBatch?: number;
@@ -157,6 +166,8 @@ export interface ChatMessage {
   suggestedFollowUps?: string[];
   createdAt: string;
   isStreaming?: boolean;
+  isError?: boolean;
+  errorCode?: 'SERVICE_UNAVAILABLE' | 'CONNECTION_INTERRUPTED' | 'UNKNOWN';
 }
 
 export type WidgetView = 'chat' | 'history' | 'sync' | 'settings';

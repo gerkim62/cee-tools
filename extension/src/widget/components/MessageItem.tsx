@@ -257,8 +257,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   // ----------------------------------------------------
   const steps = message.executionSteps || [];
   const isErrorOrInterrupted =
-    Boolean(message.content) &&
-    (message.content.includes('⚠️') || message.content.includes('❌') || message.content.includes('Interrupted'));
+    Boolean(message.isError) ||
+    Boolean(
+      message.content &&
+        (message.content.includes('⚠️') || message.content.includes('❌') || message.content.includes('Interrupted'))
+    );
 
   return (
     <div className="saka-assistant-message-wrapper">

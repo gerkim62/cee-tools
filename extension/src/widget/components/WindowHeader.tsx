@@ -48,17 +48,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span className="saka-title-text">Ask Saka</span>
             {syncLabel && (
-              <span
-                style={{
-                  fontSize: '9.5px',
-                  color: '#94a3b8',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  padding: '1px 5px',
-                  borderRadius: '4px',
-                  fontWeight: 500,
-                  letterSpacing: '0.01em',
-                }}
-              >
+              <span className="saka-sync-badge-header">
                 {syncLabel}
               </span>
             )}

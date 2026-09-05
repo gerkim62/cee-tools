@@ -26,21 +26,12 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
 
   if (isError) {
     return (
-      <div
-        className="saka-sync-banner"
-        style={{
-          background: 'rgba(239, 68, 68, 0.12)',
-          borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
-        }}
-      >
+      <div className="saka-sync-banner saka-sync-banner-error">
         <div className="saka-sync-banner-row">
-          <div className="saka-sync-banner-text" style={{ color: '#fca5a5' }}>
-            <AlertCircle size={14} color="#ef4444" style={{ flexShrink: 0 }} />
+          <div className="saka-sync-banner-text">
+            <AlertCircle size={14} style={{ flexShrink: 0 }} />
             <span>
-              {syncProgress?.message &&
-              (syncProgress.message.includes('fetch') ||
-                syncProgress.message.includes('ECONNREFUSED') ||
-                syncProgress.message.includes('localhost'))
+              {syncProgress?.errorCode === 'BACKEND_UNREACHABLE'
                 ? 'Knowledge service is temporarily unreachable.'
                 : syncProgress?.message || 'Unable to complete sync. Active knowledge base is in use.'}
             </span>
@@ -49,8 +40,8 @@ export const SyncBanner: React.FC<SyncBannerProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
               type="button"
-              className="saka-btn-primary"
-              style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '5px', background: '#ef4444' }}
+              className="saka-btn-primary saka-btn-danger"
+              style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '5px' }}
               onClick={onSyncNow}
             >
               Retry

@@ -139,6 +139,31 @@ export interface FetchPageResult {
 
 export const SAKAHUB_AUTH_ERROR = 'Please open SakaHub in your browser and it will automatically pick up.';
 export const SAKAHUB_NO_TAB_ERROR = 'No open SakaHub tab found. Please open https://sakahub.safaricom.co.ke in a browser tab, then try again.';
+
+export class SakaHubAuthError extends Error {
+  readonly code = 'AUTH_REQUIRED' as const;
+  constructor(message = SAKAHUB_AUTH_ERROR) {
+    super(message);
+    this.name = 'SakaHubAuthError';
+  }
+}
+
+export class SakaHubNoTabError extends Error {
+  readonly code = 'NO_SAKAHUB_TAB' as const;
+  constructor(message = SAKAHUB_NO_TAB_ERROR) {
+    super(message);
+    this.name = 'SakaHubNoTabError';
+  }
+}
+
+export function isSakaHubAuthError(err: unknown): err is SakaHubAuthError {
+  return err instanceof SakaHubAuthError || (err instanceof Error && (err as any).code === 'AUTH_REQUIRED');
+}
+
+export function isSakaHubNoTabError(err: unknown): err is SakaHubNoTabError {
+  return err instanceof SakaHubNoTabError || (err instanceof Error && (err as any).code === 'NO_SAKAHUB_TAB');
+}
+
 const SAKAHUB_TAB_URL_PATTERN = 'https://sakahub.safaricom.co.ke/*';
 
 export interface SakaHttpResult {
@@ -154,7 +179,7 @@ async function relayFetchToSakaHubTab(
   headers: Record<string, string>
 ): Promise<{ result: SakaHttpResult; text: string }> {
   if (typeof chrome === 'undefined' || !chrome.tabs) {
-    throw new Error(SAKAHUB_NO_TAB_ERROR);
+    throw new SakaHubNoTabError();
   }
 
   const tabs = await chrome.tabs.query({ url: SAKAHUB_TAB_URL_PATTERN });
@@ -164,7 +189,7 @@ async function relayFetchToSakaHubTab(
     tabs.find((t) => typeof t.id === 'number');
 
   if (!tab || typeof tab.id !== 'number') {
-    throw new Error(SAKAHUB_NO_TAB_ERROR);
+    throw new SakaHubNoTabError();
   }
 
   let response: SakaHubRelayFetchResponse | undefined;
@@ -181,7 +206,8 @@ async function relayFetchToSakaHubTab(
       break;
     } catch (err) {
       if (attempt === 3) {
-        throw new Error(
+        if (isSakaHubNoTabError(err)) throw err;
+        throw new SakaHubNoTabError(
           (response && response.error) ||
             (err instanceof Error ? err.message : String(err)) ||
             SAKAHUB_NO_TAB_ERROR
@@ -192,7 +218,7 @@ async function relayFetchToSakaHubTab(
   }
 
   if (!response || response.success !== true) {
-    throw new Error(response?.error || SAKAHUB_NO_TAB_ERROR);
+    throw new SakaHubNoTabError(response?.error || SAKAHUB_NO_TAB_ERROR);
   }
 
   const status: number = response.status ?? 0;
@@ -221,7 +247,7 @@ export function parseAndValidateSakaResponse(response: SakaHttpResult, text: str
     response.status === 302 ||
     response.status === 401
   ) {
-    throw new Error(SAKAHUB_AUTH_ERROR);
+    throw new SakaHubAuthError();
   }
 
   if (!response.ok) {
@@ -235,18 +261,18 @@ export function parseAndValidateSakaResponse(response: SakaHttpResult, text: str
     trimmed.startsWith('<html') ||
     trimmed.includes('<body')
   ) {
-    throw new Error(SAKAHUB_AUTH_ERROR);
+    throw new SakaHubAuthError();
   }
 
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error(SAKAHUB_AUTH_ERROR);
+    throw new SakaHubAuthError();
   }
 
   if (json && typeof json === 'object' && 'message' in json && json.message === 'User is not authenticated') {
-    throw new Error(SAKAHUB_AUTH_ERROR);
+    throw new SakaHubAuthError();
   }
 
   return json;
@@ -313,10 +339,7 @@ export async function fetchSakaHubPage(
         totalPages,
       };
     } catch (err: unknown) {
-      if (
-        err instanceof Error &&
-        (err.message === SAKAHUB_AUTH_ERROR || err.message === SAKAHUB_NO_TAB_ERROR)
-      ) {
+      if (isSakaHubAuthError(err) || isSakaHubNoTabError(err)) {
         throw err;
       }
       const msg = err instanceof Error ? err.message : String(err);

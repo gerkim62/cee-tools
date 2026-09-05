@@ -384,6 +384,8 @@ export function useChat() {
                     ...m,
                     content: friendly,
                     isStreaming: false,
+                    isError: true,
+                    errorCode: 'SERVICE_UNAVAILABLE',
                   }
                   : m
               )
@@ -405,9 +407,11 @@ export function useChat() {
                   ? {
                     ...m,
                     content: m.content
-                      ? `${m.content}\n\n⚠️ *(Response was interrupted due to a temporary connection issue. Click Retry below to regenerate.)*`
-                      : `⚠️ **Connection Interrupted**\n\nThe connection was closed before completing your response. Click Retry below to resubmit.\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${rawMsg}</pre></details>`,
+                      ? `${m.content}\n\n*(Response was interrupted due to a temporary connection issue. Click Retry below to regenerate.)*`
+                      : `**Connection Interrupted**\n\nThe connection was closed before completing your response. Click Retry below to resubmit.\n\n<details><summary style="cursor:pointer;color:#94a3b8;font-size:11.5px;margin-top:6px;">Technical details</summary><pre style="font-size:11px;color:#cbd5e1;background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin-top:4px;overflow-x:auto;">${rawMsg}</pre></details>`,
                     isStreaming: false,
+                    isError: true,
+                    errorCode: 'CONNECTION_INTERRUPTED',
                   }
                   : m
               )
@@ -432,8 +436,10 @@ export function useChat() {
             m.id === assistantMsgId
               ? {
                 ...m,
-                content: `❌ **Connection error**: ${msg}`,
+                content: `**Connection error**: ${msg}`,
                 isStreaming: false,
+                isError: true,
+                errorCode: 'SERVICE_UNAVAILABLE',
               }
               : m
           )

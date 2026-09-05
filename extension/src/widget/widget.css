@@ -1,21 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700;900&display=swap');
+
 :host {
   all: initial;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  color: #f1f5f9;
+  color: #242623;
   z-index: 2147483647;
   pointer-events: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
+  /* Safaricom Official Typography */
+  --saka-font-main: 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --saka-font-heading: 'ProximaNova-Bold', 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --saka-font-semibold: 'ProximaNova-Semibold', 'Proxima Nova', 'ProximaNova', 'SafFont', 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* ========================================================
+     Safaricom Official Brand & Enterprise UI Design Tokens
+     ======================================================== */
+  --saka-green-primary: #2CB34A;       /* Digital Safaricom Green */
+  --saka-green-hover: #259E3F;         /* Hover Green */
+  --saka-green-deep: #146732;          /* Headings & High-contrast Text */
+  --saka-green-deeper: #0E4823;        /* Dark accents */
+  --saka-green-surface: #F6FAF7;       /* Soft card background */
+  --saka-green-tint: #E8F5EC;          /* Chips, pills, active backgrounds */
+  --saka-green-pill-border: #D2E8D8;   /* Pill borders */
+
+  --saka-red-official: #DE1E23;        /* Official Safaricom Red */
+  --saka-red-surface: #FDF2F2;         /* Error/alert surface */
+  --saka-red-border: #FCD4D4;          /* Error border */
+  --saka-red-text: #991B1B;            /* Error text */
+
+  --saka-amber-official: #D97706;      /* Warning amber */
+  --saka-amber-surface: #FFFBEB;       /* Warning surface */
+  --saka-amber-border: #FDE68A;        /* Warning border */
+  --saka-amber-text: #92400E;          /* Warning text */
+
+  --saka-blue-sync: #2563EB;           /* Syncing blue */
+
+  --saka-surface-window: #FFFFFF;      /* Main window surface */
+  --saka-surface-header: #FFFFFF;      /* Header surface */
+  --saka-surface-body: #F7FAF8;        /* Body background */
+  --saka-surface-card: #FFFFFF;        /* Card & Bubble surface */
+  --saka-surface-input: #FFFFFF;       /* Input bar surface */
+
+  --saka-ink-primary: #242623;         /* Body copy */
+  --saka-ink-title: #1C2420;           /* Titles and headers */
+  --saka-ink-secondary: #58655E;       /* Subtitles, labels */
+  --saka-ink-muted: #85938B;           /* Disabled, placeholders */
+
+  --saka-border-subtle: #E2E8E4;       /* Card borders & dividers */
+  --saka-border-medium: #D5DFD8;       /* Input borders */
+  --saka-border-focus: #2CB34A;        /* Focus border */
+
+  --saka-shadow-badge: 0 4px 14px rgba(44, 179, 74, 0.35), 0 2px 6px rgba(0, 0, 0, 0.08);
+  --saka-shadow-badge-hover: 0 6px 20px rgba(44, 179, 74, 0.45);
+  --saka-shadow-window: 0 16px 40px -6px rgba(18, 38, 26, 0.16), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.12);
+  --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-family: inherit;
+}
+
+button, input, select, textarea {
+  font-family: var(--saka-font-main);
 }
 
 /* ========================================================
-   Floating Collapsed Badge / Dock
+   Floating Collapsed Badge / Launcher
    ======================================================== */
 .saka-floating-badge {
   pointer-events: auto;
@@ -23,15 +82,15 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0b1329 0%, #032b1b 100%);
-  border: 1.5px solid rgba(16, 185, 129, 0.45);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(16, 185, 129, 0.25);
+  background: var(--saka-green-primary);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: var(--saka-shadow-badge);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: grab;
   user-select: none;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background 0.2s ease;
   z-index: 2147483647;
 }
 
@@ -41,9 +100,9 @@
 }
 
 .saka-floating-badge:hover {
-  transform: scale(1.06);
-  border-color: #10b981;
-  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.7), 0 0 22px rgba(16, 185, 129, 0.4);
+  transform: scale(1.05);
+  background: var(--saka-green-hover);
+  box-shadow: var(--saka-shadow-badge-hover);
 }
 
 .saka-badge-icon-wrapper {
@@ -51,7 +110,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #10b981;
+  color: #ffffff;
 }
 
 /* Circular SVG Progress Ring */
@@ -68,13 +127,13 @@
 
 .saka-progress-ring-bg {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.35);
   stroke-width: 2.5;
 }
 
 .saka-progress-ring-circle {
   fill: none;
-  stroke: #10b981;
+  stroke: #ffffff;
   stroke-width: 2.5;
   stroke-linecap: round;
   transition: stroke-dashoffset 0.3s ease;
@@ -88,28 +147,19 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 2px solid #0b1329;
+  border: 2px solid #ffffff;
 }
 
 .saka-badge-status-dot.status-ok {
-  background-color: #10b981;
-  box-shadow: 0 0 8px #10b981;
+  background-color: #ffffff;
 }
 
 .saka-badge-status-dot.status-stale {
-  background-color: #f59e0b;
-  box-shadow: 0 0 8px #f59e0b;
-  animation: pulse-amber 2s infinite;
+  background-color: var(--saka-red-official);
 }
 
 .saka-badge-status-dot.status-syncing {
-  background-color: #3b82f6;
-  box-shadow: 0 0 8px #3b82f6;
-}
-
-@keyframes pulse-amber {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.15); }
+  background-color: var(--saka-blue-sync);
 }
 
 /* ========================================================
@@ -122,23 +172,21 @@
   height: 620px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
-  background: rgba(15, 23, 42, 0.94);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(16, 185, 129, 0.15);
+  background: var(--saka-surface-window);
+  border: 1px solid var(--saka-border-subtle);
+  border-radius: 14px;
+  box-shadow: var(--saka-shadow-window);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 2147483646;
-  animation: sakaWindowFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: sakaWindowFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes sakaWindowFadeIn {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(10px);
+    transform: scale(0.97) translateY(8px);
   }
   to {
     opacity: 1;
@@ -151,9 +199,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: rgba(30, 41, 59, 0.85);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 11px 16px;
+  background: var(--saka-surface-header);
+  border-top: 3px solid var(--saka-green-primary);
+  border-bottom: 1px solid var(--saka-border-subtle);
   cursor: grab;
   user-select: none;
 }
@@ -169,10 +218,10 @@
 }
 
 .saka-brand-logo {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 7px;
-  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  background: var(--saka-green-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -185,30 +234,42 @@
 }
 
 .saka-title-text {
+  font-family: var(--saka-font-heading);
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--saka-ink-title);
   letter-spacing: -0.01em;
 }
 
 .saka-subtitle-text {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--saka-ink-secondary);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
+.saka-sync-badge-header {
+  font-size: 9.5px;
+  color: var(--saka-green-deep);
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .saka-header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .saka-btn-icon {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--saka-ink-secondary);
   width: 30px;
   height: 30px;
   border-radius: 7px;
@@ -220,15 +281,22 @@
 }
 
 .saka-btn-icon:hover {
-  background: rgba(16, 185, 129, 0.16);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  transform: translateY(-1px) scale(1.06);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+}
+
+.saka-btn-icon:hover[aria-label="Close"] {
+  background: var(--saka-red-surface);
+  color: var(--saka-red-official);
 }
 
 .saka-btn-icon:active {
-  transform: scale(0.94);
+  transform: scale(0.95);
+}
+
+.saka-btn-icon.active {
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
 }
 
 /* Chevron Menu Dropdown */
@@ -236,109 +304,139 @@
   position: absolute;
   top: 52px;
   right: 14px;
-  width: 190px;
-  background: rgba(24, 32, 53, 0.98);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 12px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
-  padding: 6px;
+  width: 200px;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
+  border-radius: 10px;
+  box-shadow: var(--saka-shadow-dropdown);
+  padding: 5px;
   z-index: 50;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   animation: menuAppear 0.15s ease-out;
 }
 
 @keyframes menuAppear {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .saka-menu-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #cbd5e1;
+  gap: 9px;
+  padding: 8px 10px;
   background: transparent;
   border: none;
+  border-radius: 6px;
+  color: var(--saka-ink-primary);
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s ease, color 0.15s ease;
-  width: 100%;
+  transition: all 0.12s ease;
 }
 
 .saka-menu-item:hover {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
 }
 
 .saka-menu-item.active {
-  background: rgba(16, 185, 129, 0.22);
-  color: #10b981;
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
   font-weight: 600;
 }
 
 /* Sync Top Banner */
 .saka-sync-banner {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
-  border-bottom: 1px solid rgba(16, 185, 129, 0.3);
-  padding: 8px 14px;
+  background: var(--saka-green-surface);
+  border-bottom: 1px solid var(--saka-border-subtle);
+  padding: 7px 14px;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 12px;
+  animation: bannerSlide 0.18s ease-out;
+}
+
+.saka-sync-banner-error {
+  background: var(--saka-red-surface);
+  border-bottom: 1px solid var(--saka-red-border);
+}
+
+.saka-sync-banner-error .saka-sync-banner-text {
+  color: var(--saka-red-text);
+}
+
+@keyframes bannerSlide {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 80px;
+  }
 }
 
 .saka-sync-banner-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .saka-sync-banner-text {
-  color: #e2e8f0;
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 11.5px;
+  color: var(--saka-green-deep);
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saka-percentage-pill {
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+  color: var(--saka-green-deep);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .saka-sync-progress-track {
   width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  height: 3px;
+  background: #E2EFE5;
   border-radius: 2px;
   overflow: hidden;
 }
 
 .saka-sync-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #10b981, #3b82f6);
-  border-radius: 2px;
+  background: var(--saka-green-primary);
   transition: width 0.3s ease;
-}
-
-.saka-percentage-pill {
-  font-size: 11px;
-  font-weight: 700;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  padding: 1px 7px;
-  border-radius: 10px;
 }
 
 /* Chat View */
 .saka-chat-container {
-  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0;
+  overflow: hidden;
+  background: var(--saka-surface-body);
 }
 
 .saka-messages-scroll {
@@ -350,43 +448,55 @@
   gap: 14px;
 }
 
-.saka-messages-scroll::-webkit-scrollbar {
-  width: 6px;
+/* Custom Scrollbars */
+.saka-messages-scroll::-webkit-scrollbar,
+.saka-view-container::-webkit-scrollbar {
+  width: 5px;
 }
-.saka-messages-scroll::-webkit-scrollbar-track {
+
+.saka-messages-scroll::-webkit-scrollbar-track,
+.saka-view-container::-webkit-scrollbar-track {
   background: transparent;
 }
-.saka-messages-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
+
+.saka-messages-scroll::-webkit-scrollbar-thumb,
+.saka-view-container::-webkit-scrollbar-thumb {
+  background: #D5DFD8;
+  border-radius: 4px;
+}
+
+.saka-messages-scroll::-webkit-scrollbar-thumb:hover,
+.saka-view-container::-webkit-scrollbar-thumb:hover {
+  background: #B5C4BB;
 }
 
 /* Floating Jump-to-Bottom Button */
 .saka-scroll-bottom-btn {
   position: absolute;
-  bottom: 70px;
+  bottom: 84px;
   right: 18px;
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 10px rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
+  color: var(--saka-green-deep);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   z-index: 25;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   animation: scrollBtnFadeIn 0.2s ease-out;
 }
 
 .saka-scroll-bottom-btn:hover {
-  background: rgba(30, 41, 59, 0.98);
+  background: #FFFFFF;
   transform: translateY(-2px);
-  border-color: #38bdf8;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65), 0 0 16px rgba(56, 189, 248, 0.35);
+  border-color: var(--saka-green-primary);
+  color: var(--saka-green-primary);
+  box-shadow: 0 6px 16px rgba(44, 179, 74, 0.25);
 }
 
 .saka-scroll-bottom-btn:active {
@@ -405,10 +515,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #10b981;
-  border: 1.5px solid #0f172a;
-  box-shadow: 0 0 6px #10b981;
-  animation: pulseDot 1s infinite alternate;
+  background: var(--saka-green-primary);
+  border: 1.5px solid #FFFFFF;
 }
 
 /* Message Bubbles */
@@ -439,12 +547,13 @@
   align-self: flex-end;
   width: fit-content;
   max-width: 100%;
-  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
-  color: #ffffff;
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
   padding: 9px 13px;
   border-radius: 16px 16px 3px 16px;
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.25);
+  box-shadow: 0 2px 8px rgba(44, 179, 74, 0.2);
   font-size: 13px;
+  font-weight: 500;
   line-height: 1.45;
   word-break: break-word;
   white-space: pre-wrap;
@@ -453,72 +562,56 @@
 .saka-user-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 6px;
-  align-self: flex-end;
-  min-height: 20px;
-}
-
-.saka-user-edit-trigger {
   opacity: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 
-.saka-user-message-wrapper:hover .saka-user-edit-trigger,
-.saka-user-message-wrapper:focus-within .saka-user-edit-trigger {
+.saka-user-message-wrapper:hover .saka-user-actions {
   opacity: 1;
 }
 
+.saka-user-edit-trigger {
+  font-size: 11px;
+  color: var(--saka-ink-muted);
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+}
+
 .saka-user-edit-trigger:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--saka-green-deep);
+  background: var(--saka-green-tint);
 }
 
 /* User Inline Edit Box */
 .saka-user-edit-container {
-  align-self: flex-end;
-  width: 100%;
-  max-width: 360px;
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(59, 130, 246, 0.4);
-  border-radius: 12px;
-  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  gap: 6px;
+  width: 100%;
+  min-width: 260px;
 }
 
 .saka-user-edit-textarea {
   width: 100%;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  color: #f1f5f9;
-  font-size: 12.5px;
-  font-family: inherit;
+  background: #FFFFFF;
+  border: 1.5px solid var(--saka-green-primary);
+  border-radius: 10px;
   padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--saka-ink-primary);
   resize: vertical;
-  min-height: 52px;
+  min-height: 60px;
   outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.saka-user-edit-textarea:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 3px rgba(44, 179, 74, 0.15);
 }
 
 .saka-user-edit-actions {
@@ -529,35 +622,35 @@
 }
 
 .saka-user-edit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
   font-size: 11.5px;
-  font-weight: 500;
-  padding: 5px 9px;
+  font-weight: 600;
+  padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border: none;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
 }
 
 .saka-user-edit-cancel {
-  background: rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-medium);
+  color: var(--saka-ink-secondary);
 }
 
 .saka-user-edit-cancel:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #f1f5f9;
+  background: #F4F6F5;
 }
 
 .saka-user-edit-save {
-  background: #2563eb;
-  color: #ffffff;
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
 }
 
 .saka-user-edit-save:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--saka-green-hover);
 }
 
 .saka-user-edit-save:disabled {
@@ -567,108 +660,88 @@
 
 /* Branch Navigation Controls */
 .saka-branch-nav {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 5px;
-  padding: 1px 4px;
-}
-
-.saka-branch-nav-user {
-  align-self: flex-end;
-  margin-top: 1px;
+  gap: 3px;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
+  border-radius: 6px;
+  padding: 2px 4px;
 }
 
 .saka-branch-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
-  display: inline-flex;
+  color: var(--saka-ink-secondary);
+  cursor: pointer;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.12s ease;
+  padding: 2px;
+  border-radius: 4px;
 }
 
 .saka-branch-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
 }
 
 .saka-branch-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+  opacity: 0.35;
+  cursor: default;
 }
 
 .saka-branch-counter {
   font-size: 10.5px;
+  color: var(--saka-ink-secondary);
   font-weight: 600;
-  color: #cbd5e1;
   padding: 0 4px;
-  letter-spacing: 0.02em;
-  user-select: none;
-}
-
-.saka-message-user ::selection,
-.saka-message-user::selection {
-  background: #38bdf8;
-  color: #0b1329;
 }
 
 .saka-assistant-message-wrapper {
   align-self: flex-start;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 4px;
-  width: 100%;
+  max-width: 95%;
 }
 
 .saka-message-assistant {
-  align-self: flex-start;
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #f1f5f9;
-  padding: 14px 16px;
-  border-radius: 16px 16px 16px 3px;
-  width: 100%;
+  background: var(--saka-surface-card);
+  border: 1px solid var(--saka-border-subtle);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--saka-shadow-card);
+  color: var(--saka-ink-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .saka-assistant-header {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  justify-content: space-between;
 }
 
 .saka-assistant-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  font-family: var(--saka-font-semibold);
   font-size: 11.5px;
-  font-weight: 600;
-  color: #10b981;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--saka-green-deep);
+  letter-spacing: -0.01em;
 }
 
 .saka-assistant-bottom-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  align-self: flex-end;
   gap: 6px;
-  margin-top: 2px;
-  padding-right: 2px;
-  opacity: 0.85;
+  opacity: 0;
   transition: opacity 0.15s ease;
+  margin-top: 2px;
 }
 
 .saka-assistant-message-wrapper:hover .saka-assistant-bottom-actions {
@@ -676,46 +749,36 @@
 }
 
 .saka-action-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
+  background: transparent;
+  border: none;
+  color: var(--saka-ink-muted);
   font-size: 11px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   cursor: pointer;
-  padding: 3px 8px;
-  border-radius: 5px;
-  transition: all 0.15s ease;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.12s ease;
 }
 
 .saka-action-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.saka-retry-btn:hover {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.35);
-  color: #34d399;
-}
-
-.saka-copy-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  color: var(--saka-green-deep);
+  background: var(--saka-green-tint);
 }
 
 /* Markdown Content Formatting */
 .saka-markdown-body {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--saka-ink-primary);
+  word-break: break-word;
 }
 
 .saka-markdown-body p {
   margin-bottom: 8px;
 }
+
 .saka-markdown-body p:last-child {
   margin-bottom: 0;
 }
@@ -730,35 +793,72 @@
 }
 
 .saka-markdown-body strong {
-  color: #f8fafc;
+  color: var(--saka-ink-title);
   font-weight: 600;
 }
 
+.saka-markdown-body a {
+  color: var(--saka-green-deep);
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.saka-markdown-body a:hover {
+  color: var(--saka-green-hover);
+}
+
 .saka-markdown-body code {
-  background: rgba(0, 0, 0, 0.35);
-  padding: 2px 5px;
-  border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
-  color: #38bdf8;
+  background: #EDF3EF;
+  color: var(--saka-green-deep);
+  border: 1px solid #D9E3DC;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+}
+
+.saka-markdown-body pre {
+  background: #F4F7F5;
+  border: 1px solid #DCE5E0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.saka-markdown-body pre code {
+  background: transparent;
+  border: none;
+  color: var(--saka-ink-title);
+  padding: 0;
 }
 
 .saka-markdown-body table {
   width: 100%;
   border-collapse: collapse;
-  margin: 10px 0;
-  font-size: 12px;
+  margin: 8px 0;
+  font-size: 12.5px;
 }
 
 .saka-markdown-body th, .saka-markdown-body td {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 6px 10px;
+  padding: 6px 9px;
+  border: 1px solid var(--saka-border-subtle);
   text-align: left;
 }
 
 .saka-markdown-body th {
-  background: rgba(255, 255, 255, 0.06);
-  color: #34d399;
+  background: #EDF4F0;
+  color: var(--saka-green-deep);
+  font-weight: 600;
+}
+
+.saka-markdown-body blockquote {
+  border-left: 3px solid var(--saka-green-primary);
+  background: var(--saka-green-surface);
+  padding: 6px 12px;
+  margin: 8px 0;
+  border-radius: 0 6px 6px 0;
+  color: #35423C;
 }
 
 /* Inline Citation Tags */
@@ -766,70 +866,101 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(16, 185, 129, 0.22);
-  border: 1px solid rgba(16, 185, 129, 0.5);
-  color: #34d399;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--saka-green-deep);
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+  border-radius: 10px;
   padding: 0 5px;
-  height: 18px;
-  border-radius: 4px;
+  height: 17px;
+  min-width: 17px;
   margin: 0 2px;
+  vertical-align: 1px;
   cursor: pointer;
   text-decoration: none;
-  transition: all 0.15s ease;
-  vertical-align: middle;
+  transition: all 0.12s ease;
 }
 
 .saka-citation-tag:hover {
-  background: #10b981;
-  color: #ffffff;
-  border-color: #34d399;
-  transform: translateY(-1.5px) scale(1.1);
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.7), 0 2px 6px rgba(0, 0, 0, 0.4);
-}
-
-.saka-citation-tag:active {
-  transform: translateY(0) scale(0.96);
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
+  border-color: var(--saka-green-primary);
 }
 
 /* Citation Hover Popover */
 .saka-popover-card {
-  position: absolute;
-  width: 360px;
-  max-width: min(90vw, 420px);
-  background: rgba(15, 23, 42, 0.98);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(16, 185, 129, 0.45);
-  border-radius: 12px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.75), 0 0 20px rgba(16, 185, 129, 0.25);
-  padding: 14px;
-  z-index: 1000;
-  font-size: 12px;
+  position: fixed;
+  width: 290px;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
+  border-radius: 10px;
+  box-shadow: var(--saka-shadow-dropdown);
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  animation: popoverFadeIn 0.15s ease-out;
-  pointer-events: auto;
+  gap: 6px;
+  z-index: 2147483647;
+  font-size: 12px;
 }
 
-@keyframes popoverFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.saka-popover-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--saka-ink-title);
+}
+
+.saka-popover-num {
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.saka-popover-section {
+  font-size: 11px;
+  color: var(--saka-ink-secondary);
+}
+
+.saka-popover-quote {
+  font-size: 11.5px;
+  font-style: italic;
+  color: #35423C;
+  background: var(--saka-green-surface);
+  border-left: 3px solid var(--saka-green-primary);
+  padding: 5px 8px;
+  border-radius: 0 4px 4px 0;
+  max-height: 80px;
+  overflow-y: auto;
+  line-height: 1.4;
+}
+
+.saka-popover-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--saka-green-deep);
+  font-weight: 600;
+  font-size: 11px;
+  text-decoration: none;
+  margin-top: 2px;
+}
+
+.saka-popover-link:hover {
+  color: var(--saka-green-hover);
+  text-decoration: underline;
 }
 
 /* Execution Steps Box */
 .saka-execution-box {
-  margin-bottom: 10px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
   border-radius: 8px;
   overflow: hidden;
-  transition: all 0.2s ease;
-}
-
-.saka-execution-box:hover {
-  border-color: rgba(16, 185, 129, 0.3);
 }
 
 .saka-execution-toggle {
@@ -837,20 +968,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 7px 10px;
+  background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--saka-ink-secondary);
   font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
-  text-align: left;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
 }
 
 .saka-execution-toggle:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #f1f5f9;
+  background: var(--saka-green-surface);
+  color: var(--saka-green-deep);
 }
 
 .saka-execution-toggle-left {
@@ -860,376 +990,261 @@
 }
 
 .saka-execution-icon {
-  color: #10b981;
+  color: var(--saka-green-primary);
 }
 
 .saka-execution-content {
   padding: 8px 10px;
+  border-top: 1px solid var(--saka-border-subtle);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--saka-green-surface);
 }
 
 .saka-execution-step {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  font-size: 11px;
+  border-left: 2px solid var(--saka-green-pill-border);
+  padding-left: 7px;
 }
 
 .saka-execution-step-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #34d399;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--saka-green-deep);
 }
 
 .saka-execution-step-detail {
-  font-size: 12px;
-  color: #cbd5e1;
-  line-height: 1.4;
-}
-
-.saka-popover-title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-weight: 600;
-  color: #ffffff;
-  line-height: 1.35;
-}
-
-.saka-popover-num {
-  background: rgba(16, 185, 129, 0.25);
-  color: #34d399;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.saka-popover-section {
-  color: #94a3b8;
-  font-size: 11px;
-}
-
-.saka-popover-quote {
-  background: rgba(0, 0, 0, 0.35);
-  border-left: 3px solid #10b981;
-  padding: 10px 12px;
-  border-radius: 0 8px 8px 0;
-  color: #e2e8f0;
-  font-style: normal;
-  font-size: 12px;
-  line-height: 1.55;
-  max-height: 320px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.saka-popover-quote::-webkit-scrollbar {
-  width: 4px;
-}
-.saka-popover-quote::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
-}
-
-.saka-popover-link {
-  align-self: flex-end;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #38bdf8;
-  text-decoration: none;
-  margin-top: 2px;
-  transition: color 0.15s ease;
-}
-
-.saka-popover-link:hover {
-  color: #7dd3fc;
-  text-decoration: underline;
+  color: var(--saka-ink-secondary);
 }
 
 /* Rolling Terminal Status Log */
 .saka-rolling-log {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
   border-radius: 8px;
-  padding: 8px 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
-  color: #a7f3d0;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 6px;
 }
 
 .saka-rolling-log-line {
   display: flex;
   align-items: center;
   gap: 6px;
-  animation: logLineIn 0.15s ease-out;
-}
-
-@keyframes logLineIn {
-  from { opacity: 0; transform: translateX(-4px); }
-  to { opacity: 1; transform: translateX(0); }
+  font-size: 11.5px;
+  color: var(--saka-ink-secondary);
 }
 
 .saka-rolling-dot {
-  width: 5px;
-  height: 5px;
-  background-color: #10b981;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  animation: pulseDot 1s infinite alternate;
+  background: var(--saka-green-primary);
 }
 
-@keyframes pulseDot {
-  from { opacity: 0.3; }
-  to { opacity: 1; }
-}
-
-/* Empty State / Suggestions */
+/* Empty State & Suggestion Chips */
 .saka-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 30px 16px;
+  padding: 36px 16px 20px;
   gap: 12px;
   margin: auto 0;
 }
 
 .saka-empty-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #10b981;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--saka-green-tint);
+  color: var(--saka-green-primary);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .saka-empty-title {
-  font-size: 15px;
+  font-family: var(--saka-font-heading);
+  font-size: 16px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--saka-ink-title);
+  letter-spacing: -0.01em;
 }
 
 .saka-empty-desc {
-  font-size: 12px;
-  color: #94a3b8;
-  max-width: 280px;
+  font-size: 12.5px;
+  color: var(--saka-ink-secondary);
+  max-width: 290px;
+  line-height: 1.45;
 }
 
 .saka-chips-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  width: 100%;
-  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  margin-top: 6px;
 }
 
 .saka-chip-btn {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 8px 10px;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-medium);
+  border-radius: 18px;
+  padding: 6px 12px;
   font-size: 12px;
-  color: #cbd5e1;
-  text-align: left;
+  font-weight: 500;
+  color: var(--saka-ink-primary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.12s ease;
 }
 
 .saka-chip-btn:hover {
-  background: rgba(16, 185, 129, 0.18);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #ffffff;
-  transform: translateY(-1px);
+  border-color: var(--saka-green-primary);
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
 }
 
 /* Clarification & Follow-up Chips */
 .saka-clarification-container {
-  margin-top: 10px;
-  padding: 10px 12px;
-  background: rgba(14, 165, 233, 0.08);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
 }
 
 .saka-clarification-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 11.5px;
   font-weight: 600;
-  color: #38bdf8;
-  margin-bottom: 8px;
+  color: var(--saka-green-deep);
 }
 
-.saka-clarification-chips,
-.saka-followups-chips {
+.saka-clarification-chips, .saka-followups-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
 .saka-chip-clarify {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #e0f2fe;
-  font-size: 11.5px;
-  padding: 5px 9px;
-  border-radius: 6px;
+  background: var(--saka-green-surface);
+  border: 1px solid var(--saka-green-pill-border);
+  color: var(--saka-green-deep);
 }
 
 .saka-chip-clarify:hover {
-  background: rgba(56, 189, 248, 0.25);
-  border-color: #38bdf8;
-  color: #ffffff;
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
+  border-color: var(--saka-green-primary);
 }
 
 .saka-error-recovery-row {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(239, 68, 68, 0.2);
-  display: flex;
-  align-items: center;
+  margin-top: 4px;
 }
 
 .saka-error-retry-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  color: #fca5a5;
+  background: var(--saka-red-surface);
+  border: 1px solid var(--saka-red-border);
+  color: var(--saka-red-official);
   font-size: 11.5px;
   font-weight: 600;
-  padding: 5px 10px;
+  padding: 5px 11px;
   border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
 }
 
 .saka-error-retry-action:hover {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: #ef4444;
-  color: #ffffff;
-  transform: translateY(-1px);
+  background: var(--saka-red-official);
+  color: #FFFFFF;
 }
 
 .saka-followups-container {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
-}
-
-.saka-followups-chips {
-  display: flex;
-  flex-wrap: wrap;
   gap: 6px;
+  margin-top: 6px;
 }
 
-.saka-followups-chips .saka-chip-followup {
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(16, 185, 129, 0.28);
-  color: #e2e8f0;
+.saka-chip-followup {
+  background: var(--saka-green-surface);
+  border: 1px solid var(--saka-green-pill-border);
+  color: var(--saka-green-deep);
+  border-radius: 14px;
+  padding: 4px 10px;
   font-size: 11.5px;
-  line-height: 1.35;
-  padding: 6px 11px;
-  border-radius: 8px;
   cursor: pointer;
-  text-align: left;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transition: all 0.12s ease;
 }
 
-.saka-followups-chips .saka-chip-followup:hover {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: #10b981;
-  color: #ffffff;
-  transform: translateY(-1.5px);
-  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
-}
-
-.saka-followups-chips .saka-chip-followup:active {
-  transform: translateY(0);
+.saka-chip-followup:hover {
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
 }
 
 /* Slash Command Menu */
 .saka-slash-menu {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: 64px;
   left: 14px;
   right: 14px;
-  background: rgba(15, 23, 42, 0.98);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  backdrop-filter: blur(12px);
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
   border-radius: 10px;
-  padding: 6px;
-  box-shadow: 0 -8px 24px -4px rgba(0, 0, 0, 0.6);
-  z-index: 50;
+  box-shadow: var(--saka-shadow-dropdown);
+  padding: 5px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  max-height: 220px;
+  gap: 2px;
+  z-index: 30;
+  max-height: 200px;
   overflow-y: auto;
 }
 
 .saka-slash-item {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  padding: 8px 10px;
+  gap: 2px;
+  padding: 6px 9px;
   border-radius: 6px;
   cursor: pointer;
-  background: transparent;
-  border: none;
-  width: 100%;
-  text-align: left;
-  transition: all 0.15s ease;
+  transition: background 0.1s ease;
 }
 
-.saka-slash-item:hover,
-.saka-slash-item.selected {
-  background: rgba(56, 189, 248, 0.15);
+.saka-slash-item:hover, .saka-slash-item.selected {
+  background: var(--saka-green-tint);
 }
 
 .saka-slash-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .saka-slash-badge {
-  font-family: monospace;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  padding: 2px 6px;
+  color: var(--saka-green-deep);
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+  padding: 1px 5px;
   border-radius: 4px;
 }
 
 .saka-slash-desc {
   font-size: 11px;
-  color: #94a3b8;
-  margin-top: 3px;
-  line-height: 1.3;
+  color: var(--saka-ink-secondary);
 }
 
 /* Chat Header Bar & Compaction */
@@ -1237,181 +1252,179 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
-  background: rgba(15, 23, 42, 0.75);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 11.5px;
-  gap: 8px;
-  flex-shrink: 0;
+  padding: 8px 14px;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--saka-border-subtle);
 }
 
 .saka-chat-title-text {
-  color: #94a3b8;
+  font-family: var(--saka-font-semibold);
+  font-size: 12.5px;
   font-weight: 600;
-  white-space: nowrap;
+  color: var(--saka-ink-title);
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
+  white-space: nowrap;
 }
 
 .saka-compact-btn {
+  background: transparent;
+  border: 1px solid var(--saka-border-medium);
+  color: var(--saka-ink-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  color: #d8b4fe;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
+  transition: all 0.12s ease;
 }
 
 .saka-compact-btn:hover:not(:disabled) {
-  background: rgba(168, 85, 247, 0.28);
-  border-color: #a855f7;
-  color: #ffffff;
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+  border-color: var(--saka-green-pill-border);
 }
 
 .saka-compact-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .saka-compacted-lock-banner {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: rgba(168, 85, 247, 0.12);
-  border-top: 1px solid rgba(168, 85, 247, 0.25);
-  color: #d8b4fe;
-  font-size: 11.5px;
-  font-weight: 500;
-  text-align: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--saka-green-deep);
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+  padding: 2px 7px;
+  border-radius: 4px;
 }
 
 /* Chat Input Bar */
 .saka-input-bar {
+  padding: 10px 14px 12px;
+  background: var(--saka-surface-input);
+  border-top: 1px solid var(--saka-border-subtle);
   position: relative;
-  padding: 12px 14px;
-  background: rgba(15, 23, 42, 0.95);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .saka-input-wrapper {
   display: flex;
   align-items: flex-end;
-  background: rgba(30, 41, 59, 0.85);
-  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: #F8FAF9;
+  border: 1px solid var(--saka-border-medium);
   border-radius: 12px;
   padding: 6px 8px 6px 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  gap: 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .saka-input-wrapper:focus-within {
-  border-color: #10b981;
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+  background: #FFFFFF;
+  border-color: var(--saka-green-primary);
+  box-shadow: 0 0 0 3px rgba(44, 179, 74, 0.15);
 }
 
 .saka-textarea {
   flex: 1;
   background: transparent;
   border: none;
-  outline: none;
-  color: #ffffff;
+  color: var(--saka-ink-primary);
+  font-size: 13px;
+  line-height: 1.45;
   font-family: inherit;
-  font-size: 13.5px;
-  line-height: 1.4;
   resize: none;
-  max-height: 100px;
-  min-height: 24px;
+  max-height: 110px;
+  outline: none;
   padding: 2px 0;
 }
 
 .saka-textarea::placeholder {
-  color: #64748b;
+  color: var(--saka-ink-muted);
 }
 
 .saka-btn-send {
-  background: #10b981;
-  border: none;
-  color: #ffffff;
   width: 32px;
   height: 32px;
   border-radius: 8px;
+  background: var(--saka-green-primary);
+  border: none;
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  margin-left: 6px;
   transition: all 0.15s ease;
   flex-shrink: 0;
 }
 
 .saka-btn-send:hover:not(:disabled) {
-  background: #059669;
-  transform: scale(1.05);
+  background: var(--saka-green-hover);
 }
 
 .saka-btn-send:disabled {
-  background: rgba(255, 255, 255, 0.1);
-  color: #64748b;
+  background: #E5ECE7;
+  color: #9EAEA5;
   cursor: not-allowed;
 }
 
-/* History View */
+/* Subviews Container (History, Sync, Settings) */
 .saka-view-container {
+  flex: 1;
+  overflow-y: auto;
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  flex: 1;
-  overflow-y: auto;
+  gap: 14px;
+  background: var(--saka-surface-body);
 }
 
 .saka-view-title {
+  font-family: var(--saka-font-heading);
   font-size: 15px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--saka-ink-title);
+  letter-spacing: -0.01em;
 }
 
+/* History View */
 .saka-history-search-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(30, 41, 59, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-medium);
   border-radius: 8px;
-  padding: 6px 10px;
-  margin-bottom: 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  padding: 7px 10px;
+  transition: border-color 0.15s ease;
 }
 
 .saka-history-search-bar:focus-within {
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+  border-color: var(--saka-green-primary);
+  box-shadow: 0 0 0 3px rgba(44, 179, 74, 0.15);
 }
 
 .saka-history-search-input {
   background: transparent;
   border: none;
-  color: #f1f5f9;
-  font-size: 12px;
+  color: var(--saka-ink-primary);
+  font-size: 12.5px;
   width: 100%;
   outline: none;
 }
 
 .saka-history-search-input::placeholder {
-  color: #64748b;
+  color: var(--saka-ink-muted);
 }
 
 .saka-history-group {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .saka-history-group-title {
@@ -1419,7 +1432,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
+  color: var(--saka-ink-secondary);
   margin-bottom: 6px;
   padding-left: 2px;
 }
@@ -1427,25 +1440,26 @@
 .saka-history-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .saka-history-card {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
   border-radius: 10px;
   padding: 10px 12px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
 .saka-history-card:hover {
-  background: rgba(16, 185, 129, 0.14);
-  border-color: rgba(16, 185, 129, 0.35);
+  background: #FAFDFB;
+  border-color: var(--saka-green-primary);
 }
 
 .saka-history-info {
@@ -1465,7 +1479,7 @@
 .saka-history-title {
   font-size: 13px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--saka-ink-title);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1475,28 +1489,27 @@
   font-size: 10px;
   font-weight: 600;
   padding: 1px 5px;
-  background: rgba(168, 85, 247, 0.2);
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  color: #d8b4fe;
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+  color: var(--saka-green-deep);
   border-radius: 4px;
   white-space: nowrap;
 }
 
 .saka-history-time {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--saka-ink-muted);
 }
 
 .saka-history-snippet {
   font-size: 11.5px;
-  color: #cbd5e1;
-  background: rgba(15, 23, 42, 0.5);
-  border-left: 2px solid #38bdf8;
+  color: var(--saka-ink-secondary);
+  background: var(--saka-green-surface);
+  border-left: 2px solid var(--saka-green-primary);
   padding: 3px 6px;
   border-radius: 0 4px 4px 0;
   margin-top: 3px;
   line-height: 1.35;
-  font-style: italic;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1505,13 +1518,124 @@
 
 /* Sync & Storage View */
 .saka-stats-card {
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
   border-radius: 12px;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.saka-sync-overview-card {
+  border-top: 2px solid var(--saka-green-primary);
+}
+
+.saka-sync-status-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--saka-ink-title);
+}
+
+.saka-sync-status-msg {
+  font-size: 12px;
+  color: var(--saka-ink-secondary);
+  margin: 0;
+}
+
+.saka-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.saka-status-ready {
+  color: var(--saka-green-deep);
+  background: var(--saka-green-tint);
+  border: 1px solid var(--saka-green-pill-border);
+}
+
+.saka-status-warning {
+  color: var(--saka-amber-text);
+  background: var(--saka-amber-surface);
+  border: 1px solid var(--saka-amber-border);
+}
+
+.saka-stat-metric-card {
+  padding: 14px;
+  text-align: center;
+  gap: 4px;
+}
+
+.saka-stat-metric-label {
+  font-size: 11px;
+  color: var(--saka-ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.saka-stat-metric-val {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--saka-green-primary);
+}
+
+.saka-stat-metric-time {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--saka-ink-title);
+  margin-top: 6px;
+}
+
+/* Alert Boxes in Views */
+.saka-alert-card {
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.saka-alert-error {
+  background: var(--saka-red-surface);
+  border: 1px solid var(--saka-red-border);
+  color: var(--saka-red-text);
+}
+
+.saka-alert-warning {
+  background: var(--saka-amber-surface);
+  border: 1px solid var(--saka-amber-border);
+  color: var(--saka-amber-text);
+}
+
+.saka-alert-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.saka-alert-desc {
+  line-height: 1.45;
+}
+
+.saka-alert-details {
+  font-size: 11px;
+}
+
+.saka-alert-code {
+  margin-top: 4px;
+  font-family: monospace;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
+  padding: 4px 8px;
+  border-radius: 4px;
+  word-break: break-all;
 }
 
 .saka-stat-row {
@@ -1522,17 +1646,17 @@
 }
 
 .saka-stat-label {
-  color: #94a3b8;
+  color: var(--saka-ink-secondary);
 }
 
 .saka-stat-val {
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--saka-ink-title);
 }
 
 .saka-btn-primary {
-  background: #10b981;
-  color: #ffffff;
+  background: var(--saka-green-primary);
+  color: #FFFFFF;
   border: none;
   border-radius: 8px;
   padding: 10px 14px;
@@ -1547,13 +1671,21 @@
 }
 
 .saka-btn-primary:hover:not(:disabled) {
-  background: #059669;
+  background: var(--saka-green-hover);
+}
+
+.saka-btn-danger {
+  background: var(--saka-red-official);
+}
+
+.saka-btn-danger:hover:not(:disabled) {
+  background: #C4181D;
 }
 
 .saka-btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #FFFFFF;
+  color: var(--saka-ink-primary);
+  border: 1px solid var(--saka-border-medium);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
@@ -1567,8 +1699,7 @@
 }
 
 .saka-btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffffff;
+  background: #F4F6F5;
 }
 
 /* Settings View */
@@ -1581,20 +1712,58 @@
 .saka-label {
   font-size: 12px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--saka-ink-title);
 }
 
 .saka-text-input, .saka-select-input {
-  background: rgba(30, 41, 59, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-medium);
   border-radius: 8px;
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--saka-ink-primary);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .saka-text-input:focus, .saka-select-input:focus {
-  border-color: #10b981;
+  border-color: var(--saka-green-primary);
+  box-shadow: 0 0 0 3px rgba(44, 179, 74, 0.15);
+}
+
+.saka-advanced-box {
+  margin-top: 6px;
+  background: #FFFFFF;
+  border: 1px solid var(--saka-border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.saka-advanced-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: var(--saka-ink-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.saka-advanced-toggle:hover {
+  background: var(--saka-green-surface);
+  color: var(--saka-green-deep);
+}
+
+.saka-advanced-content {
+  padding: 12px;
+  border-top: 1px solid var(--saka-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
