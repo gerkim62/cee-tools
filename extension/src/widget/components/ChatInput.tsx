@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Terminal, X, Square } from 'lucide-react';
+import { Send, Terminal, X, Square, Loader2 } from 'lucide-react';
 
 interface SlashCommand {
   command: string;
@@ -40,6 +40,7 @@ interface ChatInputProps {
   disabled: boolean;
   focusTrigger?: number;
   isStreaming?: boolean;
+  isStopping?: boolean;
   onStop?: () => void;
 }
 
@@ -48,6 +49,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   disabled,
   focusTrigger,
   isStreaming,
+  isStopping,
   onStop,
 }) => {
   const [text, setText] = useState('');
@@ -247,7 +249,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           onKeyDown={handleKeyDown}
           disabled={disabled}
         />
-        {isStreaming ? (
+        {isStopping ? (
+          <button
+            type="button"
+            className="saka-btn-send saka-btn-stopping"
+            disabled
+            title="Stopping generation..."
+            aria-label="Stopping generation"
+          >
+            <Loader2 size={13} className="saka-spin" />
+          </button>
+        ) : isStreaming ? (
           <button
             type="button"
             className="saka-btn-send saka-btn-stop"

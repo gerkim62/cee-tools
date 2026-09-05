@@ -306,6 +306,7 @@ const DedicatedWindowAppInner: React.FC = () => {
                 messages={chat.messages}
                 statusLog={chat.statusLog}
                 isStreaming={chat.isStreaming}
+                isStopping={chat.isStopping}
                 isLoadingConversation={chat.isLoadingConversation}
                 conversationLoadError={chat.conversationLoadError}
                 onRetryLoadConversation={() => {
@@ -314,6 +315,7 @@ const DedicatedWindowAppInner: React.FC = () => {
                   }
                 }}
                 onStopStreaming={chat.stopGeneration}
+                onResumeGeneration={chat.resumeGeneration}
                 focusTrigger={chat.focusTrigger}
                 conversationTitle={chat.conversationTitle}
                 isCompacted={chat.isCompacted}

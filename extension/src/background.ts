@@ -1,8 +1,10 @@
 import { checkStaleness, performSmartSync, getBackendUrl } from './scripts/syncer.js';
+import { fetchSakaSession } from './scripts/sakahub-api.js';
 import {
   ExtensionMessage,
   SyncProgressUpdate,
   AskStreamClientMessage,
+  AgentChannel,
 } from './types.js';
 
 let isSyncInProgress = false;
@@ -185,6 +187,51 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    if (message.type === 'CHECK_SAKAHUB_SESSION') {
+      fetchSakaSession()
+        .then(async (session) => {
+          const dept = String(session.user?.department || '').trim();
+          const jobTitle = String(session.user?.jobTitle || '').trim();
+          const lowerDept = dept.toLowerCase();
+          const lowerJob = jobTitle.toLowerCase();
+
+          const isRetail =
+            lowerDept.includes('retail') ||
+            lowerDept.includes('shop') ||
+            lowerDept.includes('franchise') ||
+            lowerDept.includes('store') ||
+            lowerJob.includes('retail') ||
+            lowerJob.includes('shop') ||
+            lowerJob.includes('franchise');
+
+          const detectedChannel: AgentChannel = isRetail ? 'retail' : 'care_center';
+
+          await chrome.storage.local.set({
+            saka_agent_channel: detectedChannel,
+            saka_role_detected: true,
+            saka_user_department: dept,
+            saka_user_job_title: jobTitle,
+            saka_user_roles: Array.isArray(session.user?.roles) ? session.user.roles : [],
+          });
+
+          sendResponse({
+            success: true,
+            connected: true,
+            channel: detectedChannel,
+            department: dept,
+            message: `Role: ${detectedChannel === 'retail' ? 'Retail Shop' : 'Call Center'}${dept ? ` (${dept})` : ''}`,
+          });
+        })
+        .catch(() => {
+          sendResponse({
+            success: false,
+            connected: false,
+            message: 'Please open SakaHub in your browser, then return here.',
+          });
+        });
+      return true;
+    }
+
     if (message.type === 'START_SYNC') {
       if (isSyncInProgress) {
         sendResponse({ success: false, error: 'A synchronization is already actively running.' });
@@ -337,6 +384,7 @@ chrome.runtime.onConnect.addListener((port) => {
             clientId: clientMsg.clientId,
             parentId: clientMsg.parentId,
             retryUserMessageId: clientMsg.retryUserMessageId,
+            resumeMessageId: clientMsg.resumeMessageId,
             channel: clientMsg.channel,
             stream: true,
           }),

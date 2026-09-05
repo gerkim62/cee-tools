@@ -51,6 +51,7 @@ const configSchema = z.object({
   RETRIEVAL_CANDIDATES: z.coerce.number().default(30),
   RERANK_TOP_K: z.coerce.number().default(15),
   ARTICLE_FLAG_BOOST: z.coerce.number().default(1.15),
+  UPSTREAM_TIMEOUT_MS: z.coerce.number().default(60000),
 });
 
 export type Config = z.infer<typeof configSchema>;

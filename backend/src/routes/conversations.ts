@@ -23,6 +23,7 @@ export interface ConversationMessage {
   parentId?: string | null;
   role: 'user' | 'assistant';
   content: string;
+  status?: 'completed' | 'stopped' | 'failed' | 'streaming';
   citations?: unknown[];
   executionSteps?: Array<{ label: string; detail: string }>;
   clarifyingQuestion?: unknown;
@@ -48,6 +49,7 @@ interface MessageDbRow {
   parent_id: string | null;
   role: 'user' | 'assistant';
   content: string;
+  status?: 'completed' | 'stopped' | 'failed' | 'streaming';
   citations: unknown;
   created_at: string | Date;
 }
@@ -183,7 +185,7 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
     }
 
     const messagesResult = await query<MessageDbRow>(
-      `SELECT id, conversation_id, parent_id, role, content, citations, created_at
+      `SELECT id, conversation_id, parent_id, role, content, citations, status, created_at
        FROM messages
        WHERE conversation_id = $1
        ORDER BY created_at ASC`,
@@ -230,6 +232,7 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
         parentId: row.parent_id || null,
         role: row.role,
         content: row.content,
+        status: row.status || 'completed',
         citations,
         executionSteps,
         clarifyingQuestion,
@@ -372,10 +375,10 @@ Note: Rely strictly on the verified facts and actions documented in this convers
       [newConvId, oldConv.client_id, newTitle]
     );
 
-    const seedMessage = `📌 **Compacted History Context from Previous Conversation:**\n\n${cleanSummary}\n\n*This conversation continues from the compacted handover above.*`;
+    const seedMessage = `**Compacted History Context from Previous Conversation:**\n\n${cleanSummary}\n\n*This conversation continues from the compacted handover above.*`;
     await query(
-      `INSERT INTO messages (id, conversation_id, role, content, citations, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
+      `INSERT INTO messages (id, conversation_id, role, content, citations, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'completed', NOW())`,
       [crypto.randomUUID(), newConvId, 'assistant', seedMessage, JSON.stringify({ citations: [] })]
     );
 

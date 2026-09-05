@@ -3,6 +3,7 @@ import {
   SakaNormalizedArticle,
   ProbeResult,
   SakaHubRelayFetchResponse,
+  SakaSessionData,
 } from '../types.js';
 
 const SAKAHUB_BASE_URL = 'https://sakahub.safaricom.co.ke/api/v1/published-articles';
@@ -308,6 +309,26 @@ export async function probeSakaHub(): Promise<ProbeResult> {
     newestLastUpdated: normalizedFirst ? normalizedFirst.lastUpdated : null,
     newestArticleTitle: normalizedFirst ? normalizedFirst.title : null,
   };
+}
+
+function isSakaSessionData(val: unknown): val is SakaSessionData {
+  return typeof val === 'object' && val !== null && 'user' in val;
+}
+
+/**
+ * Fetches the user session from /api/auth/session via open SakaHub tab relay.
+ */
+export async function fetchSakaSession(): Promise<SakaSessionData> {
+  const url = 'https://sakahub.safaricom.co.ke/api/auth/session';
+  const { result, text } = await relayFetchToSakaHubTab(url, {
+    Accept: 'application/json',
+  });
+
+  const json: unknown = parseAndValidateSakaResponse(result, text);
+  if (isSakaSessionData(json) && json.user) {
+    return json;
+  }
+  throw new SakaHubAuthError();
 }
 
 /**

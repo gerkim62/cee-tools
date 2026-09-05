@@ -160,6 +160,7 @@ export interface ChatMessage {
   parentId?: string | null;
   role: 'user' | 'assistant';
   content: string;
+  status?: 'completed' | 'stopped' | 'failed' | 'streaming';
   citations?: Citation[];
   executionSteps?: ExecutionStep[];
   clarifyingQuestion?: ClarifyingQuestion;
@@ -214,15 +215,30 @@ export interface SakaHubRelayFetchResponse {
   error?: string;
 }
 
+export interface SakaSessionData {
+  user?: {
+    name?: string;
+    email?: string;
+    department?: string;
+    jobTitle?: string;
+    roles?: string[];
+  };
+}
+
+export function isSakaSessionData(val: unknown): val is SakaSessionData {
+  return typeof val === 'object' && val !== null && 'user' in val;
+}
+
 export type AgentChannel = 'care_center' | 'retail';
 
 export interface AskStreamClientMessage {
   type: 'START_ASK';
-  question: string;
+  question?: string;
   conversationId?: string;
   clientId: string;
   parentId?: string | null;
   retryUserMessageId?: string | null;
+  resumeMessageId?: string | null;
   channel?: AgentChannel;
 }
 

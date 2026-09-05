@@ -389,6 +389,7 @@ const AppInner: React.FC = () => {
               messages={chat.messages}
               statusLog={chat.statusLog}
               isStreaming={chat.isStreaming}
+              isStopping={chat.isStopping}
               isLoadingConversation={chat.isLoadingConversation}
               conversationLoadError={chat.conversationLoadError}
               onRetryLoadConversation={() => {
@@ -397,6 +398,7 @@ const AppInner: React.FC = () => {
                 }
               }}
               onStopStreaming={chat.stopGeneration}
+              onResumeGeneration={chat.resumeGeneration}
               isDeleted={chat.isDeleted}
               isRestoring={chat.isRestoring}
               onRestoreConversation={handleRestoreConversation}

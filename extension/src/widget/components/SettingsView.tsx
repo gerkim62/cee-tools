@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders, Sun, Briefcase, History, Sparkles, RefreshCw } from 'lucide-react';
+import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders, Sun, Briefcase, History, Sparkles, RefreshCw, ExternalLink } from 'lucide-react';
 import { AgentChannel, WidgetView } from '../../types.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
 import { useTheme } from '../hooks/useTheme.js';
@@ -49,53 +49,55 @@ export const SettingsView: React.FC = () => {
     } catch {}
   }, []);
 
-  const handleAutoDetectRole = async () => {
+  const handleAutoDetectRole = () => {
     setDetectingRole(true);
     setDetectResult(null);
     try {
-      if (typeof chrome === 'undefined' || !chrome.tabs) {
-        throw new Error('Browser tabs API unavailable');
-      }
-      const tabs = await chrome.tabs.query({ url: 'https://sakahub.safaricom.co.ke/*' });
-      const targetTab = tabs.find((t) => typeof t.id === 'number');
-      if (!targetTab || typeof targetTab.id !== 'number') {
-        setDetectResult({
-          success: false,
-          needsOpenSaka: true,
-          message: 'Please open saka to use this feature.',
-        });
-        return;
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        throw new Error('Chrome runtime unavailable');
       }
 
-      const response = await chrome.tabs.sendMessage(targetTab.id, {
-        type: 'CHECK_SAKAHUB_SESSION',
-        force: true,
-      });
+      chrome.runtime.sendMessage(
+        {
+          type: 'CHECK_SAKAHUB_SESSION',
+          force: true,
+        },
+        (response) => {
+          setDetectingRole(false);
+          if (chrome.runtime.lastError || !response) {
+            setDetectResult({
+              success: false,
+              needsOpenSaka: true,
+              message: 'Please open SakaHub in your browser, then return here to detect your role.',
+            });
+            return;
+          }
 
-      if (response && response.authed && isAgentChannel(response.channel)) {
-        setAgentChannel(response.channel);
-        if (response.department) {
-          setDetectedDept(response.department);
+          if (response.connected && isAgentChannel(response.channel)) {
+            setAgentChannel(response.channel);
+            if (response.department) {
+              setDetectedDept(response.department);
+            }
+            setDetectResult({
+              success: true,
+              message: response.message || `Role: ${response.channel === 'retail' ? 'Retail Shop' : 'Call Center'}${response.department ? ` (${response.department})` : ''}`,
+            });
+          } else {
+            setDetectResult({
+              success: false,
+              needsOpenSaka: true,
+              message: response.message || 'Please open SakaHub in your browser, then return here to detect your role.',
+            });
+          }
         }
-        setDetectResult({
-          success: true,
-          message: `Role: ${response.channel === 'retail' ? 'Retail Shop' : 'Call Center'}${response.department ? ` (${response.department})` : ''}`,
-        });
-      } else {
-        setDetectResult({
-          success: false,
-          needsOpenSaka: true,
-          message: 'Please open saka to use this feature.',
-        });
-      }
+      );
     } catch {
+      setDetectingRole(false);
       setDetectResult({
         success: false,
         needsOpenSaka: true,
-        message: 'Please open saka to use this feature.',
+        message: 'Please open SakaHub in your browser, then return here to detect your role.',
       });
-    } finally {
-      setDetectingRole(false);
     }
   };
 
@@ -198,36 +200,19 @@ export const SettingsView: React.FC = () => {
         </span>
 
         {detectResult && (
-          <div
-            style={{
-              marginTop: '4px',
-              padding: '5px 8px',
-              borderRadius: '5px',
-              fontSize: '11px',
-              display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '6px',
-              background: detectResult.success ? '#E8F5EC' : '#FDF2F2',
-              color: detectResult.success ? '#146732' : '#DE1E23',
-              border: `1px solid ${detectResult.success ? '#D2E8D8' : '#FCD4D4'}`,
-            }}
-          >
-            {detectResult.success ? <Check size={12} /> : <AlertCircle size={12} />}
-            <span>{detectResult.message}</span>
+          <div className={`saka-settings-banner ${detectResult.success ? 'success' : ''}`}>
+            {detectResult.success ? <Check size={13} style={{ flexShrink: 0 }} /> : <AlertCircle size={13} style={{ flexShrink: 0 }} />}
+            <span style={{ flex: 1 }}>{detectResult.message}</span>
             {detectResult.needsOpenSaka && (
               <a
                 href="https://sakahub.safaricom.co.ke"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{
-                  color: '#2CB34A',
-                  fontWeight: 600,
-                  textDecoration: 'underline',
-                  marginLeft: '2px',
-                }}
+                className="saka-settings-open-btn"
+                title="Open SakaHub in a new tab"
               >
-                [Open Saka]
+                <span>Open SakaHub</span>
+                <ExternalLink size={11} />
               </a>
             )}
           </div>
@@ -347,21 +332,8 @@ export const SettingsView: React.FC = () => {
             </button>
 
             {testResult && (
-              <div
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  fontSize: '11.5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: testResult.success ? '#E8F5EC' : '#FDF2F2',
-                  color: testResult.success ? '#146732' : '#DE1E23',
-                  border: `1px solid ${testResult.success ? '#D2E8D8' : '#FCD4D4'}`,
-                  fontWeight: 500,
-                }}
-              >
-                {testResult.success ? <Check size={13} /> : <AlertCircle size={13} />}
+              <div className={`saka-settings-banner ${testResult.success ? 'success' : ''}`}>
+                {testResult.success ? <Check size={13} style={{ flexShrink: 0 }} /> : <AlertCircle size={13} style={{ flexShrink: 0 }} />}
                 <span>{testResult.message}</span>
               </div>
             )}

@@ -89,8 +89,10 @@ export async function initDb(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       ALTER TABLE messages ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES messages(id) ON DELETE CASCADE;
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'completed';
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at ASC);
       CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(conversation_id, status);
     `);
 
     await client.query('COMMIT');

@@ -108,13 +108,108 @@ export function generateFallbackSuggestions(
   return fallbacks.slice(0, 3);
 }
 
+export function formatCleanExcerpt(text: string): string {
+  if (!text) return '';
+  return text
+    .trim()
+    .replace(/^[·•\u00b7\u2022]\s*/, '')
+    .replace(/^[-–—]\s+/, '')
+    .replace(/^\*\s+/, '')
+    .trim();
+}
+
+export function buildCitationsAndRenumber(
+  rawAnswer: string,
+  sources: Array<{
+    index: number;
+    articleId: string;
+    articleTitle: string;
+    articleNumber?: string;
+    sectionHeading: string;
+    rawText: string;
+  }>
+): { normalizedAnswer: string; citations: Citation[] } {
+  let normalizedAnswer = rawAnswer.replace(/\[\s*(?:source|src)?\s*(\d+)\s*\]/gi, '[$1]');
+  const citationRegex = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
+  const rawMatches = [...normalizedAnswer.matchAll(citationRegex)];
+
+  const originalCitedIndices: number[] = [];
+  for (const match of rawMatches) {
+    const parts = match[1].split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
+    for (const num of parts) {
+      if (!originalCitedIndices.includes(num)) {
+        originalCitedIndices.push(num);
+      }
+    }
+  }
+
+  const indexMapping = new Map<number, number>();
+  const citations: Citation[] = [];
+  const seenQuotes = new Set<string>();
+  let nextNewIndex = 1;
+
+  for (const origIdx of originalCitedIndices) {
+    const source = sources.find((s) => s.index === origIdx);
+    if (!source) continue;
+
+    indexMapping.set(origIdx, nextNewIndex);
+
+    const quote = formatCleanExcerpt(source.rawText);
+    if (seenQuotes.has(quote)) continue;
+    seenQuotes.add(quote);
+
+    const fragment = generateTextFragment(source.rawText.slice(0, 120));
+    const urlWithTextFragment = `${config.SAKAHUB_BASE_URL}/app/article/${source.articleId}${fragment}`;
+
+    citations.push({
+      articleId: source.articleId,
+      articleTitle: source.articleTitle,
+      articleNumber: source.articleNumber,
+      sectionHeading: source.sectionHeading,
+      quote,
+      urlWithTextFragment,
+    });
+
+    nextNewIndex++;
+  }
+
+  if (indexMapping.size > 0) {
+    normalizedAnswer = normalizedAnswer.replace(citationRegex, (_match, group: string) => {
+      const parts = group.split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n));
+      const renumbered = parts
+        .map((orig: number) => indexMapping.get(orig))
+        .filter((mapped: number | undefined): mapped is number => typeof mapped === 'number');
+      if (renumbered.length === 0) return _match;
+      return `[${renumbered.join(', ')}]`;
+    });
+  }
+
+  if (citations.length === 0 && sources.length > 0) {
+    for (const source of sources.slice(0, RAG_CONSTANTS.CITATIONS.FALLBACK_COUNT)) {
+      const quote = formatCleanExcerpt(source.rawText);
+      const fragment = generateTextFragment(source.rawText.slice(0, 120));
+      citations.push({
+        articleId: source.articleId,
+        articleTitle: source.articleTitle,
+        articleNumber: source.articleNumber,
+        sectionHeading: source.sectionHeading,
+        quote,
+        urlWithTextFragment: `${config.SAKAHUB_BASE_URL}/app/article/${source.articleId}${fragment}`,
+      });
+    }
+  }
+
+  return { normalizedAnswer, citations };
+}
+
 export interface AskRequestBody {
-  question: string;
+  question?: string;
   conversationId?: string;
   clientId?: string;
   stream?: boolean;
   parentId?: string | null;
   retryUserMessageId?: string | null;
+  resumeMessageId?: string | null;
   channel?: 'care_center' | 'retail';
 }
 
@@ -162,6 +257,18 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
   let answerText = '';
   let activeConversationId: string | null = null;
   const assistantMessageId = crypto.randomUUID();
+  let targetAssistantId: string = assistantMessageId;
+  let userMessageId: string = crypto.randomUUID();
+  let userMessage = '';
+  let storedContextSources: Array<{
+    index: number;
+    articleId: string;
+    articleTitle: string;
+    articleNumber?: string;
+    sectionHeading: string;
+    rawText: string;
+  }> = [];
+  const executionSteps: ExecutionStep[] = [];
 
   if (isStream) {
     keepAliveTimer = setInterval(() => {
@@ -174,13 +281,229 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
   const timeoutTimer = setTimeout(() => {
     isTimedOut = true;
     abortController.abort(new Error('UPSTREAM_TIMEOUT'));
-  }, 45000);
+  }, config.UPSTREAM_TIMEOUT_MS);
 
   try {
-    const { question, conversationId, clientId, parentId, retryUserMessageId } = req.body;
+    const { question, conversationId, clientId, parentId, retryUserMessageId, resumeMessageId, channel } = req.body;
     activeConversationId = conversationId || null;
     const isRetry = Boolean(retryUserMessageId);
-    const userMessageId = retryUserMessageId || crypto.randomUUID();
+    if (retryUserMessageId) {
+      userMessageId = retryUserMessageId;
+    }
+    const clientKey = clientId || (req.ip || 'anon');
+
+    req.on('close', async () => {
+      if (!isDone) {
+        isCancelled = true;
+        console.log(`[Ask] Client disconnected/aborted request: "${(question || resumeMessageId || '').slice(0, 40)}..."`);
+        abortController.abort();
+        if (requestDedupeKey) {
+          activeAskRequests.delete(requestDedupeKey);
+        }
+        if (activeConversationId) {
+          try {
+            const savedText = answerText.trim();
+            await query(
+              `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, status, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, 'stopped', NOW())
+               ON CONFLICT (id) DO UPDATE SET content = $5, citations = $6, status = 'stopped'`,
+              [
+                targetAssistantId,
+                activeConversationId,
+                userMessageId,
+                'assistant',
+                savedText,
+                JSON.stringify({
+                  citations: [],
+                  executionSteps,
+                  groundedUserMessage: userMessage,
+                  contextSources: storedContextSources,
+                }),
+              ]
+            );
+            await query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [activeConversationId]);
+            console.log(`[Ask] Persisted partial turn (${savedText.length} chars, status: stopped) for cancelled query.`);
+          } catch (pErr) {
+            console.warn('[Ask] Warning saving partial turn on abort:', pErr);
+          }
+        }
+      }
+    });
+
+    if (resumeMessageId) {
+      requestDedupeKey = `${clientKey}::resume::${resumeMessageId}`;
+      if (activeAskRequests.has(requestDedupeKey)) {
+        const busyMsg = 'This message is already actively resuming. Please wait.';
+        if (isStream) {
+          sendEvent('error', { code: 'DUPLICATE_REQUEST', message: busyMsg });
+          res.end();
+        } else {
+          res.status(429).json({ error: busyMsg });
+        }
+        return;
+      }
+      activeAskRequests.add(requestDedupeKey);
+
+      const resumeRes = await query<{
+        id: string;
+        conversation_id: string;
+        parent_id: string | null;
+        role: string;
+        content: string;
+        citations: Record<string, unknown> | null;
+        status: string;
+      }>(
+        `SELECT id, conversation_id, parent_id, role, content, citations, status
+         FROM messages WHERE id = $1`,
+        [resumeMessageId]
+      );
+
+      if (resumeRes.rows.length === 0 || resumeRes.rows[0].role !== 'assistant') {
+        if (isStream) {
+          sendEvent('error', { code: 'INVALID_REQUEST', message: 'Message to resume not found' });
+          res.end();
+        } else {
+          res.status(404).json({ error: 'Message to resume not found' });
+        }
+        return;
+      }
+
+      const existingRow = resumeRes.rows[0];
+      activeConversationId = existingRow.conversation_id;
+      targetAssistantId = existingRow.id;
+      if (existingRow.parent_id) {
+        userMessageId = existingRow.parent_id;
+      }
+      answerText = existingRow.content;
+
+      // Mark status as streaming in DB for cross-instance locking
+      await query(`UPDATE messages SET status = 'streaming' WHERE id = $1`, [resumeMessageId]);
+
+      let groundedUserMessage = '';
+      let existingExecutionSteps: ExecutionStep[] = [];
+      let previousSources: typeof storedContextSources = [];
+
+      const citObj = existingRow.citations;
+      if (citObj && typeof citObj === 'object') {
+        if (typeof citObj.groundedUserMessage === 'string') {
+          groundedUserMessage = citObj.groundedUserMessage;
+        }
+        if (Array.isArray(citObj.executionSteps)) {
+          existingExecutionSteps = citObj.executionSteps.filter(
+            (step): step is ExecutionStep =>
+              typeof step === 'object' &&
+              step !== null &&
+              'label' in step &&
+              typeof step.label === 'string' &&
+              'detail' in step &&
+              typeof step.detail === 'string'
+          );
+        }
+        if (Array.isArray(citObj.contextSources)) {
+          previousSources = citObj.contextSources.filter(
+            (s): s is (typeof storedContextSources)[number] =>
+              typeof s === 'object' &&
+              s !== null &&
+              'index' in s &&
+              typeof s.index === 'number' &&
+              'articleId' in s &&
+              typeof s.articleId === 'string' &&
+              'articleTitle' in s &&
+              typeof s.articleTitle === 'string' &&
+              'sectionHeading' in s &&
+              typeof s.sectionHeading === 'string' &&
+              'rawText' in s &&
+              typeof s.rawText === 'string'
+          );
+        }
+      }
+
+      if (!groundedUserMessage && existingRow.parent_id) {
+        const parentRes = await query<{ content: string }>(
+          `SELECT content FROM messages WHERE id = $1`,
+          [existingRow.parent_id]
+        );
+        if (parentRes.rows.length > 0) {
+          groundedUserMessage = parentRes.rows[0].content;
+        }
+      }
+      userMessage = groundedUserMessage;
+      storedContextSources = previousSources;
+      executionSteps.push(...existingExecutionSteps);
+
+      sendEvent('status', { message: 'Resuming answer generation...' });
+      const userChannel = channel === 'retail' ? 'retail' : 'care_center';
+      const channelContext = userChannel === 'retail'
+        ? '\n\n<operating_channel>\nOperational Mode: RETAIL SHOP / CARE DESK.\nThe customer is physically present at the counter. Consult the retrieved SakaHub context sources for in-store/retail procedures, eligibility, and verification requirements.\n</operating_channel>'
+        : '\n\n<operating_channel>\nOperational Mode: CALL CENTER (CEE).\nThe customer is contacting remotely via call or chat. Consult the retrieved SakaHub context sources for contact center/remote procedures, eligibility, vetting rules, and referral steps.\n</operating_channel>';
+      const effectiveSystemPrompt = ASK_SAKA_SYSTEM_PROMPT + channelContext;
+
+      let resumedTokens = '';
+      for await (const token of chatCompletionStream([
+        { role: 'system', content: effectiveSystemPrompt },
+        { role: 'user', content: groundedUserMessage },
+        { role: 'assistant', content: existingRow.content },
+      ], {
+        signal: abortController.signal,
+        model: config.OPENROUTER_CHAT_MODEL,
+      })) {
+        resumedTokens += token;
+        answerText = existingRow.content + resumedTokens;
+        if (isStream) {
+          sendEvent('token', { delta: token });
+        }
+      }
+
+      const { normalizedAnswer, citations } = buildCitationsAndRenumber(answerText, storedContextSources);
+      answerText = normalizedAnswer;
+
+      const { cleanText: textAfterClarification, clarification } = extractClarification(answerText);
+      const { cleanText: cleanFinalAnswer, suggestions } = extractSuggestions(textAfterClarification);
+      answerText = cleanFinalAnswer;
+      const finalSuggestions = suggestions && suggestions.length > 0 ? suggestions.slice(0, 3) : undefined;
+
+      await query(
+        `UPDATE messages
+         SET content = $1, status = 'completed', citations = $2
+         WHERE id = $3`,
+        [
+          answerText,
+          JSON.stringify({
+            citations,
+            executionSteps: existingExecutionSteps,
+            clarifyingQuestion: clarification,
+            suggestedFollowUps: finalSuggestions,
+            groundedUserMessage,
+            contextSources: storedContextSources,
+          }),
+          resumeMessageId,
+        ]
+      );
+      await query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [activeConversationId]);
+
+      isDone = true;
+      const responsePayload = {
+        answer: answerText,
+        citations,
+        executionSteps: existingExecutionSteps,
+        conversationId: activeConversationId,
+        messageId: resumeMessageId,
+        parentId: userMessageId,
+        clarifyingQuestion: clarification,
+        suggestedFollowUps: finalSuggestions,
+        status: 'completed',
+      };
+
+      if (isStream) {
+        sendEvent('citations', { citations });
+        sendEvent('done', responsePayload);
+        res.end();
+      } else {
+        res.json(responsePayload);
+      }
+      return;
+    }
+
     if (!question || typeof question !== 'string' || question.trim().length === 0) {
       if (isStream) {
         sendEvent('error', { code: 'INVALID_REQUEST', message: 'Question is required' });
@@ -192,10 +515,8 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     }
 
     const trimmedQuestion = question.trim();
-    const clientKey = clientId || (req.ip || 'anon');
     requestDedupeKey = `${clientKey}::${trimmedQuestion.toLowerCase()}`;
 
-    // Deduplication check: prevent identical concurrent in-flight requests that burn tokens/credits
     if (activeAskRequests.has(requestDedupeKey)) {
       const busyMsg = 'A matching query is currently being processed. Please wait for completion.';
       if (isStream) {
@@ -208,40 +529,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     }
     activeAskRequests.add(requestDedupeKey);
 
-    req.on('close', async () => {
-      if (!isDone) {
-        isCancelled = true;
-        console.log(`[Ask] ⏹ Client disconnected/aborted request: "${trimmedQuestion.slice(0, 40)}..."`);
-        abortController.abort();
-        if (requestDedupeKey) {
-          activeAskRequests.delete(requestDedupeKey);
-        }
-        if (answerText.trim().length > 0 && activeConversationId) {
-          try {
-            const stoppedText = `${answerText.trim()}\n\n*(Generation stopped by user)*`;
-            await query(
-              `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, NOW())
-               ON CONFLICT (id) DO UPDATE SET content = $5`,
-              [
-                assistantMessageId,
-                activeConversationId,
-                userMessageId,
-                'assistant',
-                stoppedText,
-                JSON.stringify({ citations: [], executionSteps: [] }),
-              ]
-            );
-            await query(`UPDATE conversations SET updated_at = NOW() WHERE id = $1`, [activeConversationId]);
-            console.log(`[Ask] 💾 Persisted partial turn (${stoppedText.length} chars) for cancelled query.`);
-          } catch (pErr) {
-            console.warn('[Ask] Warning saving partial turn on abort:', pErr);
-          }
-        }
-      }
-    });
-
-    console.log(`\n[Ask] 📥 New Query: "${trimmedQuestion}" (streaming: ${isStream}, convId: ${conversationId || 'none'}, parentId: ${parentId || 'none'}, isRetry: ${isRetry})`);
+    console.log(`\n[Ask] [START] New Query: "${trimmedQuestion}" (streaming: ${isStream}, convId: ${conversationId || 'new'}, channel: ${channel || 'care_center'})`);
 
     // Manage conversation thread and history
     let previousTurnsContext = '';
@@ -280,8 +568,8 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
           // Record incoming user message with parent_id ONLY if not retrying an existing user turn
           if (!isRetry) {
             await query(
-              `INSERT INTO messages (id, conversation_id, parent_id, role, content, created_at)
-               VALUES ($1, $2, $3, $4, $5, NOW())`,
+              `INSERT INTO messages (id, conversation_id, parent_id, role, content, status, created_at)
+               VALUES ($1, $2, $3, $4, $5, 'completed', NOW())`,
               [userMessageId, activeConversationId, parentId || null, 'user', trimmedQuestion]
             );
           }
@@ -331,13 +619,11 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       }
     }
 
-    const executionSteps: ExecutionStep[] = [];
-
     // 1. Understanding request & analyzing context requirements
     sendEvent('status', { message: CEE_STATUS_MESSAGES.UNDERSTANDING });
     const transStart = Date.now();
     const translated = await translateQuery(trimmedQuestion, previousTurnsContext);
-    console.log(`[Ask:1/6] ✔ Query translated in ${Date.now() - transStart}ms (needsContext: ${translated.needsContext}):`);
+    console.log(`[Ask:1/6] [OK] Query translated in ${Date.now() - transStart}ms (needsContext: ${translated.needsContext}):`);
     console.log(`   Primary  : "${translated.primary}"`);
     console.log(`   Fallback : "${translated.fallback}"`);
     if (translated.alt) {
@@ -393,8 +679,8 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       if (activeConversationId) {
         try {
           await query(
-            `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+            `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, status, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, 'completed', NOW())`,
             [
               conversationalAssistantId,
               activeConversationId,
@@ -441,7 +727,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     const sakaNumMatch = trimmedQuestion.match(SAKA_NUMBER_REGEX);
     const targetArticleNumber = sakaNumMatch ? sakaNumMatch[1].toUpperCase() : null;
     if (targetArticleNumber) {
-      console.log(`[Ask:1/6] 🎯 Detected Saka article number in query: "${targetArticleNumber}"`);
+      console.log(`[Ask:1/6] [MATCH] Detected Saka article number in query: "${targetArticleNumber}"`);
     }
 
     // 2. Searching SakaHub...
@@ -450,7 +736,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     console.log(`[Ask:2/6] Generating embeddings for ${queryVariants.length} query variants via ${config.OPENROUTER_EMBED_MODEL}...`);
     const queryVectors = await embedTexts(queryVariants);
     if (!queryVectors || queryVectors.length === 0 || !queryVectors[0]) {
-      console.error('[Ask:2/6] ❌ Failed to generate embeddings for query variants.');
+      console.error('[Ask:2/6] [ERROR] Failed to generate embeddings for query variants.');
       if (isStream) {
         sendEvent('error', { message: 'Failed to generate embedding for query' });
         res.end();
@@ -459,7 +745,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
       }
       return;
     }
-    console.log(`[Ask:2/6] ✔ Embeddings ready in ${Date.now() - embedStart}ms (dim: ${queryVectors[0].length})`);
+    console.log(`[Ask:2/6] [OK] Embeddings ready in ${Date.now() - embedStart}ms (dim: ${queryVectors[0].length})`);
 
     // Hybrid search in parallel across all variants
     const searchStart = Date.now();
@@ -482,7 +768,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
         );
         if (artRes.rows.length > 0) {
           const matchedArticleId = artRes.rows[0].id;
-          console.log(`[Ask:3/6] 🎯 Exact Saka article match in PostgreSQL: "${artRes.rows[0].title}" (ID: ${matchedArticleId})`);
+          console.log(`[Ask:3/6] [MATCH] Exact Saka article match in PostgreSQL: "${artRes.rows[0].title}" (ID: ${matchedArticleId})`);
 
           const scrollRes = await qdrantClient.scroll(getActiveCollectionName(), {
             filter: {
@@ -500,7 +786,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
               payload: isSakaChunkPayload(p.payload) ? p.payload : undefined,
             });
           });
-          console.log(`[Ask:3/6] 🎯 Injected ${exactArticleChunks.length} exact chunks for article ${targetArticleNumber}`);
+          console.log(`[Ask:3/6] [MATCH] Injected ${exactArticleChunks.length} exact chunks for article ${targetArticleNumber}`);
         }
       } catch (exactErr) {
         console.warn('[Ask:3/6] Exact Saka article lookup warning:', exactErr);
@@ -529,7 +815,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     const searchMs = Date.now() - searchStart;
 
     if (candidates.length === 0) {
-      console.warn(`[Ask:3/6] ⚠️ No matching vectors found in Qdrant (${searchMs}ms).`);
+      console.warn(`[Ask:3/6] [WARN] No matching vectors found in Qdrant (${searchMs}ms).`);
       const emptyPayload: AskResponse = {
         answer: 'No relevant articles or information found in the SakaHub knowledge base for this query.',
         citations: [],
@@ -545,7 +831,7 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
 
     const topScore = candidates[0]?.score ?? 0;
     const lowScore = candidates[candidates.length - 1]?.score ?? 0;
-    console.log(`[Ask:3/6] ✔ Retrieved and deduplicated ${candidates.length} candidates across ${queryVariants.length} variants in ${searchMs}ms (scores: ${topScore.toFixed(3)} down to ${lowScore.toFixed(3)})`);
+    console.log(`[Ask:3/6] [OK] Retrieved and deduplicated ${candidates.length} candidates across ${queryVariants.length} search variants in ${searchMs}ms (scores: ${topScore.toFixed(3)} down to ${lowScore.toFixed(3)})`);
 
     // 3. Reviewing procedures...
     sendEvent('status', { message: CEE_STATUS_MESSAGES.REVIEWING });
@@ -585,14 +871,14 @@ askRouter.post('/ask', async (req: Request<{}, {}, AskRequestBody>, res: Respons
     let selectedCandidates: QdrantQueryResult[] = [];
     if (rerankedIndices && rerankedIndices.length > 0) {
       selectedCandidates = rerankedIndices.map(r => boostedCandidates[r.index]).filter((c): c is QdrantQueryResult => !!c);
-      console.log(`[Ask:4/6] ✔ Pruned to ${selectedCandidates.length} most relevant sources in ${rerankMs}ms:`);
+      console.log(`[Ask:4/6] [OK] Pruned to ${selectedCandidates.length} most relevant sources in ${rerankMs}ms via ${config.OPENROUTER_RERANK_MODEL}:`);
       rerankedIndices.slice(0, 3).forEach((r, rankIdx) => {
         const p = boostedCandidates[r.index]?.payload;
         console.log(`   #${rankIdx + 1} [Rel: ${r.relevanceScore.toFixed(3)}] [${p?.article_number || 'N/A'}] "${p?.article_title}" > "${p?.section_heading}"`);
       });
     } else {
       selectedCandidates = boostedCandidates.slice(0, config.RERANK_TOP_K);
-      console.log(`[Ask:4/6] ⚠️ Reranker returned empty, fallback to top ${selectedCandidates.length} vector candidates.`);
+      console.log(`[Ask:4/6] [WARN] Reranker returned empty, fallback to top ${selectedCandidates.length} vector candidates.`);
     }
 
     const uniqueArticleCount = new Set(selectedCandidates.map((c) => c.payload?.article_title)).size;
@@ -671,7 +957,15 @@ ${s.content}
     const historyBlock = previousTurnsContext
       ? `Previous Conversation Context (for continuity):\n${previousTurnsContext}\n\n`
       : '';
-    const userMessage = `${historyBlock}Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}`;
+    userMessage = `${historyBlock}Context Sources from SakaHub:\n${contextBlocks}\n\nCEE Agent Question (Customer on live call): ${trimmedQuestion}`;
+    storedContextSources = contextSources.map((s) => ({
+      index: s.index,
+      articleId: s.articleId,
+      articleTitle: s.articleTitle,
+      articleNumber: s.articleNumber,
+      sectionHeading: s.sectionHeading,
+      rawText: s.chunk.payload?.chunk_text || s.content || '',
+    }));
 
     // 4. Drafting answer... (Real streaming token-by-token from OpenRouter)
     sendEvent('status', { message: CEE_STATUS_MESSAGES.DRAFTING });
@@ -697,84 +991,13 @@ ${s.content}
       }
     }
     const llmMs = Date.now() - llmStart;
-    console.log(`[Ask:5/6] ✔ Answer stream finished in ${llmMs}ms (${answerText.length} chars)`);
+    console.log(`[Ask:5/6] [OK] Answer stream finished in ${llmMs}ms (${answerText.length} chars)`);
 
     // 5. Formulating sources... (Build verified Chrome Text Fragment citations & renumber sequentially from 1)
     sendEvent('status', { message: CEE_STATUS_MESSAGES.FORMULATING_SOURCES });
 
-    function formatCleanExcerpt(text: string): string {
-      if (!text) return '';
-      return text
-        .trim()
-        .replace(/^[·•\u00b7\u2022]\s*/, '')
-        .replace(/^[-–—]\s+/, '')
-        .replace(/^\*\s+/, '')
-        .trim();
-    }
-
-    // Normalize any [Source 8], [source 8], [src 8] into [8]
-    let normalizedAnswer = answerText.replace(/\[\s*(?:source|src)?\s*(\d+)\s*\]/gi, '[$1]');
-
-    // Detect all inline source references in appearance order
-    const citationRegex = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
-    const rawMatches = [...normalizedAnswer.matchAll(citationRegex)];
-
-    // Collect cited source index numbers in first-appearance order
-    const originalCitedIndices: number[] = [];
-    for (const match of rawMatches) {
-      const parts = match[1].split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n));
-      for (const num of parts) {
-        if (!originalCitedIndices.includes(num)) {
-          originalCitedIndices.push(num);
-        }
-      }
-    }
-
-    // Build index mapping: originalSourceIndex -> newSequentialIndex (1, 2, 3...)
-    const indexMapping = new Map<number, number>();
-    const citations: Citation[] = [];
-    const seenQuotes = new Set<string>();
-
-    let nextNewIndex = 1;
-    for (const origIdx of originalCitedIndices) {
-      const source = contextSources.find((s) => s.index === origIdx);
-      if (!source) continue;
-
-      indexMapping.set(origIdx, nextNewIndex);
-
-      const p = source.chunk.payload;
-      const rawText = p?.chunk_text || source.content || '';
-      const quote = formatCleanExcerpt(rawText);
-      if (seenQuotes.has(quote)) continue;
-      seenQuotes.add(quote);
-
-      const fragment = generateTextFragment(rawText.slice(0, 120));
-      const urlWithTextFragment = `${config.SAKAHUB_BASE_URL}/app/article/${source.articleId}${fragment}`;
-
-      citations.push({
-        articleId: source.articleId,
-        articleTitle: source.articleTitle,
-        articleNumber: source.articleNumber,
-        sectionHeading: source.sectionHeading,
-        quote,
-        urlWithTextFragment,
-      });
-
-      nextNewIndex++;
-    }
-
-    // Renumber citations in answerText strictly sequentially starting from [1]
-    if (indexMapping.size > 0) {
-      normalizedAnswer = normalizedAnswer.replace(citationRegex, (_match, group) => {
-        const parts = group.split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n));
-        const renumbered = parts
-          .map((orig: number) => indexMapping.get(orig))
-          .filter((mapped: number | undefined): mapped is number => typeof mapped === 'number');
-        if (renumbered.length === 0) return _match;
-        return `[${renumbered.join(', ')}]`;
-      });
-      answerText = normalizedAnswer;
-    }
+    const { normalizedAnswer, citations } = buildCitationsAndRenumber(answerText, storedContextSources);
+    answerText = normalizedAnswer;
 
     // Extract clarifying question and suggested follow-ups
     const { cleanText: textAfterClarification, clarification } = extractClarification(answerText);
@@ -783,24 +1006,6 @@ ${s.content}
 
     // Follow-ups at AI discretion (0-3). Do not force artificial filler fallbacks.
     const finalSuggestions = suggestions && suggestions.length > 0 ? suggestions.slice(0, 3) : undefined;
-
-    // Fallback if model did not include [X] brackets
-    if (citations.length === 0 && contextSources.length > 0) {
-      for (const source of contextSources.slice(0, RAG_CONSTANTS.CITATIONS.FALLBACK_COUNT)) {
-        const p = source.chunk.payload;
-        const rawText = p?.chunk_text || source.content || '';
-        const quote = formatCleanExcerpt(rawText);
-        const fragment = generateTextFragment(rawText.slice(0, 120));
-        citations.push({
-          articleId: source.articleId,
-          articleTitle: source.articleTitle,
-          articleNumber: source.articleNumber,
-          sectionHeading: source.sectionHeading,
-          quote,
-          urlWithTextFragment: `${config.SAKAHUB_BASE_URL}/app/article/${source.articleId}${fragment}`,
-        });
-      }
-    }
 
     // Generate concise topic title on first turn if needed (Turn 1 has message count <= 1)
     let generatedTitle: string | undefined = undefined;
@@ -849,9 +1054,9 @@ ${s.content}
     if (activeConversationId) {
       try {
         await query(
-          `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())
-           ON CONFLICT (id) DO UPDATE SET content = $5`,
+          `INSERT INTO messages (id, conversation_id, parent_id, role, content, citations, status, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, 'completed', NOW())
+           ON CONFLICT (id) DO UPDATE SET content = $5, citations = $6, status = 'completed'`,
           [
             assistantMessageId,
             activeConversationId,
@@ -863,6 +1068,8 @@ ${s.content}
               executionSteps,
               clarifyingQuestion: clarification,
               suggestedFollowUps: finalSuggestions,
+              groundedUserMessage: userMessage,
+              contextSources: storedContextSources,
             })
           ]
         );
@@ -876,12 +1083,12 @@ ${s.content}
     }
 
     const totalMs = Date.now() - requestStart;
-    console.log(`[Ask:6/6] ✔ Prepared ${citations.length} verified citations. Total pipeline latency: ${totalMs}ms`);
+    console.log(`[Ask:6/6] [OK] Prepared ${citations.length} verified citations. Total pipeline latency: ${totalMs}ms`);
     citations.forEach((c, idx) => {
       console.log(`   Citation #${idx + 1} [${c.articleNumber || 'N/A'}] "${c.articleTitle}" > "${c.sectionHeading}"`);
       console.log(`   ↳ Highlight: ${c.urlWithTextFragment}`);
     });
-    console.log(`[Ask] 🏁 Pipeline finished successfully.\n`);
+    console.log(`[Ask] [FINISH] Pipeline finished successfully.\n`);
 
     const responsePayload: AskResponse = {
       answer: answerText,
@@ -907,7 +1114,7 @@ ${s.content}
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     if (isCancelled || (error instanceof Error && error.name === 'AbortError' && !isTimedOut)) {
-      console.log('[Ask] ⏹ Query successfully aborted upon client disconnect.');
+      console.log('[Ask] Query successfully aborted upon client disconnect.');
       return;
     }
     console.error('[Ask Router Error] Error processing query:', error);
@@ -917,7 +1124,8 @@ ${s.content}
 
     if (isTimedOut || msg.includes('UPSTREAM_TIMEOUT')) {
       errorCode = 'UPSTREAM_TIMEOUT';
-      userFriendlyMsg = 'Answer generation timed out after 45 seconds. Click Retry below to regenerate.';
+      const timeoutSec = Math.round(config.UPSTREAM_TIMEOUT_MS / 1000);
+      userFriendlyMsg = `Answer generation timed out after ${timeoutSec} seconds. Click Retry below to regenerate.`;
     } else if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
       errorCode = 'RATE_LIMIT_EXCEEDED';
       userFriendlyMsg = 'Knowledge service is currently experiencing high load. Please try again in a few moments.';

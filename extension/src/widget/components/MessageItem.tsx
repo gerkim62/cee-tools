@@ -15,6 +15,9 @@ import {
   CornerDownLeft,
   ExternalLink,
   Share2,
+  Play,
+  Square,
+  AlertCircle,
 } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
 import { BranchInfo } from '../hooks/useChat.js';
@@ -24,6 +27,9 @@ interface MessageItemProps {
   message: ChatMessage;
   statusLog: string[];
   branchInfo?: BranchInfo;
+  isStreaming?: boolean;
+  isStopping?: boolean;
+  onResumeGeneration?: (messageId: string) => void;
   onSwitchBranch?: (direction: 'prev' | 'next') => void;
   onRetryResponse?: (messageId: string) => void;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
@@ -84,6 +90,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   message,
   statusLog,
   branchInfo,
+  isStreaming,
+  isStopping,
+  onResumeGeneration,
   onSwitchBranch,
   onRetryResponse,
   onEditUserMessage,
@@ -348,9 +357,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const steps = message.executionSteps || [];
   const isErrorOrInterrupted =
     Boolean(message.isError) ||
+    Boolean(message.status === 'failed' || message.status === 'stopped') ||
     Boolean(
       message.content &&
-        (message.content.includes('⚠️') || message.content.includes('❌') || message.content.includes('Interrupted'))
+        (message.content.includes('Interrupted') ||
+         message.content.includes('Service Unavailable') ||
+         message.content.includes('Timed Out'))
     );
 
   const primaryCitation = message.citations && message.citations.length > 0 ? message.citations[0] : null;
@@ -376,6 +388,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       >
         <div className="saka-assistant-header">
           <div className="saka-assistant-label">
+            {message.isError ? (
+              <AlertCircle size={13} style={{ color: 'var(--saka-red-official, #DE1E23)', flexShrink: 0 }} />
+            ) : null}
             <span>Ask Saka</span>
           </div>
         </div>
@@ -481,6 +496,14 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             </div>
           </div>
         )}
+
+        {/* Stopped generation badge indicator */}
+        {message.status === 'stopped' && (
+          <div className="saka-stopped-notice">
+            <Square size={10} fill="currentColor" className="saka-stopped-notice-icon" />
+            <span>Generation stopped</span>
+          </div>
+        )}
       </div>
 
       {/* External Bottom Actions Toolbar along bottom-right edge */}
@@ -539,9 +562,23 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             </>
           )}
 
+          {message.status === 'stopped' && onResumeGeneration && (
+            <button
+              type="button"
+              className="saka-action-btn saka-btn-resume"
+              disabled={isStreaming || isStopping}
+              onClick={() => onResumeGeneration(message.id)}
+              title="Resume generation from where it stopped"
+            >
+              <Play size={11} fill="currentColor" />
+              <span>Resume</span>
+            </button>
+          )}
+
           <button
             type="button"
             className="saka-action-btn saka-retry-btn"
+            disabled={isStreaming || isStopping}
             onClick={() => onRetryResponse?.(message.id)}
             title="Regenerate answer"
           >

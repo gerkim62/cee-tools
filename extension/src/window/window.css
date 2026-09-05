@@ -906,3 +906,47 @@ body, html {
   border-color: #249e3f;
 }
 
+.saka-settings-banner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--saka-red-surface);
+  color: var(--saka-red-text);
+  border: 1px solid var(--saka-red-border);
+  transition: all 0.2s ease;
+  line-height: 1.45;
+}
+
+.saka-settings-banner.success {
+  background: var(--saka-green-tint);
+  color: var(--saka-green-deep);
+  border: 1px solid var(--saka-green-pill-border);
+}
+
+.saka-settings-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--saka-green-primary);
+  color: #FFFFFF !important;
+  font-weight: 600;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+  margin-left: auto;
+}
+
+.saka-settings-open-btn:hover {
+  background: var(--saka-green-hover);
+  transform: translateY(-1px);
+}
+
+

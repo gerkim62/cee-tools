@@ -86,6 +86,7 @@ export function useChat() {
 
   const [statusLog, setStatusLog] = useState<string[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const portRef = useRef<chrome.runtime.Port | null>(null);
 
   // Derive the active branch path from root to active leaf
@@ -182,6 +183,7 @@ export function useChat() {
         parentId: m.parentId !== undefined ? m.parentId : idx > 0 ? rawMsgs[idx - 1].id : null,
         role: m.role,
         content: m.content,
+        status: m.status || 'completed',
         citations: m.citations || undefined,
         executionSteps: m.executionSteps || undefined,
         clarifyingQuestion: m.clarifyingQuestion || undefined,
@@ -242,6 +244,7 @@ export function useChat() {
   }, [conversationId, isCompacting, isStreaming, loadConversation]);
 
   const stopGeneration = useCallback(() => {
+    setIsStopping(true);
     if (portRef.current) {
       try {
         portRef.current.disconnect();
@@ -252,12 +255,9 @@ export function useChat() {
     setAllMessages((prev) =>
       prev.map((m) => {
         if (m.isStreaming) {
-          const content = m.content
-            ? `${m.content}\n\n*(Generation stopped by user)*`
-            : '*(Response generation stopped)*';
           return {
             ...m,
-            content,
+            status: 'stopped',
             isStreaming: false,
           };
         }
@@ -267,7 +267,127 @@ export function useChat() {
 
     setIsStreaming(false);
     setStatusLog([]);
+
+    setTimeout(() => {
+      setIsStopping(false);
+    }, 1500);
   }, []);
+
+  const resumeGeneration = useCallback(
+    async (messageId: string) => {
+      if (isStreaming || isStopping) return;
+
+      const targetMsg = allMessages.find((m) => m.id === messageId);
+      if (!targetMsg || targetMsg.role !== 'assistant') return;
+
+      setIsStreaming(true);
+      setStatusLog(['> Resuming answer generation...']);
+
+      setAllMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                status: 'streaming',
+                isStreaming: true,
+              }
+            : m
+        )
+      );
+
+      try {
+        const clientId = await getClientId();
+        const storedChannel = await new Promise<'care_center' | 'retail'>((resolve) => {
+          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.get(['saka_agent_channel'], (res) => {
+              resolve(res?.saka_agent_channel || 'care_center');
+            });
+          } else {
+            resolve('care_center');
+          }
+        });
+        const port = chrome.runtime.connect({ name: 'ASK_STREAM' });
+        portRef.current = port;
+
+        port.onMessage.addListener((msg: AskStreamServerMessage) => {
+          if (msg.type === 'status') {
+            setStatusLog((prev) => {
+              const line = `> ${msg.message}`;
+              if (prev[prev.length - 1] === line) return prev;
+              return [...prev, line];
+            });
+          } else if (msg.type === 'token') {
+            setAllMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== messageId) return m;
+                const delta = msg.delta || msg.token || '';
+                const newRaw = m.content + delta;
+                return { ...m, content: maskStreamTags(newRaw) };
+              })
+            );
+          } else if (msg.type === 'citations') {
+            setAllMessages((prev) =>
+              prev.map((m) => (m.id === messageId ? { ...m, citations: msg.citations } : m))
+            );
+          } else if (msg.type === 'done') {
+            setAllMessages((prev) =>
+              prev.map((m) => {
+                if (m.id === messageId) {
+                  return {
+                    ...m,
+                    content: msg.answer || m.content,
+                    citations: msg.citations || m.citations,
+                    executionSteps: msg.executionSteps || m.executionSteps,
+                    clarifyingQuestion: msg.clarifyingQuestion,
+                    suggestedFollowUps: msg.suggestedFollowUps,
+                    status: 'completed',
+                    isStreaming: false,
+                  };
+                }
+                return m;
+              })
+            );
+            setIsStreaming(false);
+            try {
+              port.disconnect();
+            } catch {}
+            portRef.current = null;
+          } else if (msg.type === 'error') {
+            setAllMessages((prev) =>
+              prev.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      status: 'stopped',
+                      isStreaming: false,
+                    }
+                  : m
+              )
+            );
+            setIsStreaming(false);
+            try {
+              port.disconnect();
+            } catch {}
+            portRef.current = null;
+          }
+        });
+
+        port.postMessage({
+          type: 'START_ASK',
+          clientId,
+          conversationId: conversationId || undefined,
+          resumeMessageId: messageId,
+          channel: storedChannel,
+        });
+      } catch {
+        setIsStreaming(false);
+        setAllMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, status: 'stopped', isStreaming: false } : m))
+        );
+      }
+    },
+    [allMessages, conversationId, isStreaming, isStopping]
+  );
 
   /**
    * Calculates branch info for a given message
@@ -391,20 +511,20 @@ export function useChat() {
         portRef.current = port;
 
         const formatFriendlyError = (rawErr: string, code?: string, details?: string) => {
-          let title = '⚠️ **Ask Saka Service Unavailable**';
+          let title = '**Ask Saka Service Unavailable**';
           let body = 'We were unable to connect to the knowledge service to answer your question right now. Please try again in a few moments.';
 
           if (code === 'RATE_LIMIT_EXCEEDED') {
-            title = '⏳ **Service High Demand**';
+            title = '**Service High Demand**';
             body = 'Ask Saka is currently handling a surge in requests. Please click Retry below in a moment.';
           } else if (code === 'UPSTREAM_TIMEOUT') {
-            title = '⏱️ **Request Timed Out**';
-            body = 'Knowledge synthesis took longer than 45 seconds to generate an answer. Click Retry below to regenerate.';
+            title = '**Request Timed Out**';
+            body = 'Knowledge synthesis took longer than expected to generate an answer. Click Retry below to regenerate.';
           } else if (code === 'INSUFFICIENT_QUOTA') {
-            title = '🔒 **Service Quota Exceeded**';
+            title = '**Service Quota Exceeded**';
             body = 'Knowledge service quota limit reached. Please contact your system administrator.';
           } else if (code === 'DUPLICATE_REQUEST') {
-            title = '⚡ **Duplicate Query in Progress**';
+            title = '**Duplicate Query in Progress**';
             body = 'A matching query is currently being processed. Please wait a moment before sending.';
           }
 
@@ -482,6 +602,7 @@ export function useChat() {
                     executionSteps: msg.executionSteps || m.executionSteps,
                     clarifyingQuestion: msg.clarifyingQuestion,
                     suggestedFollowUps: msg.suggestedFollowUps,
+                    status: 'completed',
                     isStreaming: false,
                   };
                 }
@@ -504,6 +625,7 @@ export function useChat() {
                   ? {
                     ...m,
                     content: friendly,
+                    status: 'failed',
                     isStreaming: false,
                     isError: true,
                     errorCode: msg.code || 'SERVICE_UNAVAILABLE',
@@ -624,6 +746,7 @@ export function useChat() {
     messages,
     statusLog,
     isStreaming,
+    isStopping,
     isLoadingConversation,
     conversationLoadError,
     focusTrigger,
@@ -634,6 +757,7 @@ export function useChat() {
     restoreConversation,
     sendMessage,
     stopGeneration,
+    resumeGeneration,
     startNewChat,
     loadConversation,
     switchBranch,

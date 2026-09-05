@@ -22,12 +22,14 @@ interface ChatViewProps {
   getBranchInfo?: (messageId: string) => BranchInfo;
   onSwitchBranch?: (messageId: string, direction: 'prev' | 'next') => void;
   onRetryResponse?: (messageId: string) => void;
+  onResumeGeneration?: (messageId: string) => void;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
   onClickCitation?: (citation: Citation, allCitations: Citation[]) => void;
   isDeleted?: boolean;
   isRestoring?: boolean;
+  isStopping?: boolean;
   onRestoreConversation?: () => void;
   onStartNewChat?: () => void;
 }
@@ -36,6 +38,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   statusLog,
   isStreaming,
+  isStopping = false,
   isLoadingConversation = false,
   conversationLoadError,
   onRetryLoadConversation,
@@ -49,6 +52,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   getBranchInfo,
   onSwitchBranch,
   onRetryResponse,
+  onResumeGeneration,
   onEditUserMessage,
   onHoverCitation,
   onLeaveCitation,
@@ -248,6 +252,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
               message={msg}
               statusLog={msg.isStreaming ? statusLog : []}
               branchInfo={getBranchInfo?.(msg.id)}
+              isStreaming={isStreaming}
+              isStopping={isStopping}
+              onResumeGeneration={onResumeGeneration}
               onSwitchBranch={(direction) => onSwitchBranch?.(msg.id, direction)}
               onRetryResponse={onRetryResponse}
               onEditUserMessage={onEditUserMessage}
@@ -316,9 +323,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       ) : (
         <ChatInput
           onSend={onSendMessage}
-          disabled={isStreaming}
+          disabled={isStreaming || isStopping}
           focusTrigger={focusTrigger}
           isStreaming={isStreaming}
+          isStopping={isStopping}
           onStop={onStopStreaming}
         />
       )}
