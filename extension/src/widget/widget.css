@@ -62,6 +62,45 @@
   --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+@media (prefers-color-scheme: dark) {
+  :host {
+    color: #E6EDE8;
+
+    --saka-green-surface: #122418;
+    --saka-green-tint: #163620;
+    --saka-green-pill-border: #1E4D2C;
+    --saka-green-deep: #4ADE80;
+    --saka-green-deeper: #22C55E;
+
+    --saka-red-surface: #2A1213;
+    --saka-red-border: #4D1A1C;
+    --saka-red-text: #F87171;
+
+    --saka-amber-surface: #281C0C;
+    --saka-amber-border: #4A3314;
+    --saka-amber-text: #FBBF24;
+
+    --saka-surface-window: #121714;
+    --saka-surface-header: #161D18;
+    --saka-surface-body: #0D120F;
+    --saka-surface-card: #18221C;
+    --saka-surface-input: #161D18;
+
+    --saka-ink-primary: #E6EDE8;
+    --saka-ink-title: #FFFFFF;
+    --saka-ink-secondary: #97A69D;
+    --saka-ink-muted: #6B7B71;
+
+    --saka-border-subtle: #222E26;
+    --saka-border-medium: #2B3B31;
+    --saka-border-focus: #2CB34A;
+
+    --saka-shadow-window: 0 16px 40px -6px rgba(0, 0, 0, 0.65), 0 4px 14px rgba(0, 0, 0, 0.45);
+    --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.6);
+    --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -201,8 +240,9 @@ button, input, select, textarea {
   justify-content: space-between;
   padding: 11px 16px;
   background: var(--saka-surface-header);
-  border-top: 3px solid var(--saka-green-primary);
   border-bottom: 1px solid var(--saka-border-subtle);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
   cursor: grab;
   user-select: none;
 }
@@ -305,7 +345,7 @@ button, input, select, textarea {
   top: 52px;
   right: 14px;
   width: 200px;
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 10px;
   box-shadow: var(--saka-shadow-dropdown);
@@ -478,7 +518,7 @@ button, input, select, textarea {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   color: var(--saka-green-deep);
   display: flex;
@@ -492,7 +532,7 @@ button, input, select, textarea {
 }
 
 .saka-scroll-bottom-btn:hover {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   transform: translateY(-2px);
   border-color: var(--saka-green-primary);
   color: var(--saka-green-primary);
@@ -537,7 +577,7 @@ button, input, select, textarea {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
+  gap: 2px;
   max-width: 88%;
 }
 
@@ -562,12 +602,28 @@ button, input, select, textarea {
 .saka-user-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 1px;
+  padding: 0 2px;
+}
+
+.saka-message-time {
+  font-size: 10.5px;
+  color: var(--saka-ink-muted);
+  user-select: none;
+}
+
+.saka-user-actions .saka-action-btn,
+.saka-user-actions .saka-user-edit-trigger,
+.saka-user-actions .saka-branch-nav {
   opacity: 0;
   transition: opacity 0.15s ease;
 }
 
-.saka-user-message-wrapper:hover .saka-user-actions {
+.saka-user-message-wrapper:hover .saka-action-btn,
+.saka-user-message-wrapper:hover .saka-user-edit-trigger,
+.saka-user-message-wrapper:hover .saka-branch-nav {
   opacity: 1;
 }
 
@@ -601,7 +657,7 @@ button, input, select, textarea {
 
 .saka-user-edit-textarea {
   width: 100%;
-  background: #FFFFFF;
+  background: var(--saka-surface-input);
   border: 1.5px solid var(--saka-green-primary);
   border-radius: 10px;
   padding: 8px 10px;
@@ -635,13 +691,13 @@ button, input, select, textarea {
 }
 
 .saka-user-edit-cancel {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-medium);
   color: var(--saka-ink-secondary);
 }
 
 .saka-user-edit-cancel:hover {
-  background: #F4F6F5;
+  background: var(--saka-surface-body);
 }
 
 .saka-user-edit-save {
@@ -663,7 +719,7 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 3px;
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 6px;
   padding: 2px 4px;
@@ -699,14 +755,16 @@ button, input, select, textarea {
 }
 
 .saka-assistant-message-wrapper {
-  align-self: flex-start;
+  align-self: stretch;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  max-width: 95%;
+  gap: 2px;
 }
 
 .saka-message-assistant {
+  width: 100%;
+  box-sizing: border-box;
   background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 14px;
@@ -738,13 +796,19 @@ button, input, select, textarea {
 .saka-assistant-bottom-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  margin-top: 2px;
+  gap: 5px;
+  margin-top: 1px;
+  padding: 0 4px;
 }
 
-.saka-assistant-message-wrapper:hover .saka-assistant-bottom-actions {
+.saka-assistant-bottom-actions .saka-action-btn,
+.saka-assistant-bottom-actions .saka-branch-nav {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.saka-assistant-message-wrapper:hover .saka-action-btn,
+.saka-assistant-message-wrapper:hover .saka-branch-nav {
   opacity: 1;
 }
 
@@ -810,16 +874,16 @@ button, input, select, textarea {
 .saka-markdown-body code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
-  background: #EDF3EF;
+  background: var(--saka-green-surface);
   color: var(--saka-green-deep);
-  border: 1px solid #D9E3DC;
+  border: 1px solid var(--saka-green-pill-border);
   padding: 1.5px 5px;
   border-radius: 4px;
 }
 
 .saka-markdown-body pre {
-  background: #F4F7F5;
-  border: 1px solid #DCE5E0;
+  background: var(--saka-surface-body);
+  border: 1px solid var(--saka-border-subtle);
   border-radius: 8px;
   padding: 10px 12px;
   overflow-x: auto;
@@ -847,7 +911,7 @@ button, input, select, textarea {
 }
 
 .saka-markdown-body th {
-  background: #EDF4F0;
+  background: var(--saka-green-surface);
   color: var(--saka-green-deep);
   font-weight: 600;
 }
@@ -858,7 +922,7 @@ button, input, select, textarea {
   padding: 6px 12px;
   margin: 8px 0;
   border-radius: 0 6px 6px 0;
-  color: #35423C;
+  color: var(--saka-ink-primary);
 }
 
 /* Inline Citation Tags */
@@ -890,9 +954,10 @@ button, input, select, textarea {
 
 /* Citation Hover Popover */
 .saka-popover-card {
+  pointer-events: auto;
   position: fixed;
   width: 290px;
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 10px;
   box-shadow: var(--saka-shadow-dropdown);
@@ -929,7 +994,7 @@ button, input, select, textarea {
 .saka-popover-quote {
   font-size: 11.5px;
   font-style: italic;
-  color: #35423C;
+  color: var(--saka-ink-primary);
   background: var(--saka-green-surface);
   border-left: 3px solid var(--saka-green-primary);
   padding: 5px 8px;
@@ -957,7 +1022,7 @@ button, input, select, textarea {
 
 /* Execution Steps Box */
 .saka-execution-box {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 8px;
   overflow: hidden;
@@ -1022,7 +1087,7 @@ button, input, select, textarea {
 
 /* Rolling Terminal Status Log */
 .saka-rolling-log {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 8px;
   padding: 8px 10px;
@@ -1050,10 +1115,9 @@ button, input, select, textarea {
 .saka-empty-state {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 36px 16px 20px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 28px 16px 20px;
   gap: 12px;
   margin: auto 0;
 }
@@ -1080,7 +1144,7 @@ button, input, select, textarea {
 .saka-empty-desc {
   font-size: 12.5px;
   color: var(--saka-ink-secondary);
-  max-width: 290px;
+  max-width: 100%;
   line-height: 1.45;
 }
 
@@ -1088,18 +1152,19 @@ button, input, select, textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  justify-content: center;
+  justify-content: flex-start;
   margin-top: 6px;
 }
 
 .saka-chip-btn {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-medium);
   border-radius: 18px;
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 500;
   color: var(--saka-ink-primary);
+  text-align: left;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: all 0.12s ease;
@@ -1115,8 +1180,10 @@ button, input, select, textarea {
 .saka-clarification-container {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 7px;
   margin-top: 4px;
+  text-align: left;
 }
 
 .saka-clarification-title {
@@ -1132,12 +1199,14 @@ button, input, select, textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  justify-content: flex-start;
 }
 
 .saka-chip-clarify {
   background: var(--saka-green-surface);
   border: 1px solid var(--saka-green-pill-border);
   color: var(--saka-green-deep);
+  text-align: left;
 }
 
 .saka-chip-clarify:hover {
@@ -1173,8 +1242,10 @@ button, input, select, textarea {
 .saka-followups-container {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
   margin-top: 6px;
+  text-align: left;
 }
 
 .saka-chip-followup {
@@ -1184,6 +1255,7 @@ button, input, select, textarea {
   border-radius: 14px;
   padding: 4px 10px;
   font-size: 11.5px;
+  text-align: left;
   cursor: pointer;
   transition: all 0.12s ease;
 }
@@ -1199,7 +1271,7 @@ button, input, select, textarea {
   bottom: 64px;
   left: 14px;
   right: 14px;
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 10px;
   box-shadow: var(--saka-shadow-dropdown);
@@ -1253,7 +1325,7 @@ button, input, select, textarea {
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
-  background: #FFFFFF;
+  background: var(--saka-surface-header);
   border-bottom: 1px solid var(--saka-border-subtle);
 }
 
@@ -1317,7 +1389,7 @@ button, input, select, textarea {
 .saka-input-wrapper {
   display: flex;
   align-items: flex-end;
-  background: #F8FAF9;
+  background: var(--saka-surface-body);
   border: 1px solid var(--saka-border-medium);
   border-radius: 12px;
   padding: 6px 8px 6px 12px;
@@ -1326,7 +1398,7 @@ button, input, select, textarea {
 }
 
 .saka-input-wrapper:focus-within {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border-color: var(--saka-green-primary);
   box-shadow: 0 0 0 3px rgba(44, 179, 74, 0.15);
 }
@@ -1398,7 +1470,7 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #FFFFFF;
+  background: var(--saka-surface-input);
   border: 1px solid var(--saka-border-medium);
   border-radius: 8px;
   padding: 7px 10px;
@@ -1444,7 +1516,7 @@ button, input, select, textarea {
 }
 
 .saka-history-card {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 10px;
   padding: 10px 12px;
@@ -1458,7 +1530,7 @@ button, input, select, textarea {
 }
 
 .saka-history-card:hover {
-  background: #FAFDFB;
+  background: var(--saka-green-surface);
   border-color: var(--saka-green-primary);
 }
 
@@ -1518,7 +1590,7 @@ button, input, select, textarea {
 
 /* Sync & Storage View */
 .saka-stats-card {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 12px;
   padding: 14px;
@@ -1631,7 +1703,7 @@ button, input, select, textarea {
 .saka-alert-code {
   margin-top: 4px;
   font-family: monospace;
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   padding: 4px 8px;
   border-radius: 4px;
@@ -1683,7 +1755,7 @@ button, input, select, textarea {
 }
 
 .saka-btn-secondary {
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   color: var(--saka-ink-primary);
   border: 1px solid var(--saka-border-medium);
   border-radius: 8px;
@@ -1699,7 +1771,7 @@ button, input, select, textarea {
 }
 
 .saka-btn-secondary:hover:not(:disabled) {
-  background: #F4F6F5;
+  background: var(--saka-surface-body);
 }
 
 /* Settings View */
@@ -1716,7 +1788,7 @@ button, input, select, textarea {
 }
 
 .saka-text-input, .saka-select-input {
-  background: #FFFFFF;
+  background: var(--saka-surface-input);
   border: 1px solid var(--saka-border-medium);
   border-radius: 8px;
   padding: 8px 12px;
@@ -1733,7 +1805,7 @@ button, input, select, textarea {
 
 .saka-advanced-box {
   margin-top: 6px;
-  background: #FFFFFF;
+  background: var(--saka-surface-card);
   border: 1px solid var(--saka-border-subtle);
   border-radius: 10px;
   overflow: hidden;

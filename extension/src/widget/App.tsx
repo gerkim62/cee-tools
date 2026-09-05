@@ -129,10 +129,10 @@ export const App: React.FC = () => {
 
     // If space above >= 260px, place above; otherwise flip below
     if (spaceAbove >= 260) {
-      top = targetRect.top - 8;
+      top = targetRect.top - 6;
       transform = 'translateY(-100%)';
     } else {
-      top = targetRect.bottom + 8;
+      top = targetRect.bottom + 6;
       transform = 'translateY(0)';
     }
 
@@ -149,7 +149,7 @@ export const App: React.FC = () => {
   const handleLeaveCitation = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredCitation(null);
-    }, 250);
+    }, 320);
   };
 
   const handleCardMouseEnter = () => {
@@ -161,7 +161,7 @@ export const App: React.FC = () => {
   const handleCardMouseLeave = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredCitation(null);
-    }, 200);
+    }, 250);
   };
 
   const getViewTitle = () => {

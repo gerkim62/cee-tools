@@ -175,7 +175,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
           ref={textareaRef}
           className="saka-textarea"
           rows={1}
-          placeholder="Ask anything about SakaHub, or type / for quick shortcuts..."
+          placeholder="Ask a question or type /"
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}

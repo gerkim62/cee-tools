@@ -30,6 +30,23 @@ interface MessageItemProps {
   onSendMessage?: (text: string) => void;
 }
 
+function formatRelativeTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const now = Date.now();
+  const past = new Date(dateStr).getTime();
+  if (isNaN(past)) return '';
+  const diffSec = Math.max(0, Math.floor((now - past) / 1000));
+  if (diffSec < 45) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 export const MessageItem: React.FC<MessageItemProps> = ({
   message,
   statusLog,
@@ -209,6 +226,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         </div>
 
         <div className="saka-user-actions">
+          {message.createdAt && (
+            <span className="saka-message-time">{formatRelativeTime(message.createdAt)}</span>
+          )}
+
           {branchInfo && branchInfo.total > 1 && (
             <div className="saka-branch-nav saka-branch-nav-user">
               <button
@@ -384,6 +405,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       {/* External Bottom Actions Toolbar along bottom-right edge */}
       {!message.isStreaming && message.content && (
         <div className="saka-assistant-bottom-actions">
+          {message.createdAt && (
+            <span className="saka-message-time">{formatRelativeTime(message.createdAt)}</span>
+          )}
+
           {branchInfo && branchInfo.total > 1 && (
             <div className="saka-branch-nav">
               <button
