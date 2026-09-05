@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, ExternalLink, X, Pin, CheckCircle2, FileText } from 'lucide-react';
+import { BookOpen, ExternalLink, PanelRightClose, Pin, CheckCircle2, FileText } from 'lucide-react';
 import { Citation } from '../../types.js';
 
 interface CitationInspectorPaneProps {
@@ -49,7 +49,7 @@ export const CitationInspectorPane: React.FC<CitationInspectorPaneProps> = ({
             onClick={onClose}
             title="Collapse Inspector"
           >
-            <X size={15} />
+            <PanelRightClose size={15} />
           </button>
         </div>
 
@@ -89,9 +89,9 @@ export const CitationInspectorPane: React.FC<CitationInspectorPaneProps> = ({
           type="button"
           className="saka-btn-icon"
           onClick={onClose}
-          title="Close Inspector"
+          title="Collapse Inspector"
         >
-          <X size={15} />
+          <PanelRightClose size={15} />
         </button>
       </div>
 

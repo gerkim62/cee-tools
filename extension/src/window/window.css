@@ -52,45 +52,169 @@
 
   --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.12);
   --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --saka-surface-hover: rgba(0, 0, 0, 0.04);
+
+  --saka-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --saka-scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
 }
 
+/* Explicit Light Theme Override */
+[data-theme="light"],
+:root[data-theme="light"] {
+  color: #242623;
+  --saka-green-surface: #F6FAF7;
+  --saka-green-tint: #E8F5EC;
+  --saka-green-pill-border: #D2E8D8;
+  --saka-green-deep: #146732;
+  --saka-green-deeper: #0E4823;
+
+  --saka-red-surface: #FDF2F2;
+  --saka-red-border: #FCD4D4;
+  --saka-red-text: #991B1B;
+
+  --saka-amber-surface: #FFFBEB;
+  --saka-amber-border: #FDE68A;
+  --saka-amber-text: #92400E;
+
+  --saka-surface-window: #FFFFFF;
+  --saka-surface-header: #FFFFFF;
+  --saka-surface-body: #F7FAF8;
+  --saka-surface-card: #FFFFFF;
+  --saka-surface-input: #FFFFFF;
+  --saka-surface-sidebar: #F9FBF9;
+  --saka-surface-hover: rgba(0, 0, 0, 0.04);
+
+  --saka-ink-primary: #242623;
+  --saka-ink-title: #1C2420;
+  --saka-ink-secondary: #58655E;
+  --saka-ink-muted: #85938B;
+
+  --saka-border-subtle: #E2E8E4;
+  --saka-border-medium: #D5DFD8;
+  --saka-border-focus: #2CB34A;
+
+  --saka-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --saka-scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+}
+
+/* Toned-down Dark Theme: Extremely subtle green undertone ("Almost Not Green") */
 @media (prefers-color-scheme: dark) {
   :root {
-    color: #E6EDE8;
+    color: #E4ECE6;
 
-    --saka-green-surface: #122418;
-    --saka-green-tint: #163620;
-    --saka-green-pill-border: #1E4D2C;
+    --saka-green-surface: #101912;
+    --saka-green-tint: #14291B;
+    --saka-green-pill-border: #1B4228;
     --saka-green-deep: #4ADE80;
     --saka-green-deeper: #22C55E;
 
-    --saka-red-surface: #2A1213;
-    --saka-red-border: #4D1A1C;
+    --saka-red-surface: #221213;
+    --saka-red-border: #44181A;
     --saka-red-text: #F87171;
 
-    --saka-amber-surface: #281C0C;
-    --saka-amber-border: #4A3314;
+    --saka-amber-surface: #20170B;
+    --saka-amber-border: #3D290F;
     --saka-amber-text: #FBBF24;
 
-    --saka-surface-window: #121714;
-    --saka-surface-header: #161D18;
-    --saka-surface-body: #0D120F;
-    --saka-surface-card: #18221C;
-    --saka-surface-input: #161D18;
-    --saka-surface-sidebar: #141A16;
+    --saka-surface-window: #0D100E;
+    --saka-surface-header: #141815;
+    --saka-surface-body: #0D100E;
+    --saka-surface-card: #141815;
+    --saka-surface-input: #141815;
+    --saka-surface-sidebar: #101411;
+    --saka-surface-hover: rgba(255, 255, 255, 0.05);
 
-    --saka-ink-primary: #E6EDE8;
+    --saka-ink-primary: #E4ECE6;
     --saka-ink-title: #FFFFFF;
-    --saka-ink-secondary: #97A69D;
-    --saka-ink-muted: #6B7B71;
+    --saka-ink-secondary: #95A39B;
+    --saka-ink-muted: #6B7870;
 
-    --saka-border-subtle: #222E26;
-    --saka-border-medium: #2B3B31;
+    --saka-border-subtle: #222824;
+    --saka-border-medium: #2B332E;
     --saka-border-focus: #2CB34A;
+
+    --saka-scrollbar-thumb: rgba(255, 255, 255, 0.16);
+    --saka-scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
 
     --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.6);
     --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
   }
+}
+
+[data-theme="dark"],
+:root[data-theme="dark"] {
+  color: #E4ECE6;
+
+  --saka-green-surface: #101912;
+  --saka-green-tint: #14291B;
+  --saka-green-pill-border: #1B4228;
+  --saka-green-deep: #4ADE80;
+  --saka-green-deeper: #22C55E;
+
+  --saka-red-surface: #221213;
+  --saka-red-border: #44181A;
+  --saka-red-text: #F87171;
+
+  --saka-amber-surface: #20170B;
+  --saka-amber-border: #3D290F;
+  --saka-amber-text: #FBBF24;
+
+  --saka-surface-window: #0D100E;
+  --saka-surface-header: #141815;
+  --saka-surface-body: #0D100E;
+  --saka-surface-card: #141815;
+  --saka-surface-input: #141815;
+  --saka-surface-sidebar: #101411;
+  --saka-surface-hover: rgba(255, 255, 255, 0.05);
+
+  --saka-ink-primary: #E4ECE6;
+  --saka-ink-title: #FFFFFF;
+  --saka-ink-secondary: #95A39B;
+  --saka-ink-muted: #6B7870;
+
+  --saka-border-subtle: #222824;
+  --saka-border-medium: #2B332E;
+  --saka-border-focus: #2CB34A;
+
+  --saka-scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --saka-scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
+
+  --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.6);
+  --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Auto-Hiding 4px Adaptive Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+
+*:hover {
+  scrollbar-color: var(--saka-scrollbar-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+*:hover::-webkit-scrollbar-thumb {
+  background: var(--saka-scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--saka-scrollbar-thumb-hover) !important;
 }
 
 *, *::before, *::after {
@@ -145,6 +269,12 @@ body, html {
   padding: 0 16px;
   flex-shrink: 0;
   user-select: none;
+}
+
+.saka-workstation-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .saka-workstation-brand {
@@ -263,7 +393,7 @@ body, html {
 }
 
 .saka-sidebar-content .saka-history-card {
-  padding: 9px 11px;
+  padding: 7px 10px;
 }
 
 .saka-sidebar-footer {

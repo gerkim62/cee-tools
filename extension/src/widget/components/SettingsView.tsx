@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders } from 'lucide-react';
+import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders, Sun } from 'lucide-react';
 import { WidgetView } from '../../types.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
+import { useTheme, ThemePreference } from '../hooks/useTheme.js';
 
 function isWidgetView(val: string): val is WidgetView {
   return val === 'chat' || val === 'history' || val === 'sync' || val === 'settings';
 }
 
 export const SettingsView: React.FC = () => {
-  const [backendUrl, setBackendUrl] = useState('http://localhost:3000');
+  const { themePreference, setTheme } = useTheme();
+  const [backendUrl, setBackendUrl] = useState('https://cee-tools-wine.vercel.app');
   const [defaultView, setDefaultView] = useState<WidgetView>('chat');
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
@@ -93,6 +95,31 @@ export const SettingsView: React.FC = () => {
         </select>
         <span style={{ fontSize: '11.5px', color: 'var(--saka-ink-secondary, #58655E)' }}>
           Choose which screen opens when you click the floating dock badge.
+        </span>
+      </div>
+
+      {/* Theme Appearance Selector */}
+      <div className="saka-form-group">
+        <label className="saka-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Sun size={14} color="#2CB34A" />
+          <span>Appearance & Theme</span>
+        </label>
+        <select
+          className="saka-select-input"
+          value={themePreference}
+          onChange={(e) => {
+            const val = e.target.value as ThemePreference;
+            if (val === 'system' || val === 'dark' || val === 'light') {
+              setTheme(val);
+            }
+          }}
+        >
+          <option value="system">System Default (Auto)</option>
+          <option value="dark">Dark Mode (Subtle Slate)</option>
+          <option value="light">Light Mode</option>
+        </select>
+        <span style={{ fontSize: '11.5px', color: 'var(--saka-ink-secondary, #58655E)' }}>
+          Select your color mode or follow your system setting.
         </span>
       </div>
 

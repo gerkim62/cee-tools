@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, ShieldCheck, ExternalLink, Globe, X } from 'lucide-react';
+import { AlertCircle, ShieldCheck, ExternalLink, Globe, X, RefreshCw } from 'lucide-react';
 import { BackendSyncStatus, SyncProgressUpdate } from '../../types.js';
 import { getBackendUrl } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
@@ -223,9 +223,29 @@ export const SyncStorageView: React.FC<SyncStorageViewProps> = ({
           <span className="saka-stat-metric-label">
             Last Synced
           </span>
-          <span className="saka-stat-metric-time">
-            {formatRelativeTime(lastSyncedAt)}
-          </span>
+          {(() => {
+            const effectiveSyncTime = lastSyncedAt || status?.maxLastUpdated;
+            const formatted = formatRelativeTime(effectiveSyncTime);
+            if (formatted !== 'Never') {
+              return (
+                <span className="saka-stat-metric-time">
+                  {formatted}
+                </span>
+              );
+            }
+            return (
+              <button
+                type="button"
+                className="saka-btn-check-status"
+                onClick={fetchStats}
+                disabled={loading}
+                title="Query server for sync status"
+              >
+                <RefreshCw size={11} className={loading ? 'saka-spin' : ''} />
+                <span>{loading ? 'Checking...' : 'Check Server Status'}</span>
+              </button>
+            );
+          })()}
         </div>
       </div>
 

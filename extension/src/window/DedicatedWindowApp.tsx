@@ -5,12 +5,16 @@ import {
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
-  BookOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Sun,
+  Moon,
   MessageSquare,
   RefreshCw,
 } from 'lucide-react';
 import { useChat } from '../widget/hooks/useChat.js';
 import { useSyncState } from '../widget/hooks/useSyncState.js';
+import { useTheme } from '../widget/hooks/useTheme.js';
 import { ChatView } from '../widget/components/ChatView.js';
 import { HistoryView } from '../widget/components/HistoryView.js';
 import { SyncStorageView } from '../widget/components/SyncStorageView.js';
@@ -21,6 +25,7 @@ import { Citation, WidgetView } from '../types.js';
 export const DedicatedWindowApp: React.FC = () => {
   const chat = useChat();
   const syncState = useSyncState();
+  const theme = useTheme();
 
   const [currentView, setCurrentView] = useState<WidgetView>('chat');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -132,21 +137,11 @@ export const DedicatedWindowApp: React.FC = () => {
   };
 
   return (
-    <div className="saka-workstation-container">
-      {/* Workstation Top Navigation Bar */}
+    <div className="saka-workstation-container" data-theme={theme.effectiveTheme}>
+      {/* Workstation Top Navigation Bar (Linear / Notion Style) */}
       <header className="saka-workstation-header">
-        <div className="saka-workstation-brand">
-          <div className="saka-brand-logo">
-            <Bot size={18} strokeWidth={2.4} />
-          </div>
-          <div className="saka-workstation-title">
-            <span className="saka-workstation-name">Ask Saka</span>
-            <span className="saka-workstation-badge">Workstation</span>
-          </div>
-        </div>
-
-        <div className="saka-workstation-header-right">
-          {/* Toggle Sidebar Button */}
+        <div className="saka-workstation-header-left">
+          {/* Toggle Sidebar Button at Far Left Boundary */}
           <button
             type="button"
             className="saka-btn-icon"
@@ -157,6 +152,18 @@ export const DedicatedWindowApp: React.FC = () => {
             {isSidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
           </button>
 
+          <div className="saka-workstation-brand">
+            <div className="saka-brand-logo">
+              <Bot size={18} strokeWidth={2.4} />
+            </div>
+            <div className="saka-workstation-title">
+              <span className="saka-workstation-name">Ask Saka</span>
+              <span className="saka-workstation-badge">Workstation</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="saka-workstation-header-right">
           {/* Toggle Inspector Button */}
           <button
             type="button"
@@ -165,7 +172,18 @@ export const DedicatedWindowApp: React.FC = () => {
             title={isInspectorOpen ? 'Collapse Source Inspector' : 'Expand Source Inspector'}
             aria-label="Toggle Source Inspector"
           >
-            <BookOpen size={17} />
+            {isInspectorOpen ? <PanelRightClose size={17} /> : <PanelRightOpen size={17} />}
+          </button>
+
+          {/* Theme Quick Toggle */}
+          <button
+            type="button"
+            className="saka-btn-icon"
+            onClick={theme.toggleTheme}
+            title={theme.isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label="Toggle Theme"
+          >
+            {theme.isDark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
           {/* Settings shortcut */}
@@ -246,6 +264,8 @@ export const DedicatedWindowApp: React.FC = () => {
                 messages={chat.messages}
                 statusLog={chat.statusLog}
                 isStreaming={chat.isStreaming}
+                isLoadingConversation={chat.isLoadingConversation}
+                focusTrigger={chat.focusTrigger}
                 conversationTitle={chat.conversationTitle}
                 isCompacted={chat.isCompacted}
                 isCompacting={chat.isCompacting}

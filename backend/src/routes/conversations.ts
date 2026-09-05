@@ -80,7 +80,7 @@ conversationsRouter.get('/conversations', async (req: Request, res: Response): P
               COUNT(m.id)::int AS message_count
        FROM conversations c
        LEFT JOIN messages m ON m.conversation_id = c.id
-       WHERE c.client_id = $1
+       WHERE c.client_id = $1 AND c.deleted_at IS NULL
        GROUP BY c.id
        ORDER BY c.updated_at DESC
        LIMIT 50`,
@@ -137,7 +137,7 @@ conversationsRouter.get('/conversations/search', async (req: Request, res: Respo
               MAX(CASE WHEN m.content ILIKE $2 THEN m.content ELSE NULL END) AS snippet_match
        FROM conversations c
        LEFT JOIN messages m ON m.conversation_id = c.id
-       WHERE c.client_id = $1 AND (c.title ILIKE $2 OR m.content ILIKE $2)
+       WHERE c.client_id = $1 AND c.deleted_at IS NULL AND (c.title ILIKE $2 OR m.content ILIKE $2)
        GROUP BY c.id
        ORDER BY c.updated_at DESC
        LIMIT $3 OFFSET $4`,
@@ -172,7 +172,7 @@ conversationsRouter.get('/conversations/:id', async (req: Request, res: Response
   try {
     const { id } = req.params;
     const convResult = await query<ConversationDbRow>(
-      `SELECT id, client_id, title, is_compacted, summary, created_at, updated_at FROM conversations WHERE id = $1`,
+      `SELECT id, client_id, title, is_compacted, summary, created_at, updated_at FROM conversations WHERE id = $1 AND deleted_at IS NULL`,
       [id]
     );
 
@@ -407,7 +407,7 @@ Note: Rely strictly on the verified facts and actions documented in this convers
 conversationsRouter.delete('/conversations/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    await query(`DELETE FROM conversations WHERE id = $1`, [id]);
+    await query(`UPDATE conversations SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`, [id]);
     res.json({ success: true, message: 'Conversation deleted' });
   } catch (error: unknown) {
     console.error('[Conversations Router] Failed to delete conversation:', error);

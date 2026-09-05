@@ -9,6 +9,7 @@ interface FloatingBadgeProps {
   syncProgress: SyncProgressUpdate | null;
   onMouseDown: (e: React.MouseEvent) => void;
   style: React.CSSProperties;
+  showDragHint?: boolean;
 }
 
 export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
@@ -18,6 +19,7 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
   syncProgress,
   onMouseDown,
   style,
+  showDragHint = false,
 }) => {
   const radius = 25;
   const circumference = 2 * Math.PI * radius;
@@ -70,6 +72,12 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
         <Bot size={26} strokeWidth={2.2} />
         <div className={`saka-badge-status-dot ${statusClass}`} />
       </div>
+
+      {showDragHint && (
+        <div className="saka-badge-drag-hint" onClick={(e) => e.stopPropagation()}>
+          <span>Drag if blocking view</span>
+        </div>
+      )}
     </div>
   );
 };

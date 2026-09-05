@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, X, Trash2, MessageSquarePlus, AlertCircle, RefreshCw, Lock } from 'lucide-react';
+import { Search, X, Plus, MessageSquarePlus, AlertCircle, RefreshCw, Lock } from 'lucide-react';
 import { ConversationSummary } from '../../types.js';
 import { getBackendUrl, getClientId } from '../../scripts/syncer.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
 
-// Custom Open Trash Icon with tilted lid for two-click deletion confirmation
-const TrashOpenIcon: React.FC<{ size?: number; className?: string }> = ({ size = 13, className }) => (
+// Official Lucide Trash-2 SVG with CSS-animated opening lid for two-click deletion
+const AnimatedTrashIcon: React.FC<{ isOpen: boolean; size?: number; className?: string }> = ({
+  isOpen,
+  size = 14,
+  className,
+}) => (
   <svg
     width={size}
     height={size}
@@ -16,9 +20,14 @@ const TrashOpenIcon: React.FC<{ size?: number; className?: string }> = ({ size =
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    style={{ overflow: 'visible' }}
   >
-    <path d="M4 5l14-2.5" />
-    <path d="M9.5 2.5l2.2-.4a1.5 1.5 0 0 1 1.7 1.2l.2 1" />
+    {/* Lid group: official Lucide trash-2 paths */}
+    <g className={`saka-trash-lid ${isOpen ? 'open' : ''}`}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </g>
+    {/* Body group: official Lucide trash-2 paths */}
     <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
     <line x1="10" y1="11" x2="10" y2="17" />
     <line x1="14" y1="11" x2="14" y2="17" />
@@ -184,41 +193,41 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
   return (
     <div className="saka-view-container">
-      {!hideHeader && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <h3 className="saka-view-title">Conversation History</h3>
-          <button
-            type="button"
-            className="saka-btn-primary"
-            style={{ padding: '4px 10px', fontSize: '11.5px', borderRadius: '6px' }}
-            onClick={onStartNewChat}
-          >
-            + New Chat
-          </button>
-        </div>
-      )}
+      {!hideHeader && <h3 className="saka-view-title">Conversation History</h3>}
 
-      {/* Zero-Credit Instant Search Bar */}
-      <div className="saka-history-search-bar">
-        <Search size={14} color="#94a3b8" />
-        <input
-          type="text"
-          className="saka-history-search-input"
-          placeholder="Search chat history & content..."
-          value={searchQuery}
-          onChange={handleSearchChange}
-        />
-        {searching && <RefreshCw size={13} className="spin" style={{ animation: 'spin 1.2s linear infinite', color: '#38bdf8' }} />}
-        {searchQuery && !searching && (
-          <button
-            type="button"
-            className="saka-btn-icon"
-            onClick={handleClearSearch}
-            title="Clear search"
-          >
-            <X size={13} />
-          </button>
-        )}
+      {/* Side-by-side search + [+] New Chat row */}
+      <div className="saka-history-controls-row">
+        <div className="saka-history-search-bar">
+          <Search size={14} color="var(--saka-ink-muted, #85938B)" />
+          <input
+            type="text"
+            className="saka-history-search-input"
+            placeholder="Search conversations..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+          />
+          {searching && <RefreshCw size={13} className="saka-spin" />}
+          {searchQuery && !searching && (
+            <button
+              type="button"
+              className="saka-btn-icon"
+              onClick={handleClearSearch}
+              title="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="saka-history-newchat-btn"
+          onClick={onStartNewChat}
+          title="Start New Conversation"
+          aria-label="New Conversation"
+        >
+          <Plus size={16} />
+        </button>
       </div>
 
       {loading ? (
@@ -356,10 +365,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       type="button"
                       className={`saka-btn-icon saka-history-delete-btn ${confirmDeleteId === conv.id ? 'confirming' : ''}`}
                       onClick={(e) => handleDeleteClick(e, conv.id)}
-                      title={confirmDeleteId === conv.id ? 'Click again to delete' : 'Delete thread'}
-                      aria-label={confirmDeleteId === conv.id ? 'Confirm deletion' : 'Delete thread'}
+                      title={confirmDeleteId === conv.id ? 'Click again to confirm delete' : 'Delete conversation'}
+                      aria-label={confirmDeleteId === conv.id ? 'Confirm deletion' : 'Delete conversation'}
                     >
-                      {confirmDeleteId === conv.id ? <TrashOpenIcon size={13} /> : <Trash2 size={13} />}
+                      <AnimatedTrashIcon isOpen={confirmDeleteId === conv.id} size={14} />
                     </button>
                   </div>
                 ))}

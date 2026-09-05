@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 import { WidgetView, ExtensionMessage, Citation } from '../types.js';
 import { useDraggable } from './hooks/useDraggable.js';
 import { useSyncState } from './hooks/useSyncState.js';
 import { useChat } from './hooks/useChat.js';
+import { useTheme } from './hooks/useTheme.js';
 
 import { FloatingBadge } from './components/FloatingBadge.js';
 import { WindowHeader } from './components/WindowHeader.js';
@@ -18,6 +20,8 @@ export const App: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentView, setCurrentView] = useState<WidgetView>('chat');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasDraggedBadge, setHasDraggedBadge] = useState(false);
+  const [hasDraggedWindow, setHasDraggedWindow] = useState(false);
 
   // Citation hovercard state at the root level (allows overflowing outside the widget window)
   const [hoveredCitation, setHoveredCitation] = useState<{
@@ -31,6 +35,12 @@ export const App: React.FC = () => {
     storageKey: 'ask_saka_badge_pos',
     elementWidth: 56,
     elementHeight: 56,
+    onDragEnd: () => {
+      setHasDraggedBadge(true);
+      try {
+        chrome.storage.local.set({ saka_has_dragged_badge: true }).catch(() => {});
+      } catch {}
+    },
   });
 
   // Dragging for expanded window
@@ -38,19 +48,34 @@ export const App: React.FC = () => {
     storageKey: 'ask_saka_window_pos',
     elementWidth: 420,
     elementHeight: 620,
+    onDragEnd: () => {
+      setHasDraggedWindow(true);
+      try {
+        chrome.storage.local.set({ saka_has_dragged_window: true }).catch(() => {});
+      } catch {}
+    },
   });
 
   // State hooks
   const syncState = useSyncState();
   const chat = useChat();
+  const theme = useTheme();
 
-  // Load default view setting on mount
+  // Load default view setting & drag hint status on mount
   useEffect(() => {
     try {
-      chrome.storage.local.get(['defaultView'], (res) => {
-        const val = res.defaultView;
-        if (val === 'chat' || val === 'history' || val === 'sync' || val === 'settings') {
-          setCurrentView(val);
+      chrome.storage.local.get(['defaultView', 'saka_has_dragged_badge', 'saka_has_dragged_window'], (res) => {
+        if (res) {
+          const val = res.defaultView;
+          if (val === 'chat' || val === 'history' || val === 'sync' || val === 'settings') {
+            setCurrentView(val);
+          }
+          if (typeof res.saka_has_dragged_badge === 'boolean') {
+            setHasDraggedBadge(res.saka_has_dragged_badge);
+          }
+          if (typeof res.saka_has_dragged_window === 'boolean') {
+            setHasDraggedWindow(res.saka_has_dragged_window);
+          }
         }
       });
     } catch {}
@@ -200,7 +225,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div id="ask-saka-container" onClick={() => setIsMenuOpen(false)}>
+    <div id="ask-saka-container" data-theme={theme.effectiveTheme} onClick={() => setIsMenuOpen(false)}>
       {/* Collapsed Draggable Floating Badge */}
       {!isOpen && (
         <FloatingBadge
@@ -209,6 +234,7 @@ export const App: React.FC = () => {
           isStale={syncState.isStale}
           syncProgress={syncState.syncProgress}
           onMouseDown={badgeDraggable.handleMouseDown}
+          showDragHint={!hasDraggedBadge}
           style={{
             left: `${badgeDraggable.position.x}px`,
             top: `${badgeDraggable.position.y}px`,
@@ -236,6 +262,27 @@ export const App: React.FC = () => {
             currentViewTitle={getViewTitle()}
             lastSyncedAt={syncState.lastSyncedAt}
           />
+
+          {!hasDraggedWindow && (
+            <div className="saka-window-drag-hint">
+              <span>💡 Drag header to move if hiding your view</span>
+              <button
+                type="button"
+                className="saka-btn-icon"
+                style={{ width: '18px', height: '18px', padding: 0 }}
+                onClick={() => {
+                  setHasDraggedWindow(true);
+                  try {
+                    chrome.storage.local.set({ saka_has_dragged_window: true }).catch(() => {});
+                  } catch {}
+                }}
+                title="Dismiss hint"
+                aria-label="Dismiss hint"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
 
           {isMenuOpen && (
             <ChevronMenu
@@ -265,6 +312,8 @@ export const App: React.FC = () => {
               messages={chat.messages}
               statusLog={chat.statusLog}
               isStreaming={chat.isStreaming}
+              isLoadingConversation={chat.isLoadingConversation}
+              focusTrigger={chat.focusTrigger}
               conversationTitle={chat.conversationTitle}
               isCompacted={chat.isCompacted}
               isCompacting={chat.isCompacting}

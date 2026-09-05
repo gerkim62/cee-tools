@@ -10,6 +10,7 @@ interface UseDraggableOptions {
   defaultPosition?: Position;
   elementWidth?: number;
   elementHeight?: number;
+  onDragEnd?: () => void;
 }
 
 export function useDraggable({
@@ -17,6 +18,7 @@ export function useDraggable({
   defaultPosition,
   elementWidth = 56,
   elementHeight = 56,
+  onDragEnd,
 }: UseDraggableOptions = {}) {
   const [position, setPosition] = useState<Position>(() => {
     return (
@@ -88,6 +90,7 @@ export function useDraggable({
 
         // Save position if moved
         if (hasMovedRef.current) {
+          onDragEnd?.();
           setPosition((current) => {
             try {
               chrome.storage.local.set({ [storageKey]: current }).catch(() => {});
@@ -100,7 +103,7 @@ export function useDraggable({
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     },
-    [position, storageKey, elementWidth, elementHeight]
+    [position, storageKey, elementWidth, elementHeight, onDragEnd]
   );
 
   return {

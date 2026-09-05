@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Plus, ChevronDown, X, Maximize2, ExternalLink, Check } from 'lucide-react';
+import { Bot, Plus, Minus, MoreVertical, Sun, Moon, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
 import { PopoutMode } from '../../types.js';
+import { useTheme } from '../hooks/useTheme.js';
 
 interface WindowHeaderProps {
   onMouseDown: (e: React.MouseEvent) => void;
@@ -43,6 +44,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
   const [preferredMode, setPreferredMode] = useState<PopoutMode>('window');
   const [isPopoutMenuOpen, setIsPopoutMenuOpen] = useState(false);
   const popoutContainerRef = React.useRef<HTMLDivElement>(null);
+  const { isDark, toggleTheme } = useTheme();
 
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -176,6 +178,17 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           </div>
         )}
 
+        {/* Theme Quick Toggle Button */}
+        <button
+          type="button"
+          className="saka-btn-icon"
+          onClick={toggleTheme}
+          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label="Toggle Theme"
+        >
+          {isDark ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+
         <button
           type="button"
           className="saka-btn-icon"
@@ -193,13 +206,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           title="Navigation Menu (History, Knowledge Sync, Settings)"
           aria-label="Menu"
         >
-          <ChevronDown
-            size={17}
-            style={{
-              transform: isMenuOpen ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s ease',
-            }}
-          />
+          <MoreVertical size={16} />
         </button>
 
         <button
@@ -207,9 +214,9 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
           className="saka-btn-icon"
           onClick={onClose}
           title="Minimize Widget (Dock to Floating Badge)"
-          aria-label="Close"
+          aria-label="Minimize"
         >
-          <X size={17} />
+          <Minus size={16} />
         </button>
       </div>
     </header>

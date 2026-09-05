@@ -72,7 +72,9 @@ export async function initDb(): Promise<void> {
       );
       ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_compacted BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE conversations ADD COLUMN IF NOT EXISTS summary TEXT;
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
       CREATE INDEX IF NOT EXISTS idx_conversations_client ON conversations(client_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversations_deleted_at ON conversations(deleted_at);
     `);
 
     // Create messages table for message turns with citations

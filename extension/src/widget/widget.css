@@ -64,45 +64,137 @@
   --saka-shadow-window: 0 16px 40px -6px rgba(18, 38, 26, 0.16), 0 4px 12px rgba(0, 0, 0, 0.05);
   --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.12);
   --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --saka-surface-hover: rgba(0, 0, 0, 0.04);
+
+  --saka-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --saka-scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
 }
 
+/* Explicit Light Theme override */
+:host([data-theme="light"]),
+[data-theme="light"] {
+  color: #242623;
+  --saka-green-surface: #F6FAF7;
+  --saka-green-tint: #E8F5EC;
+  --saka-green-pill-border: #D2E8D8;
+  --saka-green-deep: #146732;
+  --saka-green-deeper: #0E4823;
+
+  --saka-red-surface: #FDF2F2;
+  --saka-red-border: #FCD4D4;
+  --saka-red-text: #991B1B;
+
+  --saka-amber-surface: #FFFBEB;
+  --saka-amber-border: #FDE68A;
+  --saka-amber-text: #92400E;
+
+  --saka-surface-window: #FFFFFF;
+  --saka-surface-header: #FFFFFF;
+  --saka-surface-body: #F7FAF8;
+  --saka-surface-card: #FFFFFF;
+  --saka-surface-input: #FFFFFF;
+  --saka-surface-sidebar: #F9FBF9;
+  --saka-surface-hover: rgba(0, 0, 0, 0.04);
+
+  --saka-ink-primary: #242623;
+  --saka-ink-title: #1C2420;
+  --saka-ink-secondary: #58655E;
+  --saka-ink-muted: #85938B;
+
+  --saka-border-subtle: #E2E8E4;
+  --saka-border-medium: #D5DFD8;
+  --saka-border-focus: #2CB34A;
+
+  --saka-scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --saka-scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+}
+
+/* Toned-down Dark Theme: Extremely subtle green undertone ("Almost Not Green") */
 @media (prefers-color-scheme: dark) {
   :host, :root {
-    color: #E6EDE8;
+    color: #E4ECE6;
 
-    --saka-green-surface: #122418;
-    --saka-green-tint: #163620;
-    --saka-green-pill-border: #1E4D2C;
+    --saka-green-surface: #101912;
+    --saka-green-tint: #14291B;
+    --saka-green-pill-border: #1B4228;
     --saka-green-deep: #4ADE80;
     --saka-green-deeper: #22C55E;
 
-    --saka-red-surface: #2A1213;
-    --saka-red-border: #4D1A1C;
+    --saka-red-surface: #221213;
+    --saka-red-border: #44181A;
     --saka-red-text: #F87171;
 
-    --saka-amber-surface: #281C0C;
-    --saka-amber-border: #4A3314;
+    --saka-amber-surface: #20170B;
+    --saka-amber-border: #3D290F;
     --saka-amber-text: #FBBF24;
 
-    --saka-surface-window: #121714;
-    --saka-surface-header: #161D18;
-    --saka-surface-body: #0D120F;
-    --saka-surface-card: #18221C;
-    --saka-surface-input: #161D18;
+    --saka-surface-window: #0D100E;
+    --saka-surface-header: #141815;
+    --saka-surface-body: #0D100E;
+    --saka-surface-card: #141815;
+    --saka-surface-input: #141815;
+    --saka-surface-sidebar: #101411;
+    --saka-surface-hover: rgba(255, 255, 255, 0.05);
 
-    --saka-ink-primary: #E6EDE8;
+    --saka-ink-primary: #E4ECE6;
     --saka-ink-title: #FFFFFF;
-    --saka-ink-secondary: #97A69D;
-    --saka-ink-muted: #6B7B71;
+    --saka-ink-secondary: #95A39B;
+    --saka-ink-muted: #6B7870;
 
-    --saka-border-subtle: #222E26;
-    --saka-border-medium: #2B3B31;
+    --saka-border-subtle: #222824;
+    --saka-border-medium: #2B332E;
     --saka-border-focus: #2CB34A;
+
+    --saka-scrollbar-thumb: rgba(255, 255, 255, 0.16);
+    --saka-scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
 
     --saka-shadow-window: 0 16px 40px -6px rgba(0, 0, 0, 0.65), 0 4px 14px rgba(0, 0, 0, 0.45);
     --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.6);
     --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
   }
+}
+
+:host([data-theme="dark"]),
+[data-theme="dark"] {
+  color: #E4ECE6;
+
+  --saka-green-surface: #101912;
+  --saka-green-tint: #14291B;
+  --saka-green-pill-border: #1B4228;
+  --saka-green-deep: #4ADE80;
+  --saka-green-deeper: #22C55E;
+
+  --saka-red-surface: #221213;
+  --saka-red-border: #44181A;
+  --saka-red-text: #F87171;
+
+  --saka-amber-surface: #20170B;
+  --saka-amber-border: #3D290F;
+  --saka-amber-text: #FBBF24;
+
+  --saka-surface-window: #0D100E;
+  --saka-surface-header: #141815;
+  --saka-surface-body: #0D100E;
+  --saka-surface-card: #141815;
+  --saka-surface-input: #141815;
+  --saka-surface-sidebar: #101411;
+  --saka-surface-hover: rgba(255, 255, 255, 0.05);
+
+  --saka-ink-primary: #E4ECE6;
+  --saka-ink-title: #FFFFFF;
+  --saka-ink-secondary: #95A39B;
+  --saka-ink-muted: #6B7870;
+
+  --saka-border-subtle: #222824;
+  --saka-border-medium: #2B332E;
+  --saka-border-focus: #2CB34A;
+
+  --saka-scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --saka-scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
+
+  --saka-shadow-window: 0 16px 40px -6px rgba(0, 0, 0, 0.65), 0 4px 14px rgba(0, 0, 0, 0.45);
+  --saka-shadow-dropdown: 0 10px 30px rgba(0, 0, 0, 0.6);
+  --saka-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 *, *::before, *::after {
@@ -156,16 +248,45 @@ button, input, select, textarea {
   color: #ffffff;
 }
 
-/* Circular SVG Progress Ring */
+/* Circular SVG Progress Ring (1px Sub-pixel Alignment Fix) */
 .saka-progress-ring {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 56px;
-  height: 56px;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
   transform: rotate(-90deg);
   pointer-events: none;
   border-radius: 50%;
+}
+
+.saka-badge-drag-hint {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--saka-bg-card);
+  color: var(--saka-ink-primary);
+  border: 1px solid var(--saka-border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: saka-fade-in 0.3s ease-out;
+}
+
+.saka-window-drag-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px;
+  background: var(--saka-bg-subtle, rgba(44, 179, 74, 0.08));
+  border-bottom: 1px solid var(--saka-border);
+  font-size: 11.5px;
+  color: var(--saka-ink-secondary);
+  animation: saka-fade-in 0.2s ease-out;
 }
 
 .saka-progress-ring-bg {
@@ -588,26 +709,66 @@ button, input, select, textarea {
   gap: 14px;
 }
 
-/* Custom Scrollbars */
+/* Auto-Hiding 4px Adaptive Scrollbars */
+.saka-messages-scroll,
+.saka-view-container,
+.saka-slash-menu,
+.saka-popover-quote,
+.saka-history-groups-container {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+
+.saka-messages-scroll:hover,
+.saka-view-container:hover,
+.saka-slash-menu:hover,
+.saka-popover-quote:hover,
+.saka-history-groups-container:hover {
+  scrollbar-color: var(--saka-scrollbar-thumb) transparent;
+}
+
 .saka-messages-scroll::-webkit-scrollbar,
-.saka-view-container::-webkit-scrollbar {
-  width: 5px;
+.saka-view-container::-webkit-scrollbar,
+.saka-slash-menu::-webkit-scrollbar,
+.saka-popover-quote::-webkit-scrollbar,
+.saka-history-groups-container::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
 }
 
 .saka-messages-scroll::-webkit-scrollbar-track,
-.saka-view-container::-webkit-scrollbar-track {
+.saka-view-container::-webkit-scrollbar-track,
+.saka-slash-menu::-webkit-scrollbar-track,
+.saka-popover-quote::-webkit-scrollbar-track,
+.saka-history-groups-container::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .saka-messages-scroll::-webkit-scrollbar-thumb,
-.saka-view-container::-webkit-scrollbar-thumb {
-  background: #D5DFD8;
-  border-radius: 4px;
+.saka-view-container::-webkit-scrollbar-thumb,
+.saka-slash-menu::-webkit-scrollbar-thumb,
+.saka-popover-quote::-webkit-scrollbar-thumb,
+.saka-history-groups-container::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.saka-messages-scroll:hover::-webkit-scrollbar-thumb,
+.saka-view-container:hover::-webkit-scrollbar-thumb,
+.saka-slash-menu:hover::-webkit-scrollbar-thumb,
+.saka-popover-quote:hover::-webkit-scrollbar-thumb,
+.saka-history-groups-container:hover::-webkit-scrollbar-thumb {
+  background: var(--saka-scrollbar-thumb);
 }
 
 .saka-messages-scroll::-webkit-scrollbar-thumb:hover,
-.saka-view-container::-webkit-scrollbar-thumb:hover {
-  background: #B5C4BB;
+.saka-view-container::-webkit-scrollbar-thumb:hover,
+.saka-slash-menu::-webkit-scrollbar-thumb:hover,
+.saka-popover-quote::-webkit-scrollbar-thumb:hover,
+.saka-history-groups-container::-webkit-scrollbar-thumb:hover {
+  background: var(--saka-scrollbar-thumb-hover) !important;
 }
 
 /* Floating Jump-to-Bottom Button */
@@ -672,6 +833,79 @@ button, input, select, textarea {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* 2-Turn Conversation Opening Skeleton (Breathing/Pulsing Bulbs) */
+.saka-chat-skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px 6px;
+  width: 100%;
+}
+
+.saka-skeleton-turn {
+  display: flex;
+  width: 100%;
+}
+
+.saka-skeleton-turn-user {
+  justify-content: flex-end;
+}
+
+.saka-skeleton-turn-asst {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.saka-skeleton-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--saka-border-medium, rgba(255, 255, 255, 0.08));
+  flex-shrink: 0;
+  animation: saka-bubble-pulse 1.4s ease-in-out infinite;
+}
+
+.saka-skeleton-bubble {
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: saka-bubble-pulse 1.4s ease-in-out infinite;
+}
+
+.saka-skeleton-bubble-user {
+  background: var(--saka-green-surface, rgba(44, 179, 74, 0.18));
+  border: 1px solid var(--saka-green-primary, rgba(44, 179, 74, 0.3));
+  border-radius: 14px 14px 2px 14px;
+  height: 38px;
+}
+
+.saka-skeleton-bubble-asst {
+  background: var(--saka-surface-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--saka-border-subtle, rgba(255, 255, 255, 0.07));
+  border-radius: 14px 14px 14px 2px;
+  flex: 1;
+  max-width: 86%;
+}
+
+.saka-skeleton-line {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--saka-border-medium, rgba(255, 255, 255, 0.12));
+}
+
+@keyframes saka-bubble-pulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.99);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1);
+  }
+}
+
 .saka-user-message-wrapper {
   align-self: flex-end;
   display: flex;
@@ -697,6 +931,21 @@ button, input, select, textarea {
   line-height: 1.45;
   word-break: break-word;
   white-space: pre-wrap;
+}
+
+.saka-command-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #FFFFFF;
+  font-family: monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin-right: 5px;
 }
 
 .saka-user-actions {
@@ -1637,6 +1886,41 @@ button, input, select, textarea {
 }
 
 /* History View */
+.saka-history-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.saka-history-controls-row .saka-history-search-bar {
+  flex: 1;
+}
+
+.saka-history-newchat-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--saka-green-primary);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.saka-history-newchat-btn:hover {
+  background: var(--saka-green-hover);
+  transform: scale(1.05);
+}
+
+.saka-history-newchat-btn:active {
+  transform: scale(0.95);
+}
+
 .saka-history-search-bar {
   display: flex;
   align-items: center;
@@ -1683,32 +1967,33 @@ button, input, select, textarea {
 .saka-history-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 2px;
 }
 
+/* Claude Minimal List Item */
 .saka-history-card {
-  background: var(--saka-surface-card);
-  border: 1px solid var(--saka-border-subtle);
-  border-radius: 10px;
-  padding: 10px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 7px 10px;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: background-color 0.12s ease;
   gap: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-shadow: none;
 }
 
 .saka-history-card:hover {
-  background: var(--saka-green-surface);
-  border-color: var(--saka-green-primary);
+  background: var(--saka-bg-hover, rgba(255, 255, 255, 0.05));
+  border-color: transparent;
 }
 
 .saka-history-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   overflow: hidden;
   flex: 1;
 }
@@ -1721,8 +2006,8 @@ button, input, select, textarea {
 
 .saka-history-title {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--saka-ink-title);
+  font-weight: 500;
+  color: var(--saka-ink-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1784,6 +2069,16 @@ button, input, select, textarea {
 .saka-history-delete-btn.confirming:hover {
   background: var(--saka-red-official) !important;
   color: #FFFFFF !important;
+}
+
+/* Official Lucide Trash Lid CSS Swing Animation */
+.saka-trash-lid {
+  transform-origin: 4px 6px;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.saka-trash-lid.open {
+  transform: rotate(-35deg) translateY(-2px);
 }
 
 /* History Loading Shimmer Skeleton */
@@ -1850,7 +2145,6 @@ button, input, select, textarea {
 }
 
 .saka-sync-overview-card {
-  border-top: 2px solid var(--saka-green-primary);
 }
 
 .saka-sync-status-title {
@@ -1908,7 +2202,42 @@ button, input, select, textarea {
   font-size: 14.5px;
   font-weight: 600;
   color: var(--saka-ink-title);
-  margin-top: 6px;
+}
+
+.saka-btn-check-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: var(--saka-bg-subtle, rgba(44, 179, 74, 0.08));
+  border: 1px solid var(--saka-border);
+  color: var(--saka-green-deep, #2CB34A);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  margin-top: 2px;
+}
+
+.saka-btn-check-status:hover {
+  border-color: var(--saka-green-primary);
+  background: var(--saka-green-tint, rgba(44, 179, 74, 0.14));
+  color: var(--saka-green-primary);
+}
+
+.saka-spin {
+  animation: saka-rotate 1s linear infinite;
+}
+
+@keyframes saka-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Alert Boxes in Views */

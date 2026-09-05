@@ -33,7 +33,7 @@ export class BackendLockedError extends Error {
   }
 }
 
-const DEFAULT_BACKEND_URL = 'http://localhost:3000';
+const DEFAULT_BACKEND_URL = 'https://cee-tools-wine.vercel.app';
 const MAX_BATCH_TEXT_CHARS = 1000000; // ~1 MB of clean Markdown text
 const MAX_BATCH_ARTICLES = 20;
 

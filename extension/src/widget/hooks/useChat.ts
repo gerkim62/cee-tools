@@ -72,6 +72,8 @@ export function useChat() {
   const [isCompacted, setIsCompacted] = useState(false);
   const [conversationSummary, setConversationSummary] = useState<string | null>(null);
   const [isCompacting, setIsCompacting] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [focusTrigger, setFocusTrigger] = useState(0);
 
   // All messages in the conversation tree
   const [allMessages, setAllMessages] = useState<ChatMessage[]>([]);
@@ -102,9 +104,11 @@ export function useChat() {
     setActiveLeafId(null);
     setStatusLog([]);
     setIsStreaming(false);
+    setFocusTrigger((prev) => prev + 1);
   }, []);
 
   const loadConversation = useCallback(async (id: string) => {
+    setIsLoadingConversation(true);
     try {
       const backendUrl = await getBackendUrl();
       const res = await bgFetch<{ conversation: ConversationSummary; messages: ChatMessage[] }>(
@@ -145,6 +149,8 @@ export function useChat() {
       setIsStreaming(false);
     } catch (err) {
       console.error('[useChat] Failed loading conversation via background:', err);
+    } finally {
+      setIsLoadingConversation(false);
     }
   }, []);
 
@@ -492,6 +498,8 @@ export function useChat() {
     messages,
     statusLog,
     isStreaming,
+    isLoadingConversation,
+    focusTrigger,
     sendMessage,
     startNewChat,
     loadConversation,

@@ -48,6 +48,36 @@ function formatRelativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+function renderUserMessageContent(content: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const regex = /\[\/([a-zA-Z0-9_-]+)=[^\]]+\]/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.substring(lastIndex, match.index));
+    }
+    const cmdName = match[1];
+    parts.push(
+      <span key={match.index} className="saka-command-pill">
+        /{cmdName}
+      </span>
+    );
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex === 0) {
+    return content;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.substring(lastIndex));
+  }
+
+  return parts;
+}
+
 export const MessageItem: React.FC<MessageItemProps> = ({
   message,
   statusLog,
@@ -232,7 +262,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     return (
       <div className="saka-user-message-wrapper">
         <div className="saka-message-bubble saka-message-user">
-          {message.content}
+          {renderUserMessageContent(message.content)}
         </div>
 
         <div className="saka-user-actions">

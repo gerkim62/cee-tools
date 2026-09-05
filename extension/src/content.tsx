@@ -77,8 +77,12 @@ function initSakaQuoteHighlighter() {
 
   function getSearchPhrases(rawText: string): string[] {
     if (!rawText) return [];
-    // Clean Word list markers, bullets (·, •, middle dot), numbering, and normalize whitespace
+    // Clean Word list markers, bullets (·, •, middle dot), numbering, normalize non-breaking spaces and quotes
     const clean = rawText
+      .replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g, ' ')
+      .replace(/[\u2018\u2019\u201a\u201b']/g, "'")
+      .replace(/[\u201c\u201d\u201e\u201f"]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
       .replace(/^[·•\u00b7\u2022*.\d)(\s-]+/, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -103,11 +107,12 @@ function initSakaQuoteHighlighter() {
     const searchPhrases = getSearchPhrases(targetText);
     if (searchPhrases.length === 0) return;
 
-    let attempts = 0;
-    const maxAttempts = 25;
+    let isMatched = false;
+    const startTime = Date.now();
+    const TIMEOUT_MS = 60000; // 60-second observation window for delayed SPAs
 
-    const tryHighlight = () => {
-      attempts++;
+    const tryHighlight = (): boolean => {
+      if (isMatched) return true;
       let found = false;
 
       // Try phrases in order of specificity
@@ -168,20 +173,51 @@ function initSakaQuoteHighlighter() {
           selection.removeAllRanges();
         }
 
+        isMatched = true;
+        observer.disconnect();
+
         // Clean up storage once matched
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
           chrome.storage.local.remove(['pendingSakaHighlight']).catch(() => {});
         }
         return true;
       }
-
-      if (attempts < maxAttempts) {
-        setTimeout(tryHighlight, 400);
-      }
       return false;
     };
 
-    setTimeout(tryHighlight, 400);
+    // First attempt immediately
+    if (tryHighlight()) return;
+
+    // MutationObserver to watch for dynamic DOM insertions from Angular / SakaHub SPA
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const observer = new MutationObserver(() => {
+      if (isMatched) return;
+      if (Date.now() - startTime > TIMEOUT_MS) {
+        observer.disconnect();
+        return;
+      }
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        tryHighlight();
+      }, 300);
+    });
+
+    try {
+      observer.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    } catch {}
+
+    // Fallback interval polling every 1.5s as safety net
+    const intervalId = setInterval(() => {
+      if (isMatched || Date.now() - startTime > TIMEOUT_MS) {
+        clearInterval(intervalId);
+        observer.disconnect();
+        return;
+      }
+      tryHighlight();
+    }, 1500);
   };
 
   // 1. Check storage for citation click from Ask Saka widget

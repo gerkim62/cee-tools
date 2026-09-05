@@ -38,15 +38,27 @@ const SLASH_COMMANDS: SlashCommand[] = [
 interface ChatInputProps {
   onSend: (message: string) => void;
   disabled: boolean;
+  focusTrigger?: number;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, focusTrigger }) => {
   const [text, setText] = useState('');
   const [activeCommand, setActiveCommand] = useState<SlashCommand | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isMenuDismissed, setIsMenuDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isSubmittingRef = useRef(false);
+
+  // Autofocus whenever focusTrigger increments (e.g. New Chat initiated)
+  useEffect(() => {
+    if (focusTrigger !== undefined && focusTrigger > 0 && textareaRef.current) {
+      setText('');
+      setActiveCommand(null);
+      setIsMenuDismissed(false);
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.focus();
+    }
+  }, [focusTrigger]);
 
   // Determine if slash command menu should be active
   const isSlashActive = text.startsWith('/') && !isMenuDismissed;
@@ -114,7 +126,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
     const trimmed = text.trim();
     let messageToSend = trimmed;
     if (activeCommand) {
-      messageToSend = trimmed ? `${activeCommand.command} ${trimmed}` : activeCommand.command;
+      const cleanCmd = activeCommand.command.startsWith('/')
+        ? activeCommand.command.slice(1)
+        : activeCommand.command;
+      const wirePrefix = `[/${cleanCmd}=${activeCommand.template.trim()}]`;
+      messageToSend = trimmed ? `${wirePrefix} ${trimmed}` : wirePrefix;
     }
 
     if (!messageToSend || disabled || isSubmittingRef.current) return;

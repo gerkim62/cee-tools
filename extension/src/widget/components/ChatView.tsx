@@ -9,6 +9,8 @@ interface ChatViewProps {
   messages: ChatMessage[];
   statusLog: string[];
   isStreaming: boolean;
+  isLoadingConversation?: boolean;
+  focusTrigger?: number;
   conversationTitle?: string | null;
   isCompacted?: boolean;
   isCompacting?: boolean;
@@ -27,6 +29,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   statusLog,
   isStreaming,
+  isLoadingConversation = false,
+  focusTrigger,
   conversationTitle,
   isCompacted = false,
   isCompacting = false,
@@ -132,7 +136,38 @@ export const ChatView: React.FC<ChatViewProps> = ({
       )}
 
       <div className="saka-messages-scroll" ref={scrollRef} onScroll={handleScroll}>
-        {messages.length === 0 ? (
+        {isLoadingConversation ? (
+          <div className="saka-chat-skeleton-container">
+            {/* Turn 1: User skeleton bubble (right-aligned) */}
+            <div className="saka-skeleton-turn saka-skeleton-turn-user">
+              <div className="saka-skeleton-bubble saka-skeleton-bubble-user" style={{ width: '65%' }} />
+            </div>
+
+            {/* Turn 1: Assistant skeleton bubble (left-aligned with bot bulb) */}
+            <div className="saka-skeleton-turn saka-skeleton-turn-asst">
+              <div className="saka-skeleton-avatar" />
+              <div className="saka-skeleton-bubble saka-skeleton-bubble-asst">
+                <div className="saka-skeleton-line" style={{ width: '85%' }} />
+                <div className="saka-skeleton-line" style={{ width: '92%' }} />
+                <div className="saka-skeleton-line" style={{ width: '58%' }} />
+              </div>
+            </div>
+
+            {/* Turn 2: User skeleton bubble */}
+            <div className="saka-skeleton-turn saka-skeleton-turn-user">
+              <div className="saka-skeleton-bubble saka-skeleton-bubble-user" style={{ width: '48%' }} />
+            </div>
+
+            {/* Turn 2: Assistant skeleton bubble */}
+            <div className="saka-skeleton-turn saka-skeleton-turn-asst">
+              <div className="saka-skeleton-avatar" />
+              <div className="saka-skeleton-bubble saka-skeleton-bubble-asst">
+                <div className="saka-skeleton-line" style={{ width: '88%' }} />
+                <div className="saka-skeleton-line" style={{ width: '70%' }} />
+              </div>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="saka-empty-state">
             <div className="saka-empty-icon">
               <Bot size={28} />
@@ -194,7 +229,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <span>This conversation has been compacted and locked as read-only.</span>
         </div>
       ) : (
-        <ChatInput onSend={onSendMessage} disabled={isStreaming} />
+        <ChatInput onSend={onSendMessage} disabled={isStreaming} focusTrigger={focusTrigger} />
       )}
     </div>
   );
