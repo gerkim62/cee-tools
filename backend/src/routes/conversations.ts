@@ -415,3 +415,20 @@ conversationsRouter.delete('/conversations/:id', async (req: Request, res: Respo
     res.status(500).json({ error: 'Failed to delete conversation', message });
   }
 });
+
+/**
+ * POST /conversations/:id/restore
+ * Restores a soft-deleted conversation.
+ */
+conversationsRouter.post('/conversations/:id/restore', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    await query(`UPDATE conversations SET deleted_at = NULL WHERE id = $1`, [id]);
+    res.json({ success: true, message: 'Conversation restored' });
+  } catch (error: unknown) {
+    console.error('[Conversations Router] Failed to restore conversation:', error);
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: 'Failed to restore conversation', message });
+  }
+});
+

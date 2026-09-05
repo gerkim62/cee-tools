@@ -13,6 +13,8 @@ import {
   Edit3,
   X,
   CornerDownLeft,
+  ExternalLink,
+  Share2,
 } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
 import { BranchInfo } from '../hooks/useChat.js';
@@ -91,10 +93,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   onSendMessage,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [userToggled, setUserToggled] = useState(false);
   const [isExecutionExpanded, setIsExecutionExpanded] = useState(Boolean(message.isStreaming));
   const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(message.content);
+
+  // Parse any slash command wire prefix like [/<cmd>=<template>]
+  const cmdMatch = useMemo(() => {
+    return message.content.match(/^(\[\/([a-zA-Z0-9_-]+)=[^\]]+\])\s*(.*)/s);
+  }, [message.content]);
+  const commandPrefix = cmdMatch ? cmdMatch[1] : '';
+  const commandName = cmdMatch ? cmdMatch[2] : '';
+  const cleanUserText = cmdMatch ? cmdMatch[3] : message.content;
+
+  const [editText, setEditText] = useState(cleanUserText);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const prevStreamingRef = useRef(message.isStreaming);
 
@@ -106,8 +118,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     }
   }, [isEditing]);
 
+  // Collapse execution steps as soon as AI starts generating actual response tokens
   useEffect(() => {
-    // When streaming finishes, auto-collapse execution steps unless user manually toggled it
+    if (message.content && message.content.trim().length > 0 && !userToggled) {
+      setIsExecutionExpanded(false);
+    }
+  }, [message.content, userToggled]);
+
+  // When streaming finishes, auto-collapse execution steps unless user manually toggled it
+  useEffect(() => {
     if (prevStreamingRef.current && !message.isStreaming) {
       if (!userToggled) {
         setIsExecutionExpanded(false);
@@ -128,10 +147,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
   const handleSaveEdit = () => {
     const trimmed = editText.trim();
-    if (!trimmed) return;
+    if (!trimmed && !commandPrefix) return;
     setIsEditing(false);
-    if (trimmed !== message.content) {
-      onEditUserMessage?.(message.id, trimmed);
+    const finalContent = commandPrefix
+      ? (trimmed ? `${commandPrefix} ${trimmed}` : commandPrefix)
+      : trimmed;
+    if (finalContent !== message.content) {
+      onEditUserMessage?.(message.id, finalContent);
     }
   };
 
@@ -221,11 +243,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     if (isEditing) {
       return (
         <div className="saka-user-edit-container">
+          {commandName && (
+            <div className="saka-user-edit-cmd-badge">
+              <span className="saka-command-pill">/{commandName}</span>
+              <span className="saka-edit-cmd-hint">Slash command</span>
+            </div>
+          )}
           <textarea
             ref={editTextareaRef}
             className="saka-user-edit-textarea"
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
+            placeholder={commandName ? `Type prompt for /${commandName}...` : "Edit message..."}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -249,7 +278,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
               type="button"
               className="saka-user-edit-btn saka-user-edit-save"
               onClick={handleSaveEdit}
-              disabled={!editText.trim()}
+              disabled={!editText.trim() && !commandPrefix}
             >
               <CornerDownLeft size={12} />
               <span>Save & Submit</span>
@@ -300,7 +329,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
             type="button"
             className="saka-action-btn saka-user-edit-trigger"
             onClick={() => {
-              setEditText(message.content);
+              setEditText(cleanUserText);
               setIsEditing(true);
             }}
             title="Edit question & branch"
@@ -323,6 +352,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       message.content &&
         (message.content.includes('⚠️') || message.content.includes('❌') || message.content.includes('Interrupted'))
     );
+
+  const primaryCitation = message.citations && message.citations.length > 0 ? message.citations[0] : null;
+  const sakaHubUrl = primaryCitation?.urlWithTextFragment || (primaryCitation?.articleId ? `https://sakahub.safaricom.co.ke/app/article/${primaryCitation.articleId}` : null);
+
+  const handleCopyLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!sakaHubUrl) return;
+    navigator.clipboard.writeText(sakaHubUrl).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
+  };
 
   return (
     <div className="saka-assistant-message-wrapper">
@@ -473,6 +514,29 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                 <ChevronRight size={12} />
               </button>
             </div>
+          )}
+
+          {sakaHubUrl && (
+            <>
+              <button
+                type="button"
+                className="saka-action-btn saka-share-saka-btn"
+                onClick={() => window.open(sakaHubUrl, '_blank', 'noopener,noreferrer')}
+                title={`Open on SakaHub (${primaryCitation?.articleTitle || 'Source Article'})`}
+              >
+                <ExternalLink size={11} />
+                <span>{primaryCitation?.articleNumber ? `#${primaryCitation.articleNumber}` : 'View on Saka'}</span>
+              </button>
+              <button
+                type="button"
+                className="saka-action-btn saka-copy-link-btn"
+                onClick={handleCopyLink}
+                title="Copy SakaHub article share link to clipboard"
+              >
+                {copiedLink ? <Check size={11} color="#10b981" /> : <Share2 size={11} />}
+                <span>{copiedLink ? 'Link Copied' : 'Share'}</span>
+              </button>
+            </>
           )}
 
           <button

@@ -553,8 +553,8 @@ input::-webkit-scrollbar-thumb:hover {
 .saka-window {
   pointer-events: auto;
   position: fixed;
-  width: 420px;
-  height: 620px;
+  width: min(420px, calc(100vw - 24px));
+  height: min(620px, calc(100vh - 24px));
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
   background: var(--saka-surface-window);
@@ -1316,9 +1316,21 @@ input::-webkit-scrollbar-thumb:hover {
 .saka-user-edit-container {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   min-width: 260px;
+}
+
+.saka-user-edit-cmd-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.saka-edit-cmd-hint {
+  font-size: 11px;
+  color: var(--saka-ink-muted);
 }
 
 .saka-user-edit-textarea {
@@ -1334,6 +1346,14 @@ input::-webkit-scrollbar-thumb:hover {
   min-height: 60px;
   outline: none;
   box-shadow: 0 0 0 3px rgba(44, 179, 74, 0.15);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.saka-user-edit-textarea::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .saka-user-edit-actions {
@@ -2160,25 +2180,14 @@ input::-webkit-scrollbar-thumb:hover {
   margin: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--saka-scrollbar-thumb) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .saka-textarea::-webkit-scrollbar {
-  width: 4px;
-}
-
-.saka-textarea::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-
-.saka-textarea::-webkit-scrollbar-thumb {
-  background: var(--saka-scrollbar-thumb);
-  border-radius: 999px;
-}
-
-.saka-textarea::-webkit-scrollbar-thumb:hover {
-  background: var(--saka-scrollbar-thumb-hover) !important;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .saka-textarea::placeholder {

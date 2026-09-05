@@ -38,12 +38,18 @@ interface HistoryViewProps {
   onSelectConversation: (id: string) => void;
   onStartNewChat: () => void;
   hideHeader?: boolean;
+  activeConversationId?: string | null;
+  refreshTrigger?: number;
+  onDeleteConversation?: (id: string) => void;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({
   onSelectConversation,
   onStartNewChat,
   hideHeader = false,
+  activeConversationId,
+  refreshTrigger,
+  onDeleteConversation,
 }) => {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +67,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      fetchConversations(searchQuery);
+    }
+  }, [refreshTrigger]);
 
   const fetchConversations = async (query = '') => {
     try {
@@ -127,6 +139,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         const backendUrl = await getBackendUrl();
         await bgFetch(`${backendUrl}/conversations/${id}`, { method: 'DELETE' });
         setConversations((prev) => prev.filter((c) => c.id !== id));
+        onDeleteConversation?.(id);
       } catch (err) {
         console.warn('[HistoryView] Failed to delete conversation:', err);
       }
@@ -343,7 +356,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 {group.items.map((conv) => (
                   <div
                     key={conv.id}
-                    className="saka-history-card"
+                    className={`saka-history-card ${conv.id === activeConversationId ? 'active' : ''}`}
                     onClick={() => onSelectConversation(conv.id)}
                   >
                     <div className="saka-history-info">

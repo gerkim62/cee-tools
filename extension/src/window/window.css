@@ -493,6 +493,18 @@ body, html {
 /* ----------------------------------------------------
    Right Pane: Citation Inspector
    ---------------------------------------------------- */
+.saka-inspector-container {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  transition: width 0.2s ease;
+}
+
+.saka-inspector-container.collapsed {
+  width: 0;
+  overflow: hidden;
+}
+
 .saka-workstation-inspector {
   width: 380px;
   height: 100%;
@@ -502,13 +514,17 @@ body, html {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width 0.2s ease, margin-right 0.2s ease;
+  transition: width 0.2s ease, margin-right 0.2s ease, opacity 0.2s ease;
   overflow: hidden;
   box-shadow: -4px 0 16px rgba(0, 0, 0, 0.03);
 }
 
-.saka-workstation-inspector.collapsed {
+.saka-workstation-inspector.collapsed,
+.saka-inspector-container.collapsed .saka-workstation-inspector {
   margin-right: -380px;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .saka-inspector-header {
@@ -748,3 +764,55 @@ body, html {
   font-size: 12px;
   line-height: 1.45;
 }
+
+/* ----------------------------------------------------
+   Workstation History Card Active Highlight (Item 21)
+   ---------------------------------------------------- */
+.saka-sidebar-content .saka-history-card.active {
+  background: var(--saka-green-tint) !important;
+  border-color: var(--saka-green-pill-border) !important;
+  position: relative;
+  box-shadow: 0 1px 4px rgba(44, 179, 74, 0.12);
+}
+
+.saka-sidebar-content .saka-history-card.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 3.5px;
+  border-radius: 0 2px 2px 0;
+  background: var(--saka-green-primary);
+}
+
+.saka-sidebar-content .saka-history-card.active .saka-history-title {
+  color: var(--saka-green-deep) !important;
+  font-weight: 600 !important;
+}
+
+/* ----------------------------------------------------
+   Responsive Workstation Breakpoints (Item 2)
+   ---------------------------------------------------- */
+@media (max-width: 960px) {
+  .saka-workstation-inspector {
+    position: fixed;
+    right: 0;
+    top: 53px;
+    bottom: 0;
+    z-index: 100;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.15);
+  }
+}
+
+@media (max-width: 720px) {
+  .saka-workstation-sidebar {
+    position: fixed;
+    left: 0;
+    top: 53px;
+    bottom: 0;
+    z-index: 100;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.15);
+  }
+}
+

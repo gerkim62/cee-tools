@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Bot, Minimize2, RefreshCw, Lock, ChevronDown } from 'lucide-react';
+import { Bot, Minimize2, RefreshCw, Lock, ChevronDown, RotateCcw, AlertCircle, Plus } from 'lucide-react';
 import { ChatMessage, Citation } from '../../types.js';
 import { BranchInfo } from '../hooks/useChat.js';
 import { MessageItem } from './MessageItem.js';
@@ -23,6 +23,9 @@ interface ChatViewProps {
   onHoverCitation?: (citation: Citation, targetRect: DOMRect) => void;
   onLeaveCitation?: () => void;
   onClickCitation?: (citation: Citation, allCitations: Citation[]) => void;
+  isDeleted?: boolean;
+  onRestoreConversation?: () => void;
+  onStartNewChat?: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -43,6 +46,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onHoverCitation,
   onLeaveCitation,
   onClickCitation,
+  isDeleted = false,
+  onRestoreConversation,
+  onStartNewChat,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isUserScrolledUpRef = useRef(false);
@@ -135,33 +141,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       )}
 
+      {/* Messages Scroll Container */}
       <div className="saka-messages-scroll" ref={scrollRef} onScroll={handleScroll}>
         {isLoadingConversation ? (
-          <div className="saka-chat-skeleton-container">
-            {/* Turn 1: User skeleton bubble (right-aligned) */}
-            <div className="saka-skeleton-turn saka-skeleton-turn-user">
-              <div className="saka-skeleton-bubble saka-skeleton-bubble-user" style={{ width: '65%' }} />
-            </div>
-
-            {/* Turn 1: Assistant skeleton bubble (left-aligned with bot bulb) */}
-            <div className="saka-skeleton-turn saka-skeleton-turn-asst">
-              <div className="saka-skeleton-avatar" />
-              <div className="saka-skeleton-bubble saka-skeleton-bubble-asst">
-                <div className="saka-skeleton-line" style={{ width: '85%' }} />
+          <div className="saka-skeleton-container" aria-label="Loading conversation history">
+            <div className="saka-skeleton-bubble assistant">
+              <div className="saka-skeleton-header">
+                <div className="saka-skeleton-avatar" />
+                <div className="saka-skeleton-line" style={{ width: '80px', height: '12px' }} />
+              </div>
+              <div className="saka-skeleton-content">
                 <div className="saka-skeleton-line" style={{ width: '92%' }} />
-                <div className="saka-skeleton-line" style={{ width: '58%' }} />
+                <div className="saka-skeleton-line" style={{ width: '78%' }} />
+                <div className="saka-skeleton-line" style={{ width: '60%' }} />
               </div>
             </div>
-
-            {/* Turn 2: User skeleton bubble */}
-            <div className="saka-skeleton-turn saka-skeleton-turn-user">
-              <div className="saka-skeleton-bubble saka-skeleton-bubble-user" style={{ width: '48%' }} />
+            <div className="saka-skeleton-bubble user">
+              <div className="saka-skeleton-line" style={{ width: '120px', height: '14px' }} />
             </div>
-
-            {/* Turn 2: Assistant skeleton bubble */}
-            <div className="saka-skeleton-turn saka-skeleton-turn-asst">
-              <div className="saka-skeleton-avatar" />
-              <div className="saka-skeleton-bubble saka-skeleton-bubble-asst">
+            <div className="saka-skeleton-bubble assistant">
+              <div className="saka-skeleton-header">
+                <div className="saka-skeleton-avatar" />
+                <div className="saka-skeleton-line" style={{ width: '80px', height: '12px' }} />
+              </div>
+              <div className="saka-skeleton-content">
                 <div className="saka-skeleton-line" style={{ width: '88%' }} />
                 <div className="saka-skeleton-line" style={{ width: '70%' }} />
               </div>
@@ -174,7 +177,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
             <h3 className="saka-empty-title">Ask Saka</h3>
             <p className="saka-empty-desc">
-              Get immediate, verified procedural checklists from Safaricom SakaHub knowledge base.
+              Get immediate, verified answers, guidelines, and troubleshooting steps from Safaricom SakaHub.
             </p>
 
             <div className="saka-chips-grid">
@@ -222,8 +225,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </button>
       )}
 
-      {/* Lock banner if conversation is compacted */}
-      {isCompacted ? (
+      {/* Deleted or Compacted banner vs ChatInput */}
+      {isDeleted ? (
+        <div className="saka-deleted-lock-banner">
+          <div className="saka-deleted-lock-text">
+            <AlertCircle size={15} color="var(--saka-amber-official)" />
+            <span>This conversation has been deleted.</span>
+          </div>
+          <div className="saka-deleted-lock-actions">
+            {onRestoreConversation && (
+              <button
+                type="button"
+                className="saka-btn-secondary saka-btn-restore"
+                onClick={onRestoreConversation}
+                title="Restore this conversation"
+              >
+                <RotateCcw size={12} />
+                <span>Restore</span>
+              </button>
+            )}
+            {onStartNewChat && (
+              <button
+                type="button"
+                className="saka-btn-primary saka-btn-newchat-deleted"
+                onClick={onStartNewChat}
+                title="Start a fresh conversation"
+              >
+                <Plus size={12} />
+                <span>New Chat</span>
+              </button>
+            )}
+          </div>
+        </div>
+      ) : isCompacted ? (
         <div className="saka-compacted-lock-banner">
           <Lock size={13} />
           <span>This conversation has been compacted and locked as read-only.</span>

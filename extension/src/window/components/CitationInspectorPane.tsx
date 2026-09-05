@@ -7,6 +7,7 @@ interface CitationInspectorPaneProps {
   previewCitation: Citation | null;
   allAnswerCitations: Citation[];
   isPinned: boolean;
+  isCollapsed?: boolean;
   onSelectCitation: (citation: Citation) => void;
   onClose: () => void;
 }
@@ -16,6 +17,7 @@ export const CitationInspectorPane: React.FC<CitationInspectorPaneProps> = ({
   previewCitation,
   allAnswerCitations,
   isPinned,
+  isCollapsed = false,
   onSelectCitation,
   onClose,
 }) => {
@@ -37,7 +39,7 @@ export const CitationInspectorPane: React.FC<CitationInspectorPaneProps> = ({
 
   if (!displayedCitation) {
     return (
-      <aside className="saka-workstation-inspector saka-inspector-empty">
+      <aside className={`saka-workstation-inspector saka-inspector-empty ${isCollapsed ? 'collapsed' : ''}`}>
         <div className="saka-inspector-header">
           <div className="saka-inspector-title">
             <BookOpen size={15} color="var(--saka-green-primary)" />
@@ -67,7 +69,7 @@ export const CitationInspectorPane: React.FC<CitationInspectorPaneProps> = ({
   }
 
   return (
-    <aside className="saka-workstation-inspector">
+    <aside className={`saka-workstation-inspector ${isCollapsed ? 'collapsed' : ''}`}>
       {/* Inspector Header */}
       <div className="saka-inspector-header">
         <div className="saka-inspector-title">
@@ -153,7 +155,7 @@ export const CitationInspectorPane: React.FC<CitationInspectorPaneProps> = ({
         {/* Highlighted Quote Excerpt */}
         {displayedCitation.quote && (
           <div className="saka-inspector-quote-box">
-            <div className="saka-inspector-quote-label">Verified Procedure / Policy Excerpt:</div>
+            <div className="saka-inspector-quote-label">From Saka</div>
             <div className="saka-inspector-quote-content">
               &ldquo;{displayedCitation.quote}&rdquo;
             </div>

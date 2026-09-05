@@ -74,6 +74,8 @@ export function useChat() {
   const [isCompacting, setIsCompacting] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [focusTrigger, setFocusTrigger] = useState(0);
+  const [isDeleted, setIsDeleted] = useState(false);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   // All messages in the conversation tree
   const [allMessages, setAllMessages] = useState<ChatMessage[]>([]);
@@ -100,14 +102,46 @@ export function useChat() {
     setConversationTitle(null);
     setIsCompacted(false);
     setConversationSummary(null);
+    setIsDeleted(false);
     setAllMessages([]);
     setActiveLeafId(null);
     setStatusLog([]);
     setIsStreaming(false);
     setFocusTrigger((prev) => prev + 1);
+
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.remove(['saka_active_conversation_id']).catch(() => {});
+    }
   }, []);
 
+  const markConversationDeleted = useCallback((targetId?: string) => {
+    if (!targetId || targetId === conversationId) {
+      setIsDeleted(true);
+    }
+    setHistoryRefreshTrigger((prev) => prev + 1);
+  }, [conversationId]);
+
+  const restoreConversation = useCallback(async () => {
+    if (!conversationId) return;
+    try {
+      const backendUrl = await getBackendUrl();
+      await bgFetch(`${backendUrl}/conversations/${conversationId}/restore`, { method: 'POST' });
+      setIsDeleted(false);
+      setHistoryRefreshTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.warn('[useChat] Failed to restore conversation:', err);
+    }
+  }, [conversationId]);
+
   const loadConversation = useCallback(async (id: string) => {
+    if (portRef.current) {
+      try {
+        portRef.current.disconnect();
+      } catch {}
+      portRef.current = null;
+      setIsStreaming(false);
+    }
+    setIsDeleted(false);
     setIsLoadingConversation(true);
     try {
       const backendUrl = await getBackendUrl();
@@ -121,6 +155,14 @@ export function useChat() {
       setConversationTitle(data.conversation.title || null);
       setIsCompacted(Boolean(data.conversation.isCompacted));
       setConversationSummary(data.conversation.summary || null);
+
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['saka_remember_conversation_across_tabs'], (stored) => {
+          if (stored.saka_remember_conversation_across_tabs) {
+            chrome.storage.local.set({ saka_active_conversation_id: data.conversation.id }).catch(() => {});
+          }
+        });
+      }
 
       const rawMsgs = Array.isArray(data.messages) ? data.messages : [];
       const formattedMessages: ChatMessage[] = rawMsgs.map((m: ChatMessage, idx: number) => ({
@@ -344,10 +386,18 @@ export function useChat() {
             hasReceivedDone = true;
             if (msg.conversationId) {
               setConversationId(msg.conversationId);
+              if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.get(['saka_remember_conversation_across_tabs'], (stored) => {
+                  if (stored.saka_remember_conversation_across_tabs) {
+                    chrome.storage.local.set({ saka_active_conversation_id: msg.conversationId }).catch(() => {});
+                  }
+                });
+              }
             }
             if (msg.conversationTitle) {
               setConversationTitle(msg.conversationTitle);
             }
+            setHistoryRefreshTrigger((prev) => prev + 1);
 
             const realAssistantId = msg.messageId || assistantMsgId;
             const realUserId = msg.userMessageId || userMsgId;
@@ -427,6 +477,16 @@ export function useChat() {
           portRef.current = null;
         });
 
+        const storedChannel = await new Promise<string>((resolve) => {
+          try {
+            chrome.storage.local.get(['saka_agent_channel'], (res) => {
+              resolve(res?.saka_agent_channel || 'care_center');
+            });
+          } catch {
+            resolve('care_center');
+          }
+        });
+
         port.postMessage({
           type: 'START_ASK',
           question: trimmed,
@@ -434,6 +494,7 @@ export function useChat() {
           clientId,
           parentId: !isRetry ? effectiveParentId : undefined,
           retryUserMessageId: isRetry ? userMsgId : undefined,
+          channel: storedChannel,
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -500,6 +561,10 @@ export function useChat() {
     isStreaming,
     isLoadingConversation,
     focusTrigger,
+    isDeleted,
+    historyRefreshTrigger,
+    markConversationDeleted,
+    restoreConversation,
     sendMessage,
     startNewChat,
     loadConversation,

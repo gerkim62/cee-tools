@@ -115,6 +115,7 @@ export interface AskRequestBody {
   stream?: boolean;
   parentId?: string | null;
   retryUserMessageId?: string | null;
+  channel?: 'care_center' | 'retail';
 }
 
 const activeAskRequests = new Set<string>();
@@ -620,9 +621,16 @@ ${s.content}
     const llmStart = Date.now();
     console.log(`[Ask:5/6] Streaming answer via ${config.OPENROUTER_CHAT_MODEL}...`);
 
+    const userChannel = req.body.channel === 'retail' ? 'retail' : 'care_center';
+    const channelContext = userChannel === 'retail'
+      ? '\n\n<operating_channel>\nOperational Mode: RETAIL SHOP / CARE DESK.\nThe customer is physically present at the counter. Consult the retrieved SakaHub context sources for in-store/retail procedures, eligibility, and verification requirements.\n</operating_channel>'
+      : '\n\n<operating_channel>\nOperational Mode: CALL CENTER (CEE).\nThe customer is contacting remotely via call or chat. Consult the retrieved SakaHub context sources for contact center/remote procedures, eligibility, vetting rules, and referral steps.\n</operating_channel>';
+
+    const effectiveSystemPrompt = ASK_SAKA_SYSTEM_PROMPT + channelContext;
+
     let answerText = '';
     for await (const token of chatCompletionStream([
-      { role: 'system', content: ASK_SAKA_SYSTEM_PROMPT },
+      { role: 'system', content: effectiveSystemPrompt },
       { role: 'user', content: userMessage },
     ])) {
       answerText += token;
@@ -715,9 +723,8 @@ ${s.content}
     let { cleanText: cleanFinalAnswer, suggestions } = extractSuggestions(textAfterClarification);
     answerText = cleanFinalAnswer;
 
-    if (!suggestions || suggestions.length === 0) {
-      suggestions = generateFallbackSuggestions(trimmedQuestion, contextSources);
-    }
+    // Follow-ups at AI discretion (0-3). Do not force artificial filler fallbacks.
+    const finalSuggestions = suggestions && suggestions.length > 0 ? suggestions.slice(0, 3) : undefined;
 
     // Fallback if model did not include [X] brackets
     if (citations.length === 0 && contextSources.length > 0) {
@@ -797,7 +804,7 @@ ${s.content}
               citations,
               executionSteps,
               clarifyingQuestion: clarification,
-              suggestedFollowUps: suggestions,
+              suggestedFollowUps: finalSuggestions,
             })
           ]
         );
@@ -825,7 +832,7 @@ ${s.content}
       conversationTitle: generatedTitle,
       executionSteps,
       clarifyingQuestion: clarification,
-      suggestedFollowUps: suggestions,
+      suggestedFollowUps: finalSuggestions,
       messageId: assistantMessageId,
       userMessageId,
       parentId: userMessageId,

@@ -64,22 +64,55 @@ export const App: React.FC = () => {
   // Load default view setting & drag hint status on mount
   useEffect(() => {
     try {
-      chrome.storage.local.get(['defaultView', 'saka_has_dragged_badge', 'saka_has_dragged_window'], (res) => {
-        if (res) {
-          const val = res.defaultView;
-          if (val === 'chat' || val === 'history' || val === 'sync' || val === 'settings') {
-            setCurrentView(val);
-          }
-          if (typeof res.saka_has_dragged_badge === 'boolean') {
-            setHasDraggedBadge(res.saka_has_dragged_badge);
-          }
-          if (typeof res.saka_has_dragged_window === 'boolean') {
-            setHasDraggedWindow(res.saka_has_dragged_window);
+      chrome.storage.local.get(
+        [
+          'defaultView',
+          'saka_has_dragged_badge',
+          'saka_has_dragged_window',
+          'saka_remember_conversation_across_tabs',
+          'saka_active_conversation_id',
+        ],
+        (res) => {
+          if (res) {
+            const val = res.defaultView;
+            if (val === 'chat' || val === 'history' || val === 'sync' || val === 'settings') {
+              setCurrentView(val);
+            }
+            if (typeof res.saka_has_dragged_badge === 'boolean') {
+              setHasDraggedBadge(res.saka_has_dragged_badge);
+            }
+            if (typeof res.saka_has_dragged_window === 'boolean') {
+              setHasDraggedWindow(res.saka_has_dragged_window);
+            }
+            // Restore active conversation across tabs if setting enabled
+            if (res.saka_remember_conversation_across_tabs && res.saka_active_conversation_id) {
+              chat.loadConversation(res.saka_active_conversation_id);
+            }
           }
         }
-      });
+      );
     } catch {}
   }, []);
+
+  // Dismiss chevron menu on click outside
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const path = e.composedPath ? e.composedPath() : [];
+      const inMenu = path.some(
+        (el) =>
+          el instanceof HTMLElement &&
+          (el.classList?.contains('saka-chevron-menu') || el.classList?.contains('saka-header-menu-btn'))
+      );
+      if (!inMenu) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isMenuOpen]);
 
   // Check staleness non-blockingly ONLY when user launches/opens the widget
   useEffect(() => {
@@ -287,7 +320,7 @@ export const App: React.FC = () => {
               <div className="saka-speech-bubble-body">
                 <span className="saka-speech-bubble-text">
                   <GripHorizontal size={13} className="saka-bubble-grip-icon" />
-                  <span>Drag header to reposition</span>
+                  <span>Drag to reposition</span>
                 </span>
                 <button
                   type="button"
@@ -336,6 +369,9 @@ export const App: React.FC = () => {
               statusLog={chat.statusLog}
               isStreaming={chat.isStreaming}
               isLoadingConversation={chat.isLoadingConversation}
+              isDeleted={chat.isDeleted}
+              onRestoreConversation={chat.restoreConversation}
+              onStartNewChat={handleStartNewChat}
               focusTrigger={chat.focusTrigger}
               conversationTitle={chat.conversationTitle}
               isCompacted={chat.isCompacted}
@@ -354,9 +390,12 @@ export const App: React.FC = () => {
           {currentView === 'history' && (
             <HistoryView
               onSelectConversation={handleSelectHistoryConversation}
-              onStartNewChat={() => {
-                chat.startNewChat();
-                setCurrentView('chat');
+              onStartNewChat={handleStartNewChat}
+              hideHeader={true}
+              activeConversationId={chat.conversationId}
+              refreshTrigger={chat.historyRefreshTrigger}
+              onDeleteConversation={(id) => {
+                chat.markConversationDeleted(id);
               }}
             />
           )}

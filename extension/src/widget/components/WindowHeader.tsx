@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, MoreVertical, ChevronDown, Maximize2, ExternalLink, Check } from 'lucide-react';
-import { PopoutMode } from '../../types.js';
+import { Plus, X, MoreVertical, ChevronDown, Maximize2, ExternalLink, Check, Headphones, Store } from 'lucide-react';
+import { PopoutMode, AgentChannel } from '../../types.js';
 
 interface WindowHeaderProps {
   onMouseDown: (e: React.MouseEvent) => void;
@@ -42,17 +42,30 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
   const syncLabel = formatSyncTime(lastSyncedAt);
   const [preferredMode, setPreferredMode] = useState<PopoutMode>('window');
   const [isPopoutMenuOpen, setIsPopoutMenuOpen] = useState(false);
+  const [channel, setChannel] = useState<AgentChannel>('care_center');
   const popoutContainerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.get(['preferred_popout_mode'], (res) => {
+      chrome.storage.local.get(['preferred_popout_mode', 'saka_agent_channel'], (res) => {
         if (res.preferred_popout_mode === 'tab' || res.preferred_popout_mode === 'window') {
           setPreferredMode(res.preferred_popout_mode);
+        }
+        if (res.saka_agent_channel === 'retail' || res.saka_agent_channel === 'care_center') {
+          setChannel(res.saka_agent_channel);
         }
       });
     }
   }, []);
+
+  const handleToggleChannel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next: AgentChannel = channel === 'care_center' ? 'retail' : 'care_center';
+    setChannel(next);
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ saka_agent_channel: next }).catch(() => {});
+    }
+  };
 
   useEffect(() => {
     if (!isPopoutMenuOpen) return;
@@ -93,16 +106,29 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
 
   return (
     <header className="saka-header" onMouseDown={onMouseDown}>
-      <div className="saka-header-left" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="saka-header-left">
         <button
           type="button"
           className="saka-header-newchat-pill"
           onClick={onNewChat}
+          onMouseDown={(e) => e.stopPropagation()}
           title="Start New Chat (Clear current conversation)"
           aria-label="New Chat"
         >
           <Plus size={13} strokeWidth={2.4} />
           <span>New Chat</span>
+        </button>
+
+        <button
+          type="button"
+          className="saka-channel-pill"
+          onClick={handleToggleChannel}
+          onMouseDown={(e) => e.stopPropagation()}
+          title={`Active Mode: ${channel === 'care_center' ? 'CEE / Care Center (Phone support, remote vetting)' : 'Retail Shop (In-store physical verification)'}. Click to switch.`}
+          aria-label="Toggle agent channel"
+        >
+          {channel === 'care_center' ? <Headphones size={11} /> : <Store size={11} />}
+          <span>{channel === 'care_center' ? 'CEE' : 'Retail'}</span>
         </button>
 
         {syncLabel && (
@@ -121,12 +147,8 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
                 type="button"
                 className="saka-btn-icon saka-popout-main-btn"
                 onClick={() => onOpenPopout(preferredMode)}
-                title={
-                  preferredMode === 'tab'
-                    ? 'Open in Full Browser Tab'
-                    : 'Open in Dedicated Desktop Window'
-                }
-                aria-label="Pop out chat"
+                title="Open chat in..."
+                aria-label="Open chat in"
               >
                 {preferredMode === 'tab' ? <ExternalLink size={13} /> : <Maximize2 size={13} />}
               </button>
@@ -135,8 +157,8 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
                 type="button"
                 className={`saka-btn-icon saka-popout-chevron-btn ${isPopoutMenuOpen ? 'active' : ''}`}
                 onClick={() => setIsPopoutMenuOpen(!isPopoutMenuOpen)}
-                title="Pop-out options (Window or Tab)"
-                aria-label="Pop-out options"
+                title="Open chat in..."
+                aria-label="Open chat in options"
               >
                 <ChevronDown size={11} />
               </button>
@@ -144,6 +166,7 @@ export const WindowHeader: React.FC<WindowHeaderProps> = ({
 
             {isPopoutMenuOpen && (
               <div className="saka-popout-menu-dropdown" onMouseDown={(e) => e.stopPropagation()}>
+                <div className="saka-popout-menu-header">Open chat in:</div>
                 <button
                   type="button"
                   className={`saka-popout-menu-item ${preferredMode === 'window' ? 'selected' : ''}`}

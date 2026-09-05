@@ -28,8 +28,8 @@ export const DedicatedWindowApp: React.FC = () => {
   const theme = useTheme();
 
   const [currentView, setCurrentView] = useState<WidgetView>('chat');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isInspectorOpen, setIsInspectorOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 720 : true));
+  const [isInspectorOpen, setIsInspectorOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 960 : false));
 
   // Inspector state
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
@@ -56,9 +56,15 @@ export const DedicatedWindowApp: React.FC = () => {
   const saveBounds = useCallback(() => {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
     try {
+      // If maximized or filling screen, do not overwrite stored normal bounds
+      const isMaximized =
+        window.outerWidth >= (window.screen.availWidth - 40) &&
+        window.outerHeight >= (window.screen.availHeight - 40);
+      if (isMaximized) return;
+
       const bounds = {
-        width: window.outerWidth,
-        height: window.outerHeight,
+        width: Math.min(Math.max(900, window.outerWidth), 1350),
+        height: Math.min(Math.max(650, window.outerHeight), 850),
         left: window.screenX,
         top: window.screenY,
       };
@@ -70,6 +76,13 @@ export const DedicatedWindowApp: React.FC = () => {
     let resizeTimer: ReturnType<typeof setTimeout>;
     const handleResize = () => {
       clearTimeout(resizeTimer);
+      // Auto-collapse when resized narrow
+      if (window.innerWidth < 960 && isInspectorOpen) {
+        setIsInspectorOpen(false);
+      }
+      if (window.innerWidth < 720 && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
       resizeTimer = setTimeout(saveBounds, 400);
     };
 
@@ -80,7 +93,7 @@ export const DedicatedWindowApp: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('beforeunload', saveBounds);
     };
-  }, [saveBounds]);
+  }, [saveBounds, isInspectorOpen, isSidebarOpen]);
 
   // Sync active conversation ID back to background so closing window returns to the exact chat
   useEffect(() => {
@@ -209,6 +222,13 @@ export const DedicatedWindowApp: React.FC = () => {
               onSelectConversation={handleSelectHistoryConversation}
               onStartNewChat={handleNewChat}
               hideHeader={true}
+              activeConversationId={chat.conversationId}
+              refreshTrigger={chat.historyRefreshTrigger}
+              onDeleteConversation={(id) => {
+                if (id === chat.conversationId) {
+                  chat.markConversationDeleted();
+                }
+              }}
             />
           </div>
 
@@ -267,6 +287,9 @@ export const DedicatedWindowApp: React.FC = () => {
                 onHoverCitation={handleHoverCitation}
                 onLeaveCitation={handleLeaveCitation}
                 onClickCitation={handleClickCitation}
+                isDeleted={chat.isDeleted}
+                onRestoreConversation={chat.restoreConversation}
+                onStartNewChat={handleNewChat}
               />
             )}
 
@@ -296,6 +319,7 @@ export const DedicatedWindowApp: React.FC = () => {
             previewCitation={previewCitation}
             allAnswerCitations={allAnswerCitations}
             isPinned={isPinned}
+            isCollapsed={!isInspectorOpen}
             onSelectCitation={handleSelectCitationFromTabs}
             onClose={() => setIsInspectorOpen(false)}
           />

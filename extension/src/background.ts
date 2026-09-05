@@ -63,7 +63,9 @@ chrome.action.onClicked.addListener(async (tab) => {
     try {
       const stored = await chrome.storage.local.get(['saka_last_open_mode', 'saka_window_bounds']);
       const mode = stored.saka_last_open_mode || 'window';
-      const bounds = stored.saka_window_bounds || { width: 1200, height: 800 };
+      const bounds = stored.saka_window_bounds || { width: 1150, height: 750 };
+      const targetWidth = Math.min(Math.max(900, bounds.width || 1150), 1350);
+      const targetHeight = Math.min(Math.max(650, bounds.height || 750), 850);
 
       if (mode === 'tab') {
         const url = chrome.runtime.getURL('window.html?mode=tab');
@@ -88,8 +90,9 @@ chrome.action.onClicked.addListener(async (tab) => {
       const win = await chrome.windows.create({
         url,
         type: 'popup',
-        width: Math.max(900, bounds.width || 1200),
-        height: Math.max(650, bounds.height || 800),
+        state: 'normal',
+        width: targetWidth,
+        height: targetHeight,
         left: bounds.left,
         top: bounds.top,
         focused: true,
@@ -229,7 +232,9 @@ chrome.runtime.onMessage.addListener(
         activeWorkstationConversationId = conversationId;
       }
       chrome.storage.local.get(['saka_window_bounds']).then(async (stored) => {
-        const bounds = stored.saka_window_bounds || { width: 1200, height: 800 };
+        const bounds = stored.saka_window_bounds || { width: 1150, height: 750 };
+        const targetWidth = Math.min(Math.max(900, bounds.width || 1150), 1350);
+        const targetHeight = Math.min(Math.max(650, bounds.height || 750), 850);
         const query = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : '';
         const url = chrome.runtime.getURL(`window.html${query}`);
 
@@ -253,8 +258,9 @@ chrome.runtime.onMessage.addListener(
         const win = await chrome.windows.create({
           url,
           type: 'popup',
-          width: Math.max(900, bounds.width || 1200),
-          height: Math.max(650, bounds.height || 800),
+          state: 'normal',
+          width: targetWidth,
+          height: targetHeight,
           left: bounds.left,
           top: bounds.top,
           focused: true,
@@ -331,6 +337,7 @@ chrome.runtime.onConnect.addListener((port) => {
             clientId: clientMsg.clientId,
             parentId: clientMsg.parentId,
             retryUserMessageId: clientMsg.retryUserMessageId,
+            channel: clientMsg.channel,
             stream: true,
           }),
           signal: abortController.signal,

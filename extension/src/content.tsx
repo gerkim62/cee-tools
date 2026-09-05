@@ -37,6 +37,7 @@ function initAskSakaWidget() {
 
   const hostElement = document.createElement('div');
   hostElement.id = HOST_ID;
+  hostElement.style.cssText = 'all: initial !important; position: static !important; pointer-events: none !important; z-index: 2147483647 !important;';
   document.documentElement.appendChild(hostElement);
 
   const shadowRoot = hostElement.attachShadow({ mode: 'open' });

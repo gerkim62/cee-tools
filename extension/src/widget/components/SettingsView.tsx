@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders, Sun } from 'lucide-react';
-import { WidgetView } from '../../types.js';
+import { Check, Wifi, AlertCircle, ChevronDown, ChevronUp, Server, Sliders, Sun, Layers, History } from 'lucide-react';
+import { AgentChannel, WidgetView } from '../../types.js';
 import { bgFetch } from '../../scripts/bg-fetch.js';
 import { useTheme } from '../hooks/useTheme.js';
 
@@ -12,6 +12,8 @@ export const SettingsView: React.FC = () => {
   const { themePreference, setTheme } = useTheme();
   const [backendUrl, setBackendUrl] = useState('https://cee-tools-wine.vercel.app');
   const [defaultView, setDefaultView] = useState<WidgetView>('chat');
+  const [agentChannel, setAgentChannel] = useState<AgentChannel>('care_center');
+  const [rememberCrossTab, setRememberCrossTab] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -19,10 +21,17 @@ export const SettingsView: React.FC = () => {
 
   useEffect(() => {
     try {
-      chrome.storage.local.get(['backendUrl', 'defaultView'], (res) => {
-        if (res.backendUrl) setBackendUrl(res.backendUrl);
-        if (res.defaultView) setDefaultView(res.defaultView);
-      });
+      chrome.storage.local.get(
+        ['backendUrl', 'defaultView', 'saka_agent_channel', 'saka_remember_conversation_across_tabs'],
+        (res) => {
+          if (res.backendUrl) setBackendUrl(res.backendUrl);
+          if (res.defaultView) setDefaultView(res.defaultView);
+          if (res.saka_agent_channel) setAgentChannel(res.saka_agent_channel);
+          if (typeof res.saka_remember_conversation_across_tabs === 'boolean') {
+            setRememberCrossTab(res.saka_remember_conversation_across_tabs);
+          }
+        }
+      );
     } catch {}
   }, []);
 
@@ -60,6 +69,8 @@ export const SettingsView: React.FC = () => {
         {
           backendUrl: trimmed,
           defaultView,
+          saka_agent_channel: agentChannel,
+          saka_remember_conversation_across_tabs: rememberCrossTab,
         },
         () => {
           setSaved(true);
@@ -72,6 +83,45 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="saka-view-container">
       <h3 className="saka-view-title">Extension Preferences</h3>
+
+      {/* Operational Channel Mode (Item 8) */}
+      <div className="saka-form-group">
+        <label className="saka-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Layers size={14} color="#2CB34A" />
+          <span>Operational Channel Mode</span>
+        </label>
+        <select
+          className="saka-select-input"
+          value={agentChannel}
+          onChange={(e) => setAgentChannel(e.target.value as AgentChannel)}
+        >
+          <option value="care_center">Care Center (Call Center / CEE)</option>
+          <option value="retail">Retail Shop / Franchise Desk</option>
+        </select>
+        <span style={{ fontSize: '11.5px', color: 'var(--saka-ink-secondary, #58655E)' }}>
+          Care Center mode strictly omits in-person/retail verification instructions.
+        </span>
+      </div>
+
+      {/* Cross-Tab Persistence (Item 20) */}
+      <div className="saka-form-group">
+        <label className="saka-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <History size={14} color="#2CB34A" />
+          <span>Cross-Tab Persistence</span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: 'var(--saka-ink-primary)' }}>
+          <input
+            type="checkbox"
+            checked={rememberCrossTab}
+            onChange={(e) => setRememberCrossTab(e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: '#2CB34A', cursor: 'pointer' }}
+          />
+          <span>Remember active conversation across new browser tabs</span>
+        </label>
+        <span style={{ fontSize: '11.5px', color: 'var(--saka-ink-secondary, #58655E)' }}>
+          Default is OFF (new tabs open a fresh chat). When enabled, new tabs restore your active chat session.
+        </span>
+      </div>
 
       {/* CEE Experience Settings */}
       <div className="saka-form-group">

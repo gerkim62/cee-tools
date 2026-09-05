@@ -87,7 +87,7 @@ export const FloatingBadge: React.FC<FloatingBadgeProps> = ({
           aria-label="Drag badge hint"
         >
           <GripHorizontal size={13} className="saka-badge-drag-hint-grip" />
-          <span>Drag if blocking view</span>
+          <span>Drag to reposition</span>
           {onDismissDragHint && (
             <button
               type="button"

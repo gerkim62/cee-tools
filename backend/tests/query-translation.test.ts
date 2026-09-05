@@ -63,11 +63,19 @@ describe('Query Translation & Prompt Suite', () => {
     assert.ok(QUERY_TRANSLATION_SYSTEM_PROMPT.includes('needsContext'));
     assert.ok(QUERY_TRANSLATION_SYSTEM_PROMPT.includes('primary'));
     assert.ok(QUERY_TRANSLATION_SYSTEM_PROMPT.includes('fallback'));
+    assert.ok(QUERY_TRANSLATION_SYSTEM_PROMPT.includes('/vet'));
+    assert.ok(QUERY_TRANSLATION_SYSTEM_PROMPT.includes('/reversal'));
 
     assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<role>'));
     assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<grounding>'));
     assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<clarify'));
     assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<suggest>'));
+    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('slash commands'));
+    assert.ok(ASK_SAKA_SYSTEM_PROMPT.includes('<channel_awareness>'));
+
+    // Verify hardcoded operational edge cases are removed and left to knowledge base
+    assert.strictEqual(ASK_SAKA_SYSTEM_PROMPT.includes('fingerprint'), false);
+    assert.strictEqual(ASK_SAKA_SYSTEM_PROMPT.includes('FPA biometric'), false);
 
     const contextualPrompt = buildContextualChunkPrompt('Full doc text', 'Chunk text');
     assert.ok(contextualPrompt.includes('<document>\nFull doc text\n</document>'));

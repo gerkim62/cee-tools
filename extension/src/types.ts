@@ -205,6 +205,8 @@ export interface SakaHubRelayFetchResponse {
   error?: string;
 }
 
+export type AgentChannel = 'care_center' | 'retail';
+
 export interface AskStreamClientMessage {
   type: 'START_ASK';
   question: string;
@@ -212,6 +214,7 @@ export interface AskStreamClientMessage {
   clientId: string;
   parentId?: string | null;
   retryUserMessageId?: string | null;
+  channel?: AgentChannel;
 }
 
 export type AskStreamServerMessage =
